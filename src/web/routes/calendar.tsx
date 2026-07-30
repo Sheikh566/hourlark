@@ -1,0 +1,252 @@
+import FullCalendar from "@fullcalendar/react";
+import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import type {
+  DateSelectArg,
+  DatesSetArg,
+  EventClickArg,
+  EventContentArg,
+  EventDropArg,
+} from "@fullcalendar/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatInTimeZone } from "date-fns-tz";
+import { useMemo, useState } from "react";
+
+import { useMe } from "@/web/app/context";
+import { ErrorState, PageHeader, Select } from "@/web/components/ui";
+import { EntryEditor } from "@/web/features/time/entry-editor";
+import { useNow } from "@/web/hooks/use-now";
+import { apiRequest } from "@/web/lib/api";
+import { formatDuration } from "@/web/lib/format";
+import type { Member, Project, Tag, TimeEntry } from "@/web/types";
+
+export function CalendarPage() {
+  const me = useMe();
+  const now = useNow(30_000);
+  const queryClient = useQueryClient();
+  const initialStart = new Date();
+  initialStart.setDate(initialStart.getDate() - ((initialStart.getDay() + 6) % 7));
+  initialStart.setHours(0, 0, 0, 0);
+  const [range, setRange] = useState({
+    start: initialStart.toISOString(),
+    end: new Date(initialStart.getTime() + 7 * 86_400_000).toISOString(),
+  });
+  const [memberId, setMemberId] = useState(me.member.id);
+  const [editing, setEditing] = useState<TimeEntry | null>(null);
+  const [selection, setSelection] = useState<{ start: Date; end: Date } | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const projects = useQuery({
+    queryKey: ["projects", "active"],
+    queryFn: () => apiRequest<{ projects: Project[] }>("/projects?status=active"),
+  });
+  const tags = useQuery({
+    queryKey: ["tags", "active"],
+    queryFn: () => apiRequest<{ tags: Tag[] }>("/tags?status=active"),
+  });
+  const members = useQuery({
+    queryKey: ["members"],
+    queryFn: () => apiRequest<{ members: Member[] }>("/members"),
+    enabled: me.permissions.view_team,
+  });
+  const calendar = useQuery({
+    queryKey: ["calendar", range, memberId],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        start: range.start,
+        end: range.end,
+        ...(me.permissions.view_team ? { member_id: memberId } : {}),
+      });
+      return apiRequest<{ events: TimeEntry[]; generated_at: string }>(`/calendar?${params}`);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ entry, start, end }: { entry: TimeEntry; start: Date; end: Date }) =>
+      apiRequest(`/time-entries/${entry.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          version: entry.version,
+          started_at: start.toISOString(),
+          stopped_at: end.toISOString(),
+        }),
+      }),
+    onSuccess: async () => {
+      setMutationError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["calendar"] }),
+        queryClient.invalidateQueries({ queryKey: ["time-entries"] }),
+      ]);
+    },
+  });
+
+  const entries = useMemo(() => calendar.data?.events ?? [], [calendar.data?.events]);
+  const overlaps = useMemo(() => {
+    const ids = new Set<string>();
+    const sorted = entries
+      .map((entry) => ({
+        id: entry.id,
+        start: new Date(entry.started_at).getTime(),
+        end: entry.stopped_at ? new Date(entry.stopped_at).getTime() : now,
+      }))
+      .sort((left, right) => left.start - right.start);
+    for (let index = 0; index < sorted.length; index += 1) {
+      const current = sorted[index];
+      if (!current) continue;
+      for (let compare = index + 1; compare < sorted.length; compare += 1) {
+        const candidate = sorted[compare];
+        if (!candidate || candidate.start >= current.end) break;
+        ids.add(current.id);
+        ids.add(candidate.id);
+      }
+    }
+    return ids;
+  }, [entries, now]);
+  const totalsByDay = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const entry of entries) {
+      const day = formatInTimeZone(entry.started_at, me.member.timezone, "yyyy-MM-dd");
+      totals.set(
+        day,
+        (totals.get(day) ?? 0) +
+          (entry.running ? now - new Date(entry.started_at).getTime() : entry.duration_ms),
+      );
+    }
+    return totals;
+  }, [entries, me.member.timezone, now]);
+
+  const moveEntry = (entryId: string, start: Date | null, end: Date | null, revert: () => void) => {
+    const entry = entries.find((item) => item.id === entryId);
+    if (!entry || !start || !end) {
+      revert();
+      return;
+    }
+    updateMutation.mutate(
+      { entry, start, end },
+      {
+        onError: (error) => {
+          revert();
+          setMutationError(error.message);
+          void queryClient.invalidateQueries({ queryKey: ["calendar"] });
+        },
+      },
+    );
+  };
+
+  return (
+    <>
+      <PageHeader
+        title="Calendar"
+        description={`Time is displayed in ${me.member.timezone}. Drag empty space to create; move or resize entries to edit.`}
+        actions={
+          me.permissions.view_team ? (
+            <Select
+              className="min-w-56"
+              value={memberId}
+              onChange={(event) => setMemberId(event.target.value)}
+              aria-label="Calendar member"
+            >
+              {(members.data?.members ?? []).map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.display_name}
+                </option>
+              ))}
+            </Select>
+          ) : undefined
+        }
+      />
+      {mutationError ? (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          The calendar change was rolled back: {mutationError}
+        </div>
+      ) : null}
+      {calendar.error ? (
+        <ErrorState message={calendar.error.message} onRetry={() => void calendar.refetch()} />
+      ) : (
+        <section className="panel overflow-hidden p-3 md:p-5">
+          <FullCalendar
+            plugins={[timeGridPlugin, interactionPlugin]}
+            initialView="timeGridWeek"
+            firstDay={me.workspace.week_start === "monday" ? 1 : 0}
+            timeZone={me.member.timezone}
+            height="auto"
+            allDaySlot={false}
+            nowIndicator
+            selectable
+            selectMirror
+            editable={memberId === me.member.id || me.permissions.view_team}
+            eventResizableFromStart
+            slotMinTime="06:00:00"
+            slotMaxTime="22:00:00"
+            scrollTime="08:00:00"
+            headerToolbar={{
+              left: "prev,next today",
+              center: "title",
+              right: "timeGridWeek,timeGridDay",
+            }}
+            buttonText={{ today: "Today", week: "Week", day: "Day" }}
+            events={entries.map((entry) => ({
+              id: entry.id,
+              title: entry.description || entry.project?.name || "No description",
+              start: entry.started_at,
+              end: entry.stopped_at ?? new Date(now).toISOString(),
+              backgroundColor: entry.project?.color ?? "#36546D",
+              borderColor: overlaps.has(entry.id) ? "#FEB500" : (entry.project?.color ?? "#36546D"),
+              extendedProps: { entry },
+            }))}
+            datesSet={(info: DatesSetArg) =>
+              setRange({ start: info.start.toISOString(), end: info.end.toISOString() })
+            }
+            select={(info: DateSelectArg) => setSelection({ start: info.start, end: info.end })}
+            eventClick={(info: EventClickArg) =>
+              setEditing(info.event.extendedProps.entry as TimeEntry)
+            }
+            eventDrop={(info: EventDropArg) =>
+              moveEntry(info.event.id, info.event.start, info.event.end, info.revert)
+            }
+            eventResize={(info: EventResizeDoneArg) =>
+              moveEntry(info.event.id, info.event.start, info.event.end, info.revert)
+            }
+            dayHeaderContent={(info) => {
+              const key = formatInTimeZone(info.date, me.member.timezone, "yyyy-MM-dd");
+              return (
+                <div className="py-1 text-center">
+                  <div>{formatInTimeZone(info.date, me.member.timezone, "EEE d")}</div>
+                  <div className="text-brand-blue mt-1 text-[10px] font-medium">
+                    {formatDuration(totalsByDay.get(key) ?? 0)}
+                  </div>
+                </div>
+              );
+            }}
+            eventContent={(info: EventContentArg) => (
+              <div className="min-w-0 overflow-hidden">
+                <div className="truncate text-xs font-semibold">{info.event.title}</div>
+                <div className="truncate text-[10px] opacity-90">
+                  {formatDuration(
+                    (info.event.end?.getTime() ?? now) - (info.event.start?.getTime() ?? now),
+                  )}
+                  {overlaps.has(info.event.id) ? " · overlap" : ""}
+                </div>
+              </div>
+            )}
+          />
+        </section>
+      )}
+      <EntryEditor
+        open={editing !== null || selection !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditing(null);
+            setSelection(null);
+          }
+        }}
+        entry={editing}
+        targetMemberId={me.permissions.view_team ? memberId : undefined}
+        initialStart={selection?.start}
+        initialStop={selection?.end}
+        projects={projects.data?.projects ?? []}
+        tags={tags.data?.tags ?? []}
+      />
+    </>
+  );
+}

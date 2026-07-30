@@ -1,0 +1,45 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "iomechs-time",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "iomechs-time",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "AUTH_MODE": "access",
+    "APP_NAME": "IOMechs Time",
+    "COMPANY_NAME": "IOMechs",
+    "COMPANY_DOMAIN": "iomechs.com",
+    "DEFAULT_TIMEZONE": "Asia/Karachi",
+    "DEFAULT_CURRENCY": "USD",
+    "DEFAULT_WEEK_START": "monday",
+    "ACCESS_TEAM_DOMAIN": "None",
+    "ACCESS_AUD": "[Access application audience]",
+    "BOOTSTRAP_ADMIN_EMAILS": "sheikh.abdullah@iomechs.com",
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05,
+    },
+  },
+}

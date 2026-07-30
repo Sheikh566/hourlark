@@ -1,0 +1,13 @@
+ENVIRONMENT=development
+AUTH_MODE=dev
+APP_NAME=IOMechs Time
+COMPANY_NAME=IOMechs
+COMPANY_DOMAIN=iomechs.com
+DEFAULT_TIMEZONE=Asia/Karachi
+DEFAULT_CURRENCY=USD
+DEFAULT_WEEK_START=monday
+ACCESS_TEAM_DOMAIN=None
+ACCESS_AUD=development
+BOOTSTRAP_ADMIN_EMAILS=sheikh.abdullah@iomechs.com
+DEV_DEFAULT_USER_EMAIL=sheikh.abdullah@iomechs.com
+CSRF_SECRET=replace-with-a-long-random-development-only-value
