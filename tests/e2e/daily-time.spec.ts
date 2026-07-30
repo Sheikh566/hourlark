@@ -9,6 +9,25 @@ function seriousViolations(
   );
 }
 
+test("development authentication can recover from an unusable selected identity", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("development-recovery-seeded")) {
+      localStorage.setItem("iomechs.dev-user", "not-seeded@iomechs.com");
+      sessionStorage.setItem("development-recovery-seeded", "true");
+    }
+  });
+  await page.goto("/time");
+
+  await expect(page.getByRole("heading", { name: "Unable to open IOMechs Time" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Development account recovery" })).toBeVisible();
+  await page.getByRole("button", { name: "Use default development account" }).click();
+
+  await expect(page.getByRole("heading", { name: "Time" })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("iomechs.dev-user"))).toBeNull();
+});
+
 test("member can open the daily time workspace and navigate core views", async ({ page }) => {
   await page.goto("/time");
   await expect(page.getByRole("heading", { name: "Time" })).toBeVisible();

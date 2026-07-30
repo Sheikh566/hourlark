@@ -18,7 +18,7 @@ import { twMerge } from "tailwind-merge";
 import { useMe } from "@/web/app/context";
 import { Button } from "@/web/components/ui";
 import { GlobalTimerBar } from "@/web/features/timer/global-timer";
-import { setDevelopmentIdentity } from "@/web/lib/api";
+import { DEVELOPMENT_IDENTITIES, setDevelopmentIdentity } from "@/web/lib/api";
 
 interface NavigationItem {
   to: string;
@@ -86,17 +86,16 @@ export function AppLayout() {
                 <p className="px-2 py-1.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
                   Development identity
                 </p>
-                {["sheikh.abdullah@iomechs.com", "manager@iomechs.com", "member@iomechs.com"].map(
-                  (email) => (
-                    <button
-                      key={email}
-                      className="block w-full rounded-md px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/8 hover:text-white"
-                      onClick={() => setDevelopmentIdentity(email)}
-                    >
-                      {email}
-                    </button>
-                  ),
-                )}
+                {DEVELOPMENT_IDENTITIES.map(({ email, label }) => (
+                  <button
+                    key={email}
+                    className="block w-full rounded-md px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/8 hover:text-white"
+                    onClick={() => setDevelopmentIdentity(email)}
+                  >
+                    <span className="block">{email}</span>
+                    <span className="text-[10px] text-slate-500">{label}</span>
+                  </button>
+                ))}
               </div>
             ) : null}
           </div>

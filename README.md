@@ -41,7 +41,12 @@ Open `http://127.0.0.1:5173`. Development authentication is enabled only when bo
 - `member@iomechs.com` — Member
 
 Use the user menu to switch between seeded roles. The `X-Dev-User-Email` header is ignored unless
-development authentication is explicitly active.
+development authentication is explicitly active. If the selected development member is
+deactivated or otherwise cannot authenticate, the error screen provides a development-only account
+recovery panel. Choose **Use default development account** to clear the browser override and return
+to `DEV_DEFAULT_USER_EMAIL`, or select another seeded identity. This recovery UI is excluded from
+production builds; production identity recovery remains the responsibility of Cloudflare Access
+and an active application administrator.
 
 ## Validation
 

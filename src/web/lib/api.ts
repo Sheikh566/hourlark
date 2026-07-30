@@ -2,6 +2,12 @@ import type { ApiErrorPayload } from "@/web/types";
 
 let csrfToken: string | null = null;
 
+export const DEVELOPMENT_IDENTITIES = [
+  { email: "sheikh.abdullah@iomechs.com", label: "Administrator" },
+  { email: "manager@iomechs.com", label: "Manager" },
+  { email: "member@iomechs.com", label: "Member" },
+] as const;
+
 export class ApiClientError extends Error {
   constructor(
     readonly status: number,
@@ -18,12 +24,24 @@ export function setCsrfToken(value: string): void {
   csrfToken = value;
 }
 
-function developmentIdentity(): string | null {
+export function getDevelopmentIdentity(): string | null {
+  if (!import.meta.env.DEV) return null;
   return localStorage.getItem("iomechs.dev-user");
 }
 
 export function setDevelopmentIdentity(email: string): void {
-  localStorage.setItem("iomechs.dev-user", email);
+  if (!import.meta.env.DEV) {
+    throw new Error("Development identity switching is disabled in production.");
+  }
+  localStorage.setItem("iomechs.dev-user", email.trim().toLowerCase());
+  window.location.reload();
+}
+
+export function clearDevelopmentIdentity(): void {
+  if (!import.meta.env.DEV) {
+    throw new Error("Development identity switching is disabled in production.");
+  }
+  localStorage.removeItem("iomechs.dev-user");
   window.location.reload();
 }
 
@@ -46,7 +64,7 @@ async function parseError(response: Response): Promise<never> {
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
-  const devIdentity = developmentIdentity();
+  const devIdentity = getDevelopmentIdentity();
   if (devIdentity) headers.set("X-Dev-User-Email", devIdentity);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (init.method && !["GET", "HEAD"].includes(init.method.toUpperCase()) && csrfToken) {
@@ -63,7 +81,7 @@ export async function apiDownload(
   fallbackName: string,
 ): Promise<void> {
   const headers = new Headers({ "Content-Type": "application/json", Accept: "*/*" });
-  const devIdentity = developmentIdentity();
+  const devIdentity = getDevelopmentIdentity();
   if (devIdentity) headers.set("X-Dev-User-Email", devIdentity);
   if (csrfToken) headers.set("X-CSRF-Token", csrfToken);
   const response = await fetch(`/api/v1${path}`, {
