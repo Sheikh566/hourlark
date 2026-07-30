@@ -600,7 +600,16 @@ function SummaryContent({ report, financial }: { report?: SummaryReport; financi
                     <Cell key={group.key} fill={chartColors[index % chartColors.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => formatDuration(Number(value))} />
+                <Tooltip
+                  formatter={(value) => formatDuration(Number(value))}
+                  contentStyle={{
+                    background: "#171d16",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 8,
+                    color: "#e2e8f0",
+                  }}
+                  itemStyle={{ color: "#d3f8da" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>

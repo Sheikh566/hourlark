@@ -42,8 +42,8 @@
 }
 
 :root {
-  color: #121d07;
-  background: #f3faea;
+  color: #e7fdeb;
+  background: #0f150e;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -56,6 +56,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #0f150e;
 }
 
 button,
@@ -76,33 +77,162 @@ select:not(:disabled) {
 }
 
 .panel {
-  border: 1px solid #d3f8da;
-  border-radius: 0.75rem;
-  background: white;
-  box-shadow: 0 1px 2px rgb(18 29 7 / 7%);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 0.625rem;
+  background: #171d16;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 14%);
+}
+
+.timer-tool {
+  position: relative;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.5rem;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.timer-tool:hover:not(:disabled) {
+  background: rgb(255 255 255 / 7%);
+  color: #a6f2b5;
+}
+
+.timer-tool:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.timer-popover {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.625rem;
+  background: #171d16;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 45%);
+}
+
+.app-shell input[type="checkbox"] {
+  accent-color: #21de47;
+}
+
+.app-shell,
+.dark-surface {
+  color-scheme: dark;
+}
+
+.app-shell option,
+.dark-surface option {
+  background: #111710;
+  color: #e2e8f0;
+}
+
+.app-shell textarea,
+.dark-surface textarea {
+  border-color: rgb(255 255 255 / 15%) !important;
+  background: #111710 !important;
+  color: #f1f5f9 !important;
+}
+
+.app-shell .text-slate-900,
+.app-shell .text-slate-800,
+.app-shell .text-slate-700,
+.dark-surface .text-slate-900,
+.dark-surface .text-slate-800,
+.dark-surface .text-slate-700 {
+  color: #e2e8f0;
+}
+
+.app-shell .text-slate-600,
+.app-shell .text-slate-500,
+.dark-surface .text-slate-600,
+.dark-surface .text-slate-500 {
+  color: #94a3b8;
+}
+
+.app-shell .bg-white {
+  background-color: #171d16;
+}
+
+.app-shell .bg-slate-50 {
+  background-color: #111710;
+}
+
+.app-shell .bg-slate-100 {
+  background-color: #20291e;
+}
+
+.app-shell .border-slate-100,
+.app-shell .border-slate-200,
+.app-shell .border-slate-300,
+.dark-surface .border-slate-100,
+.dark-surface .border-slate-200,
+.dark-surface .border-slate-300 {
+  border-color: rgb(255 255 255 / 10%);
+}
+
+.app-shell .divide-y > :not(:last-child) {
+  border-color: rgb(255 255 255 / 8%);
+}
+
+.app-shell .hover\:bg-slate-50:hover,
+.app-shell .hover\:bg-slate-100:hover {
+  background-color: rgb(255 255 255 / 7%);
+}
+
+.app-shell ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.app-shell ::-webkit-scrollbar-track {
+  background: #0f150e;
+}
+
+.app-shell ::-webkit-scrollbar-thumb {
+  border: 2px solid #0f150e;
+  border-radius: 999px;
+  background: #345313;
 }
 
 .fc {
-  --fc-border-color: #d3f8da;
-  --fc-button-bg-color: #345313;
-  --fc-button-border-color: #345313;
-  --fc-button-hover-bg-color: #1a290a;
-  --fc-button-hover-border-color: #1a290a;
-  --fc-button-active-bg-color: #1a290a;
-  --fc-today-bg-color: #e9fced;
+  --fc-page-bg-color: #111710;
+  --fc-neutral-bg-color: #171d16;
+  --fc-neutral-text-color: #94a3b8;
+  --fc-border-color: rgb(255 255 255 / 10%);
+  --fc-button-text-color: #cbd5e1;
+  --fc-button-bg-color: #171d16;
+  --fc-button-border-color: rgb(255 255 255 / 16%);
+  --fc-button-hover-bg-color: #263224;
+  --fc-button-hover-border-color: #4e7c1d;
+  --fc-button-active-bg-color: #0d591c;
+  --fc-button-active-border-color: #21de47;
+  --fc-today-bg-color: rgb(33 222 71 / 6%);
+  color: #cbd5e1;
   font-size: 0.83rem;
 }
 
 .fc .fc-toolbar-title {
-  color: #1a290a;
+  color: #f1f5f9;
   font-size: 1rem;
   font-weight: 700;
 }
 
 .fc .fc-event {
-  border-radius: 0.35rem;
+  border-radius: 0.25rem;
   padding: 2px 4px;
   border-width: 1px;
+}
+
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #21de47;
+}
+
+.fc .fc-timegrid-now-indicator-arrow {
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: #21de47;
 }
 
 @media (max-width: 767px) {

@@ -19,6 +19,9 @@ const ClientsPage = lazy(() =>
 const MembersPage = lazy(() =>
   import("@/web/routes/members").then((module) => ({ default: module.MembersPage })),
 );
+const TagsPage = lazy(() =>
+  import("@/web/routes/tags").then((module) => ({ default: module.TagsPage })),
+);
 const AdministrationPage = lazy(() =>
   import("@/web/routes/administration").then((module) => ({
     default: module.AdministrationPage,
@@ -29,7 +32,7 @@ export function AppRouter() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-56 items-center justify-center text-sm text-slate-500">
+        <div className="flex min-h-56 items-center justify-center text-sm text-slate-400">
           Loading view…
         </div>
       }
@@ -43,6 +46,7 @@ export function AppRouter() {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/clients" element={<ClientsPage />} />
           <Route path="/members" element={<MembersPage />} />
+          <Route path="/tags" element={<TagsPage />} />
           <Route path="/administration" element={<AdministrationPage />} />
           <Route path="*" element={<Navigate to="/time" replace />} />
         </Route>

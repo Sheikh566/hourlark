@@ -10,15 +10,27 @@ import type {
 } from "@fullcalendar/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
+import { CalendarDays, List } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
 
 import { useMe } from "@/web/app/context";
-import { ErrorState, PageHeader, Select } from "@/web/components/ui";
+import { ErrorState, Select } from "@/web/components/ui";
 import { EntryEditor } from "@/web/features/time/entry-editor";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
 import type { Member, Project, Tag, TimeEntry } from "@/web/types";
+
+function calendarTextColor(background: string): string {
+  const hex = background.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  return luminance > 145 ? "#051f0a" : "#ffffff";
+}
 
 export function CalendarPage() {
   const me = useMe();
@@ -135,41 +147,61 @@ export function CalendarPage() {
 
   return (
     <>
-      <PageHeader
-        title="Calendar"
-        description={`Time is displayed in ${me.member.timezone}. Drag empty space to create; move or resize entries to edit.`}
-        actions={
-          me.permissions.view_team ? (
-            <Select
-              className="min-w-56"
-              value={memberId}
-              onChange={(event) => setMemberId(event.target.value)}
-              aria-label="Calendar member"
-            >
-              {(members.data?.members ?? []).map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.display_name}
-                </option>
-              ))}
-            </Select>
-          ) : undefined
-        }
-      />
+      <section className="border-b border-white/10 bg-[#111710]">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
+          <div>
+            <h1 className="text-base font-bold text-slate-100">Calendar</h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {me.member.timezone} · Drag to create, move, or resize time.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {me.permissions.view_team ? (
+              <Select
+                className="h-9 min-h-9 min-w-48"
+                value={memberId}
+                onChange={(event) => setMemberId(event.target.value)}
+                aria-label="Calendar member"
+              >
+                {(members.data?.members ?? []).map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.display_name}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <div className="flex shrink-0 overflow-hidden rounded-md border border-white/15">
+              <span className="bg-frosted-mint-900 text-frosted-mint-200 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold whitespace-nowrap">
+                <CalendarDays size={14} /> Calendar
+              </span>
+              <Link
+                to="/time"
+                className="flex shrink-0 items-center gap-1.5 border-l border-white/10 px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-slate-400 hover:bg-white/6 hover:text-white"
+              >
+                <List size={14} /> Time entries
+              </Link>
+            </div>
+          </div>
+        </div>
+        <div className="from-light-green-500 via-frosted-mint-700 mx-5 h-px bg-gradient-to-r to-transparent" />
+      </section>
       {mutationError ? (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="m-4 rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-sm text-red-300">
           The calendar change was rolled back: {mutationError}
         </div>
       ) : null}
       {calendar.error ? (
-        <ErrorState message={calendar.error.message} onRetry={() => void calendar.refetch()} />
+        <div className="p-4">
+          <ErrorState message={calendar.error.message} onRetry={() => void calendar.refetch()} />
+        </div>
       ) : (
-        <section className="panel overflow-hidden p-3 md:p-5">
+        <section className="overflow-hidden bg-[#111710] p-3">
           <FullCalendar
             plugins={[timeGridPlugin, interactionPlugin]}
             initialView="timeGridWeek"
             firstDay={me.workspace.week_start === "monday" ? 1 : 0}
             timeZone={me.member.timezone}
-            height="auto"
+            height="calc(100vh - 176px)"
             allDaySlot={false}
             nowIndicator
             selectable
@@ -178,22 +210,28 @@ export function CalendarPage() {
             eventResizableFromStart
             slotMinTime="06:00:00"
             slotMaxTime="22:00:00"
+            slotDuration="00:30:00"
             scrollTime="08:00:00"
             headerToolbar={{
               left: "prev,next today",
               center: "title",
               right: "timeGridWeek,timeGridDay",
             }}
-            buttonText={{ today: "Today", week: "Week", day: "Day" }}
-            events={entries.map((entry) => ({
-              id: entry.id,
-              title: entry.description || entry.project?.name || "No description",
-              start: entry.started_at,
-              end: entry.stopped_at ?? new Date(now).toISOString(),
-              backgroundColor: entry.project?.color ?? "#14852B",
-              borderColor: overlaps.has(entry.id) ? "#82CF30" : (entry.project?.color ?? "#14852B"),
-              extendedProps: { entry },
-            }))}
+            buttonIcons={false}
+            buttonText={{ prev: "‹", next: "›", today: "Today", week: "Week", day: "Day" }}
+            events={entries.map((entry) => {
+              const backgroundColor = entry.project?.color ?? "#14852B";
+              return {
+                id: entry.id,
+                title: entry.description || entry.project?.name || "No description",
+                start: entry.started_at,
+                end: entry.stopped_at ?? new Date(now).toISOString(),
+                backgroundColor,
+                textColor: calendarTextColor(backgroundColor),
+                borderColor: overlaps.has(entry.id) ? "#82CF30" : backgroundColor,
+                extendedProps: { entry },
+              };
+            })}
             datesSet={(info: DatesSetArg) =>
               setRange({ start: info.start.toISOString(), end: info.end.toISOString() })
             }
@@ -212,7 +250,7 @@ export function CalendarPage() {
               return (
                 <div className="py-1 text-center">
                   <div>{formatInTimeZone(info.date, me.member.timezone, "EEE d")}</div>
-                  <div className="text-frosted-mint-700 mt-1 text-[10px] font-medium">
+                  <div className="text-frosted-mint-300 mt-1 text-[10px] font-medium">
                     {formatDuration(totalsByDay.get(key) ?? 0)}
                   </div>
                 </div>
@@ -221,7 +259,7 @@ export function CalendarPage() {
             eventContent={(info: EventContentArg) => (
               <div className="min-w-0 overflow-hidden">
                 <div className="truncate text-xs font-semibold">{info.event.title}</div>
-                <div className="truncate text-[10px] opacity-90">
+                <div className="truncate text-[10px] font-medium">
                   {formatDuration(
                     (info.event.end?.getTime() ?? now) - (info.event.start?.getTime() ?? now),
                   )}

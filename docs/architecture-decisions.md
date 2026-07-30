@@ -61,3 +61,14 @@ migrations. Run React component tests in a separate jsdom Vitest configuration.
 
 **Reason:** Custom jsdom environments are not supported inside the Workers integration, while both
 runtime-accurate server tests and React Testing Library coverage are required.
+
+## ADR-009 — Compact dark tracking workspace
+
+**Decision:** Use a compact dark application shell with a persistent functional timer, searchable
+in-context project and tag selectors, dense time rows, and shared Time/Calendar view navigation.
+Willow green provides structure, light green provides primary timer emphasis, and frosted mint
+provides selected and informational states.
+
+**Reason:** These interaction patterns reduce the distance between starting, categorizing, and
+correcting time while preserving an original IOMechs identity. The implementation does not reuse
+another product's branding, assets, proprietary wording, or pixel-level interface.

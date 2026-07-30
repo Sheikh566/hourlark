@@ -31,10 +31,10 @@ export function MeProvider({ children }: { children: ReactNode }) {
 
   if (me.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-[#0f150e]">
         <div className="text-center">
           <div className="bg-light-green-500 mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl" />
-          <p className="text-willow-green-800 text-sm font-medium">Loading IOMechs Time…</p>
+          <p className="text-frosted-mint-200 text-sm font-medium">Loading IOMechs Time…</p>
         </div>
       </div>
     );
@@ -42,7 +42,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
   if (me.error || !me.data) {
     const message = me.error instanceof Error ? me.error.message : "Unable to load your workspace.";
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="app-shell flex min-h-screen items-center justify-center bg-[#0f150e] p-6">
         <div className="panel max-w-lg p-8 text-center">
           <h1 className="text-xl font-bold text-slate-900">Unable to open IOMechs Time</h1>
           <p className="mt-2 text-sm text-slate-600">{message}</p>

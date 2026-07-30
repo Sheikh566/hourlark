@@ -102,6 +102,7 @@ export function ProjectsPage() {
                 className="w-44"
                 value={clientId}
                 onChange={(event) => setClientId(event.target.value)}
+                aria-label="Filter projects by client"
               >
                 <option value="">All clients</option>
                 {(clients.data?.clients ?? []).map((client) => (
@@ -114,6 +115,7 @@ export function ProjectsPage() {
                 className="w-36"
                 value={status}
                 onChange={(event) => setStatus(event.target.value as typeof status)}
+                aria-label="Filter projects by status"
               >
                 <option value="active">Active</option>
                 <option value="archived">Archived</option>

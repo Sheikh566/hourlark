@@ -336,7 +336,7 @@ function WorkspaceSettings() {
   );
 }
 
-function TagSettings() {
+export function TagSettings() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"active" | "archived">("active");
   const [editing, setEditing] = useState<Tag | "new" | null>(null);
