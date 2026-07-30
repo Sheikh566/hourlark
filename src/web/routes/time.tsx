@@ -293,7 +293,6 @@ export function TimePage() {
             <span className="text-light-green-400 text-[10px] font-black tracking-[0.12em] uppercase">
               {me.workspace.company_name}
             </span>
-            <span className="from-light-green-500 h-px w-16 bg-gradient-to-r to-transparent sm:w-40" />
           </div>
           <div className="flex shrink-0 overflow-hidden rounded-md border border-white/15">
             <Link
