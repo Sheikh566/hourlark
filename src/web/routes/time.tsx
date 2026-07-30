@@ -3,14 +3,11 @@ import { addDays, addWeeks, startOfDay, startOfWeek } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import {
   CalendarDays,
-  CalendarPlus,
   ChevronLeft,
   ChevronRight,
   Copy,
   List,
-  MoreHorizontal,
   Play,
-  Plus,
   RotateCcw,
   Search,
   Trash2,
@@ -20,7 +17,7 @@ import { Link } from "react-router";
 
 import { useMe } from "@/web/app/context";
 import { Badge, Button, EmptyState, ErrorState, Input, Select } from "@/web/components/ui";
-import { EntryEditor } from "@/web/features/time/entry-editor";
+import { InlineEntryEditor } from "@/web/features/time/inline-entry-editor";
 import { useNow } from "@/web/hooks/use-now";
 import { ApiClientError, apiRequest, idempotencyKey } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
@@ -39,8 +36,7 @@ export function TimePage() {
   const [filterTag, setFilterTag] = useState("");
   const [filterBillable, setFilterBillable] = useState("");
   const [memberId, setMemberId] = useState(me.member.id);
-  const [editor, setEditor] = useState<TimeEntry | "new" | null>(null);
-  const [duplicate, setDuplicate] = useState<TimeEntry | null>(null);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [undoEntry, setUndoEntry] = useState<TimeEntry | null>(null);
 
   const periodStart =
@@ -174,6 +170,37 @@ export function TimePage() {
       ]);
     },
   });
+  const duplicateMutation = useMutation({
+    mutationFn: (entry: TimeEntry) =>
+      apiRequest<{ entry: TimeEntry }>("/time-entries", {
+        method: "POST",
+        body: JSON.stringify({
+          ...(me.permissions.view_team ? { member_id: entry.member.id } : {}),
+          description: entry.description,
+          project_id: entry.project?.id ?? null,
+          tag_ids: entry.tags.map((tag) => tag.id),
+          started_at: entry.started_at,
+          stopped_at: entry.stopped_at ?? new Date().toISOString(),
+          billable: entry.billable,
+          ...(me.permissions.financial &&
+          entry.rate_minor !== null &&
+          entry.rate_minor !== undefined
+            ? {
+                rate_minor: entry.rate_minor,
+                rate_currency: entry.rate_currency ?? me.workspace.currency,
+              }
+            : {}),
+        }),
+      }),
+    onSuccess: async ({ entry }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["time-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["calendar"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+      ]);
+      setEditingEntryId(entry.id);
+    },
+  });
 
   const grouped = useMemo(() => {
     const groups = new Map<string, TimeEntry[]>();
@@ -258,9 +285,6 @@ export function TimePage() {
                 ))}
               </Select>
             ) : null}
-            <Button variant="secondary" className="h-9" onClick={() => setEditor("new")}>
-              <CalendarPlus size={15} /> <span className="hidden sm:inline">Manual entry</span>
-            </Button>
           </div>
         </div>
 
@@ -361,11 +385,14 @@ export function TimePage() {
         ) : grouped.length === 0 ? (
           <EmptyState
             title="No time recorded in this range"
-            description="Start the timer or add a manual entry to build your time history."
+            description="Start the timer above, or drag across a time range in Calendar."
             action={
-              <Button variant="secondary" onClick={() => setEditor("new")}>
-                <Plus size={16} /> Add time
-              </Button>
+              <Link
+                to="/calendar"
+                className="border-frosted-mint-800 hover:border-frosted-mint-600 inline-flex min-h-9 items-center gap-2 rounded-lg border bg-white/4 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-white/8"
+              >
+                <CalendarDays size={15} /> Open Calendar
+              </Link>
             }
           />
         ) : (
@@ -384,96 +411,120 @@ export function TimePage() {
                     {formatDuration(dayTotal)}
                   </span>
                 </div>
-                {dayEntries.map((entry) => (
-                  <article
-                    key={entry.id}
-                    className={`group grid min-h-[58px] items-center gap-3 border-b border-white/7 px-5 py-2.5 transition hover:bg-white/[0.035] md:grid-cols-[minmax(180px,1fr)_240px_175px_auto] ${
-                      entry.running ? "bg-frosted-mint-950/30" : ""
-                    }`}
-                  >
-                    <div className="min-w-0">
+                {dayEntries.map((entry) =>
+                  editingEntryId === entry.id ? (
+                    <InlineEntryEditor
+                      key={entry.id}
+                      entry={entry}
+                      projects={projects.data?.projects ?? []}
+                      tags={tags.data?.tags ?? []}
+                      onCancel={() => setEditingEntryId(null)}
+                      onSaved={() => setEditingEntryId(null)}
+                    />
+                  ) : (
+                    <article
+                      key={entry.id}
+                      className={`group grid min-h-[58px] items-center gap-3 border-b border-white/7 px-5 py-2.5 transition hover:bg-white/[0.035] md:grid-cols-[minmax(180px,1fr)_240px_175px_auto] ${
+                        entry.running ? "bg-frosted-mint-950/30" : ""
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          className="hover:text-frosted-mint-300 block max-w-full truncate rounded-sm text-left text-sm font-semibold text-slate-100"
+                          onClick={() => setEditingEntryId(entry.id)}
+                          title="Edit description"
+                        >
+                          {entry.description || "No description"}
+                        </button>
+                        {entry.tags.length ? (
+                          <button
+                            type="button"
+                            className="mt-1 flex max-w-full flex-wrap gap-1 rounded-sm text-left"
+                            onClick={() => setEditingEntryId(entry.id)}
+                            aria-label={`Edit tags for ${entry.description || "time entry"}`}
+                          >
+                            {entry.tags.map((tag) => (
+                              <Badge key={tag.id} color={tag.color}>
+                                {tag.name}
+                              </Badge>
+                            ))}
+                          </button>
+                        ) : null}
+                      </div>
                       <button
                         type="button"
-                        className="hover:text-frosted-mint-300 block max-w-full truncate text-left text-sm font-semibold text-slate-100"
-                        onClick={() => setEditor(entry)}
+                        className="flex min-w-0 items-center gap-2 rounded-sm text-left text-sm"
+                        onClick={() => setEditingEntryId(entry.id)}
+                        title="Edit project"
                       >
-                        {entry.description || "No description"}
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
+                          style={
+                            entry.project?.color
+                              ? { backgroundColor: entry.project.color }
+                              : undefined
+                          }
+                        />
+                        <span className="text-frosted-mint-300 truncate">
+                          {entry.project?.name ?? "No project"}
+                        </span>
+                        {entry.client?.name ? (
+                          <span className="truncate text-xs text-slate-600">
+                            {entry.client.name}
+                          </span>
+                        ) : null}
                       </button>
-                      {entry.tags.length ? (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {entry.tags.map((tag) => (
-                            <Badge key={tag.id} color={tag.color}>
-                              {tag.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex min-w-0 items-center gap-2 text-sm">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
-                        style={
-                          entry.project?.color
-                            ? { backgroundColor: entry.project.color }
-                            : undefined
-                        }
-                      />
-                      <span className="text-frosted-mint-300 truncate">
-                        {entry.project?.name ?? "No project"}
-                      </span>
-                      {entry.client?.name ? (
-                        <span className="truncate text-xs text-slate-600">{entry.client.name}</span>
-                      ) : null}
-                    </div>
-                    <div className="font-mono text-xs text-slate-500 md:text-right">
-                      {formatInTimeZone(entry.started_at, me.member.timezone, "HH:mm")} –{" "}
-                      {entry.stopped_at
-                        ? formatInTimeZone(entry.stopped_at, me.member.timezone, "HH:mm")
-                        : "running"}
-                      <strong
-                        className={`ml-3 text-sm ${
-                          entry.running ? "text-light-green-400" : "text-slate-200"
-                        }`}
+                      <button
+                        type="button"
+                        className="rounded-sm font-mono text-xs text-slate-500 md:text-right"
+                        onClick={() => setEditingEntryId(entry.id)}
+                        title="Edit date, times, and duration"
                       >
-                        {formatDuration(durationFor(entry))}
-                      </strong>
-                    </div>
-                    <div className="flex justify-end gap-0.5 opacity-70 transition group-hover:opacity-100">
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => continueMutation.mutate(entry)}
-                        title="Continue"
-                      >
-                        <Play size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setDuplicate(entry)}
-                        title="Duplicate"
-                      >
-                        <Copy size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setEditor(entry)}
-                        title="Edit"
-                      >
-                        <MoreHorizontal size={15} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0 text-red-400"
-                        onClick={() => deleteMutation.mutate(entry)}
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </article>
-                ))}
+                        {formatInTimeZone(entry.started_at, me.member.timezone, "HH:mm")} –{" "}
+                        {entry.stopped_at
+                          ? formatInTimeZone(entry.stopped_at, me.member.timezone, "HH:mm")
+                          : "running"}
+                        <strong
+                          className={`ml-3 text-sm ${
+                            entry.running ? "text-light-green-400" : "text-slate-200"
+                          }`}
+                        >
+                          {formatDuration(durationFor(entry))}
+                        </strong>
+                      </button>
+                      <div className="flex justify-end gap-0.5 opacity-70 transition group-hover:opacity-100">
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => continueMutation.mutate(entry)}
+                          title="Continue"
+                        >
+                          <Play size={14} />
+                        </Button>
+                        {!entry.running ? (
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => duplicateMutation.mutate(entry)}
+                            title="Duplicate and edit inline"
+                            disabled={duplicateMutation.isPending}
+                          >
+                            <Copy size={14} />
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-400"
+                          onClick={() => deleteMutation.mutate(entry)}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </article>
+                  ),
+                )}
               </section>
             );
           })
@@ -492,21 +543,6 @@ export function TimePage() {
           </Button>
         </div>
       ) : null}
-
-      <EntryEditor
-        open={editor !== null || duplicate !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditor(null);
-            setDuplicate(null);
-          }
-        }}
-        entry={editor && editor !== "new" ? editor : null}
-        template={duplicate}
-        targetMemberId={me.permissions.view_team ? memberId : undefined}
-        projects={projects.data?.projects ?? []}
-        tags={tags.data?.tags ?? []}
-      />
     </>
   );
 }

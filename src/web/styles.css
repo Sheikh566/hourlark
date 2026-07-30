@@ -213,6 +213,12 @@ select:not(:disabled) {
   font-size: 0.83rem;
 }
 
+.fc .fc-event-mirror {
+  border-color: #21de47 !important;
+  background: #0d591c !important;
+  color: #ffffff !important;
+}
+
 .fc .fc-toolbar-title {
   color: #f1f5f9;
   font-size: 1rem;

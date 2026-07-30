@@ -11,11 +11,12 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
 import { CalendarDays, List } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { useMe } from "@/web/app/context";
 import { ErrorState, Select } from "@/web/components/ui";
+import { CalendarQuickEntry } from "@/web/features/time/calendar-quick-entry";
 import { EntryEditor } from "@/web/features/time/entry-editor";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest } from "@/web/lib/api";
@@ -36,6 +37,7 @@ export function CalendarPage() {
   const me = useMe();
   const now = useNow(30_000);
   const queryClient = useQueryClient();
+  const calendarRef = useRef<FullCalendar>(null);
   const initialStart = new Date();
   initialStart.setDate(initialStart.getDate() - ((initialStart.getDay() + 6) % 7));
   initialStart.setHours(0, 0, 0, 0);
@@ -144,6 +146,10 @@ export function CalendarPage() {
       },
     );
   };
+  const closeSelection = () => {
+    calendarRef.current?.getApi().unselect();
+    setSelection(null);
+  };
 
   return (
     <>
@@ -197,6 +203,7 @@ export function CalendarPage() {
       ) : (
         <section className="overflow-hidden bg-[#111710] p-3">
           <FullCalendar
+            ref={calendarRef}
             plugins={[timeGridPlugin, interactionPlugin]}
             initialView="timeGridWeek"
             firstDay={me.workspace.week_start === "monday" ? 1 : 0}
@@ -235,10 +242,14 @@ export function CalendarPage() {
             datesSet={(info: DatesSetArg) =>
               setRange({ start: info.start.toISOString(), end: info.end.toISOString() })
             }
-            select={(info: DateSelectArg) => setSelection({ start: info.start, end: info.end })}
-            eventClick={(info: EventClickArg) =>
-              setEditing(info.event.extendedProps.entry as TimeEntry)
-            }
+            select={(info: DateSelectArg) => {
+              setEditing(null);
+              setSelection({ start: info.start, end: info.end });
+            }}
+            eventClick={(info: EventClickArg) => {
+              closeSelection();
+              setEditing(info.event.extendedProps.entry as TimeEntry);
+            }}
             eventDrop={(info: EventDropArg) =>
               moveEntry(info.event.id, info.event.start, info.event.end, info.revert)
             }
@@ -270,18 +281,25 @@ export function CalendarPage() {
           />
         </section>
       )}
+      {selection ? (
+        <CalendarQuickEntry
+          key={`${selection.start.toISOString()}:${selection.end.toISOString()}`}
+          start={selection.start}
+          stop={selection.end}
+          targetMemberId={me.permissions.view_team ? memberId : undefined}
+          projects={projects.data?.projects ?? []}
+          tags={tags.data?.tags ?? []}
+          onClose={closeSelection}
+        />
+      ) : null}
       <EntryEditor
-        open={editing !== null || selection !== null}
+        open={editing !== null}
         onOpenChange={(open) => {
           if (!open) {
             setEditing(null);
-            setSelection(null);
           }
         }}
         entry={editing}
-        targetMemberId={me.permissions.view_team ? memberId : undefined}
-        initialStart={selection?.start}
-        initialStop={selection?.end}
         projects={projects.data?.projects ?? []}
         tags={tags.data?.tags ?? []}
       />
