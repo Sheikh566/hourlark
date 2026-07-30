@@ -111,7 +111,7 @@ export function ClientsPage() {
               <article key={client.id} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="bg-brand-blue-light text-brand-blue grid h-10 w-10 shrink-0 place-items-center rounded-lg">
+                    <span className="bg-frosted-mint-50 text-frosted-mint-700 grid h-10 w-10 shrink-0 place-items-center rounded-lg">
                       <Building2 size={19} />
                     </span>
                     <div className="min-w-0">

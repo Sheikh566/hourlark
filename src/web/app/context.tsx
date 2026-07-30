@@ -33,8 +33,8 @@ export function MeProvider({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="bg-brand-yellow mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl" />
-          <p className="text-brand-blue text-sm font-medium">Loading IOMechs Time…</p>
+          <div className="bg-light-green-500 mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl" />
+          <p className="text-willow-green-800 text-sm font-medium">Loading IOMechs Time…</p>
         </div>
       </div>
     );
@@ -47,7 +47,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
           <h1 className="text-xl font-bold text-slate-900">Unable to open IOMechs Time</h1>
           <p className="mt-2 text-sm text-slate-600">{message}</p>
           <button
-            className="bg-brand-blue mt-5 rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            className="bg-willow-green-800 hover:bg-willow-green-900 mt-5 rounded-lg px-4 py-2 text-sm font-semibold text-white"
             onClick={() => void me.refetch()}
           >
             Try again

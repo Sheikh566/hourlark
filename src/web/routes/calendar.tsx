@@ -190,8 +190,8 @@ export function CalendarPage() {
               title: entry.description || entry.project?.name || "No description",
               start: entry.started_at,
               end: entry.stopped_at ?? new Date(now).toISOString(),
-              backgroundColor: entry.project?.color ?? "#36546D",
-              borderColor: overlaps.has(entry.id) ? "#FEB500" : (entry.project?.color ?? "#36546D"),
+              backgroundColor: entry.project?.color ?? "#14852B",
+              borderColor: overlaps.has(entry.id) ? "#82CF30" : (entry.project?.color ?? "#14852B"),
               extendedProps: { entry },
             }))}
             datesSet={(info: DatesSetArg) =>
@@ -212,7 +212,7 @@ export function CalendarPage() {
               return (
                 <div className="py-1 text-center">
                   <div>{formatInTimeZone(info.date, me.member.timezone, "EEE d")}</div>
-                  <div className="text-brand-blue mt-1 text-[10px] font-medium">
+                  <div className="text-frosted-mint-700 mt-1 text-[10px] font-medium">
                     {formatDuration(totalsByDay.get(key) ?? 0)}
                   </div>
                 </div>

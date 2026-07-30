@@ -297,7 +297,7 @@ function WorkspaceSettings() {
       </form>
       <aside className="panel h-fit p-5">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="text-brand-blue" />
+          <ShieldCheck className="text-frosted-mint-700" />
           <h2 className="font-bold">Cloudflare Access</h2>
         </div>
         <p className="mt-2 text-sm text-slate-500">
@@ -424,10 +424,10 @@ function TagEditor({
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#36546D");
+  const [color, setColor] = useState("#14852B");
   useEffect(() => {
     setName(tag?.name ?? "");
-    setColor(tag?.color ?? "#36546D");
+    setColor(tag?.color ?? "#14852B");
   }, [open, tag]);
   const mutation = useMutation({
     mutationFn: () =>

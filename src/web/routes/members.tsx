@@ -108,7 +108,7 @@ export function MembersPage() {
                     </td>
                     <td className="px-4 py-3">
                       {member.running_entry_id ? (
-                        <Badge color="#FEB500">
+                        <Badge color="#4E7C1D">
                           <Timer size={11} /> Running
                         </Badge>
                       ) : (
@@ -347,7 +347,7 @@ function MemberEditor({
           </p>
         ) : null}
         {!member ? (
-          <div className="bg-brand-blue-light text-brand-blue-dark flex gap-2 rounded-lg p-3 text-xs sm:col-span-2">
+          <div className="bg-frosted-mint-50 text-frosted-mint-800 flex gap-2 rounded-lg p-3 text-xs sm:col-span-2">
             <UserRoundCheck size={17} className="shrink-0" />
             The account becomes usable when this exact email authenticates through Cloudflare
             Access.

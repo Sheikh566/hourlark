@@ -348,7 +348,7 @@ export function TimePage() {
             </Button>
           ) : (
             <Button
-              variant="yellow"
+              variant="accent"
               className="min-w-40"
               onClick={() => startMutation.mutate()}
               disabled={startMutation.isPending}
@@ -385,7 +385,7 @@ export function TimePage() {
               {(recent.data?.recent ?? []).slice(0, 5).map((item) => (
                 <button
                   key={`${item.description}:${item.project_id ?? ""}`}
-                  className="hover:border-brand-blue hover:text-brand-blue max-w-48 truncate rounded-md border border-slate-200 bg-white px-2 py-1"
+                  className="hover:border-frosted-mint-700 hover:text-frosted-mint-700 max-w-48 truncate rounded-md border border-slate-200 bg-white px-2 py-1"
                   title={[item.client_name, item.project_name].filter(Boolean).join(" · ")}
                   onClick={() => {
                     setDescription(item.description);
@@ -445,7 +445,7 @@ export function TimePage() {
               <option value="day">Day</option>
             </Select>
           </div>
-          <div className="bg-brand-blue-light text-brand-blue-dark rounded-lg px-3 py-2 text-sm font-semibold">
+          <div className="bg-frosted-mint-50 text-frosted-mint-800 rounded-lg px-3 py-2 text-sm font-semibold">
             Total {formatDuration(total)}
           </div>
         </div>
@@ -606,7 +606,7 @@ export function TimePage() {
         <div className="fixed right-4 bottom-4 z-30 flex items-center gap-3 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl">
           Entry deleted.
           <Button
-            variant="yellow"
+            variant="accent"
             className="min-h-8 py-1"
             onClick={() => restoreMutation.mutate(undoEntry)}
           >

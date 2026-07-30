@@ -190,7 +190,7 @@ export function ProjectsPage() {
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                           <div
-                            className="bg-brand-yellow h-full rounded-full"
+                            className="bg-willow-green-500 h-full rounded-full"
                             style={{ width: `${utilization}%` }}
                           />
                         </div>
@@ -263,7 +263,7 @@ function ProjectEditor({
     defaultValues: {
       client_id: "",
       name: "",
-      color: "#36546D",
+      color: "#14852B",
       billable_default: false,
       hourly_rate_major: "",
       currency: me.workspace.currency,
@@ -277,7 +277,7 @@ function ProjectEditor({
     form.reset({
       client_id: project?.client_id ?? "",
       name: project?.name ?? "",
-      color: project?.color ?? "#36546D",
+      color: project?.color ?? "#14852B",
       billable_default: Boolean(project?.billable_default),
       hourly_rate_major:
         project?.hourly_rate_minor === null || project?.hourly_rate_minor === undefined

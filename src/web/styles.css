@@ -1,18 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-blue: #36546d;
-  --color-brand-blue-dark: #263f54;
-  --color-brand-blue-light: #eaf0f4;
-  --color-brand-yellow: #feb500;
-  --color-brand-yellow-dark: #d69500;
+  --color-frosted-mint-50: #e9fced;
+  --color-frosted-mint-100: #d3f8da;
+  --color-frosted-mint-200: #a6f2b5;
+  --color-frosted-mint-300: #7aeb91;
+  --color-frosted-mint-400: #4ee46c;
+  --color-frosted-mint-500: #21de47;
+  --color-frosted-mint-600: #1bb139;
+  --color-frosted-mint-700: #14852b;
+  --color-frosted-mint-800: #0d591c;
+  --color-frosted-mint-900: #072c0e;
+  --color-frosted-mint-950: #051f0a;
+
+  --color-light-green-50: #e7fdeb;
+  --color-light-green-100: #d0fbd8;
+  --color-light-green-200: #a1f7b1;
+  --color-light-green-300: #71f489;
+  --color-light-green-400: #42f062;
+  --color-light-green-500: #13ec3b;
+  --color-light-green-600: #0fbd2f;
+  --color-light-green-700: #0b8e23;
+  --color-light-green-800: #085e18;
+  --color-light-green-900: #042f0c;
+  --color-light-green-950: #032108;
+
+  --color-willow-green-50: #f3faea;
+  --color-willow-green-100: #e6f5d6;
+  --color-willow-green-200: #cdecac;
+  --color-willow-green-300: #b4e283;
+  --color-willow-green-400: #9bd85a;
+  --color-willow-green-500: #82cf30;
+  --color-willow-green-600: #68a527;
+  --color-willow-green-700: #4e7c1d;
+  --color-willow-green-800: #345313;
+  --color-willow-green-900: #1a290a;
+  --color-willow-green-950: #121d07;
+
   --font-sans:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 :root {
-  color: #18242e;
-  background: #f4f7f9;
+  color: #121d07;
+  background: #f3faea;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -40,30 +71,30 @@ select:not(:disabled) {
 }
 
 :focus-visible {
-  outline: 3px solid color-mix(in srgb, #feb500 70%, white);
+  outline: 3px solid color-mix(in srgb, #42f062 75%, white);
   outline-offset: 2px;
 }
 
 .panel {
-  border: 1px solid #dce5ea;
+  border: 1px solid #d3f8da;
   border-radius: 0.75rem;
   background: white;
-  box-shadow: 0 1px 2px rgb(18 46 61 / 6%);
+  box-shadow: 0 1px 2px rgb(18 29 7 / 7%);
 }
 
 .fc {
-  --fc-border-color: #dce5ea;
-  --fc-button-bg-color: #36546d;
-  --fc-button-border-color: #36546d;
-  --fc-button-hover-bg-color: #263f54;
-  --fc-button-hover-border-color: #263f54;
-  --fc-button-active-bg-color: #263f54;
-  --fc-today-bg-color: #fff8df;
+  --fc-border-color: #d3f8da;
+  --fc-button-bg-color: #345313;
+  --fc-button-border-color: #345313;
+  --fc-button-hover-bg-color: #1a290a;
+  --fc-button-hover-border-color: #1a290a;
+  --fc-button-active-bg-color: #1a290a;
+  --fc-today-bg-color: #e9fced;
   font-size: 0.83rem;
 }
 
 .fc .fc-toolbar-title {
-  color: #263f54;
+  color: #1a290a;
   font-size: 1rem;
   font-weight: 700;
 }

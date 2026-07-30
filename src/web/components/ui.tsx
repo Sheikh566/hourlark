@@ -14,14 +14,14 @@ export function Button({
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger" | "ghost" | "yellow";
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "accent";
 }) {
   const variants = {
-    primary: "bg-brand-blue text-white hover:bg-brand-blue-dark",
+    primary: "bg-willow-green-800 text-white hover:bg-willow-green-900",
     secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
     danger: "bg-red-600 text-white hover:bg-red-700",
     ghost: "text-slate-600 hover:bg-slate-100",
-    yellow: "bg-brand-yellow text-slate-950 hover:bg-brand-yellow-dark",
+    accent: "bg-light-green-500 text-light-green-950 hover:bg-light-green-600 hover:text-white",
   };
   return (
     <button
@@ -161,7 +161,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex min-h-52 flex-col items-center justify-center gap-2 p-8 text-center">
-      <CheckCircle2 className="text-brand-blue" size={28} />
+      <CheckCircle2 className="text-frosted-mint-700" size={28} />
       <h3 className="font-semibold text-slate-800">{title}</h3>
       <p className="max-w-md text-sm text-slate-500">{description}</p>
       {action ? <div className="mt-2">{action}</div> : null}

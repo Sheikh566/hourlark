@@ -24,7 +24,7 @@ INSERT OR IGNORE INTO projects (
   '00000000-0000-4000-8000-000000000001',
   '00000000-0000-4000-8000-000000000201',
   'Internal operations',
-  '#0f766e',
+  '#14852b',
   'active',
   0,
   'USD',
@@ -32,3 +32,8 @@ INSERT OR IGNORE INTO projects (
   1785369600000,
   1785369600000
 );
+
+UPDATE projects
+SET color = '#14852b'
+WHERE id = '00000000-0000-4000-8000-000000000301'
+  AND color = '#0f766e';

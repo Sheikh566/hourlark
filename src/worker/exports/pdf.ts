@@ -22,8 +22,10 @@ export interface PdfOptions {
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 42;
-const BRAND_BLUE = rgb(54 / 255, 84 / 255, 109 / 255);
-const BRAND_YELLOW = rgb(254 / 255, 181 / 255, 0);
+const PRIMARY_GREEN = rgb(52 / 255, 83 / 255, 19 / 255);
+const ACCENT_GREEN = rgb(33 / 255, 222 / 255, 71 / 255);
+const TEXT_GREEN = rgb(18 / 255, 29 / 255, 7 / 255);
+const TINT_GREEN = rgb(243 / 255, 250 / 255, 234 / 255);
 
 function safePdfText(value: string): string {
   return value
@@ -50,14 +52,14 @@ function drawHeader(
     y: PAGE_HEIGHT - MARGIN,
     font: bold,
     size: 11,
-    color: BRAND_BLUE,
+    color: PRIMARY_GREEN,
   });
   page.drawText(safePdfText(options.title), {
     x: MARGIN,
     y: PAGE_HEIGHT - MARGIN - 28,
     font: bold,
     size: 24,
-    color: rgb(0.06, 0.16, 0.18),
+    color: TEXT_GREEN,
   });
   page.drawText(`Page ${pageNumber}`, {
     x: PAGE_WIDTH - MARGIN - 42,
@@ -89,13 +91,7 @@ export async function createTimeReportPdf(
   const ensureSpace = (height: number) => {
     if (y - height < 48) addPage();
   };
-  const write = (
-    text: string,
-    x: number,
-    size = 9,
-    font = regular,
-    color = rgb(0.15, 0.2, 0.21),
-  ) => {
+  const write = (text: string, x: number, size = 9, font = regular, color = TEXT_GREEN) => {
     page.drawText(safePdfText(text).slice(0, 105), { x, y, size, font, color });
   };
 
@@ -134,7 +130,7 @@ export async function createTimeReportPdf(
       y: y - 5,
       width: PAGE_WIDTH - MARGIN * 2,
       height: 22,
-      color: rgb(0.93, 0.95, 0.97),
+      color: TINT_GREEN,
     });
     write(groupLabel, MARGIN + 8, 10, bold);
     write("Duration", PAGE_WIDTH - MARGIN - 58, 9, bold);
@@ -184,7 +180,7 @@ export async function createTimeReportPdf(
     start: { x: MARGIN, y },
     end: { x: PAGE_WIDTH - MARGIN, y },
     thickness: 1,
-    color: BRAND_YELLOW,
+    color: ACCENT_GREEN,
   });
   y -= 20;
   write(`Total time: ${durationLabel(totalDuration)}`, MARGIN, 12, bold);
@@ -198,7 +194,7 @@ export async function createTimeReportPdf(
           y: amountY,
           size: 10,
           font: bold,
-          color: BRAND_BLUE,
+          color: PRIMARY_GREEN,
         },
       );
       amountY -= 14;

@@ -64,7 +64,7 @@ interface DetailedRow {
   amount_minor?: number | null;
 }
 
-const chartColors = ["#36546D", "#FEB500", "#2A9D8F", "#7C5CFC", "#E76F51", "#8A9AA8"];
+const chartColors = ["#345313", "#21DE47", "#82CF30", "#14852B", "#7AEB91", "#68A527"];
 
 function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -250,7 +250,7 @@ export function ReportsPage() {
 
       <section className="panel mb-5 p-4">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <Filter size={17} className="text-brand-blue" />
+          <Filter size={17} className="text-frosted-mint-700" />
           {(
             [
               ["today", "Today"],
@@ -379,7 +379,7 @@ export function ReportsPage() {
           <button
             key={value}
             className={`rounded-md px-4 py-2 text-sm font-semibold capitalize ${
-              mode === value ? "bg-brand-blue text-white" : "text-slate-600 hover:bg-slate-50"
+              mode === value ? "bg-willow-green-800 text-white" : "text-slate-600 hover:bg-slate-50"
             }`}
             onClick={() => setMode(value)}
           >
@@ -643,7 +643,7 @@ function SummaryContent({ report, financial }: { report?: SummaryReport; financi
                         <div className="mt-2">
                           <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                             <div
-                              className="bg-brand-yellow h-full rounded-full"
+                              className="bg-willow-green-500 h-full rounded-full"
                               style={{
                                 width: `${Math.min(
                                   100,

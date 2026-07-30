@@ -41,9 +41,9 @@ export function AppLayout() {
   ];
 
   const sidebar = (
-    <aside className="from-brand-blue-dark to-brand-blue flex h-full w-64 flex-col bg-gradient-to-b text-white">
+    <aside className="from-willow-green-950 to-willow-green-800 flex h-full w-64 flex-col bg-gradient-to-b text-white">
       <div className="flex h-16 items-center border-b border-white/15 px-5">
-        <div className="bg-brand-yellow text-brand-blue-dark mr-3 grid h-8 w-8 place-items-center rounded-lg font-black">
+        <div className="bg-light-green-400 text-light-green-950 mr-3 grid h-8 w-8 place-items-center rounded-lg font-black">
           IT
         </div>
         <span className="font-bold tracking-tight">{me.workspace.app_name}</span>
@@ -105,7 +105,7 @@ export function AppLayout() {
               onClick={() => setUserOpen((value) => !value)}
               aria-expanded={userOpen}
             >
-              <span className="bg-brand-blue grid h-8 w-8 place-items-center rounded-full text-xs font-bold text-white">
+              <span className="bg-frosted-mint-700 grid h-8 w-8 place-items-center rounded-full text-xs font-bold text-white">
                 {me.member.displayName
                   .split(" ")
                   .map((part) => part[0])
