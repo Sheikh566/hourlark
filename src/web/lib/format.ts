@@ -8,6 +8,28 @@ export function formatDuration(durationMs: number, includeSeconds = false): stri
     : `${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
+/** Toggl-style clock: `0:31:18` (hours unpadded, always includes seconds). */
+export function formatClockDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+/** Timesheet cell style: `0:31` or empty dash. */
+export function formatCompactDuration(durationMs: number): string {
+  if (durationMs <= 0) return "0:00";
+  return formatDuration(durationMs, false);
+}
+
+/** Timesheet totals: `0.5 h`. */
+export function formatHoursLabel(durationMs: number): string {
+  const hours = Math.max(0, durationMs) / 3_600_000;
+  const rounded = Math.round(hours * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} h`;
+}
+
 export function formatMoney(minor: number, currency: string): string {
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(
     minorToMajor(minor, currency),

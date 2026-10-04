@@ -3,7 +3,7 @@
 ## 1. Create D1
 
 ```bash
-pnpm wrangler d1 create iomechs-time
+pnpm wrangler d1 create hourlark
 ```
 
 Copy the returned database ID into `wrangler.jsonc`. Keep the binding name `DB`.
@@ -43,12 +43,18 @@ redeploy. Stored roles are not overwritten after bootstrap completion.
 ```bash
 pnpm validate
 pnpm check:production
-pnpm wrangler d1 migrations list iomechs-time --remote
+pnpm wrangler d1 migrations list hourlark --remote
 pnpm db:migrate:remote
 ```
 
 Review the target account and database before confirming a remote migration. Development seed data
 is in `seeds/development.sql` and is never discovered by the production migration command.
+The Hourlark name migration updates the original workspace name while preserving customized names
+and company identity settings.
+Apply `0003_member_update_guards.sql` before deploying the member-update code.
+It adds a transaction assertion table and a trigger protecting the final active
+administrator; it does not rewrite existing business records. For local development,
+run `pnpm db:migrate:local` before testing member edits on an existing database.
 
 ## 5. Deploy
 

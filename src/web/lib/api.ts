@@ -26,14 +26,14 @@ export function setCsrfToken(value: string): void {
 
 export function getDevelopmentIdentity(): string | null {
   if (!import.meta.env.DEV) return null;
-  return localStorage.getItem("iomechs.dev-user");
+  return localStorage.getItem("hourlark.dev-user");
 }
 
 export function setDevelopmentIdentity(email: string): void {
   if (!import.meta.env.DEV) {
     throw new Error("Development identity switching is disabled in production.");
   }
-  localStorage.setItem("iomechs.dev-user", email.trim().toLowerCase());
+  localStorage.setItem("hourlark.dev-user", email.trim().toLowerCase());
   window.location.reload();
 }
 
@@ -41,7 +41,7 @@ export function clearDevelopmentIdentity(): void {
   if (!import.meta.env.DEV) {
     throw new Error("Development identity switching is disabled in production.");
   }
-  localStorage.removeItem("iomechs.dev-user");
+  localStorage.removeItem("hourlark.dev-user");
   window.location.reload();
 }
 

@@ -981,34 +981,13 @@ api.patch("/members/:id", async (c) => {
     );
   }
   if (input.timezone) assertValidTimeZone(input.timezone);
-  if (
-    existing.role === "admin" &&
-    existing.status === "active" &&
-    ((input.role !== undefined && input.role !== "admin") || input.status === "inactive")
-  ) {
-    const adminCount =
-      (
-        await c.env.DB.prepare(
-          "SELECT COUNT(*) AS count FROM members WHERE workspace_id = ? AND role = 'admin' AND status = 'active'",
-        )
-          .bind(actor.workspaceId)
-          .first<{ count: number }>()
-      )?.count ?? 0;
-    if (adminCount <= 1) {
-      throw new ApiError(
-        422,
-        "last_admin_protected",
-        "The final active administrator cannot be changed.",
-      );
-    }
-  }
   const now = Date.now();
   const status = input.status ?? existing.status;
   const statements: D1PreparedStatement[] = [
     c.env.DB.prepare(
       `UPDATE members SET display_name = ?, role = ?, status = ?, timezone = ?,
          weekly_target_minutes = ?, updated_at = ?, version = version + 1
-         WHERE id = ? AND version = ?`,
+         WHERE id = ? AND workspace_id = ? AND version = ?`,
     ).bind(
       input.display_name ?? existing.display_name,
       input.role ?? existing.role,
@@ -1019,8 +998,11 @@ api.patch("/members/:id", async (c) => {
         : input.weekly_target_minutes,
       now,
       id,
+      actor.workspaceId,
       input.version,
     ),
+    c.env.DB.prepare("INSERT INTO member_update_checks (updated_rows) VALUES (changes())"),
+    c.env.DB.prepare("DELETE FROM member_update_checks"),
   ];
   if (input.status === "inactive") {
     statements.push(
@@ -1055,9 +1037,22 @@ api.patch("/members/:id", async (c) => {
       now,
     ),
   );
-  const results = await c.env.DB.batch(statements);
-  if (results[0]?.meta.changes === 0)
-    throw new ApiError(409, "member_conflict", "The member changed.");
+  try {
+    await c.env.DB.batch(statements);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("member_update_version_matches")) {
+      throw new ApiError(409, "member_conflict", "The member changed.");
+    }
+    if (message.includes("last_admin_protected")) {
+      throw new ApiError(
+        422,
+        "last_admin_protected",
+        "The final active administrator cannot be changed.",
+      );
+    }
+    throw error;
+  }
   return c.json({
     member: await c.env.DB.prepare("SELECT * FROM members WHERE id = ?").bind(id).first(),
   });
@@ -1269,10 +1264,18 @@ async function reportData(
       billable: query.billable === undefined ? undefined : query.billable === "true",
       running: query.running === undefined ? undefined : query.running === "true",
       search: query.search,
-      limit: 5000,
+      limit: 5001,
     },
     generatedAt,
   );
+  if (entries.length > 5000) {
+    throw new ApiError(
+      422,
+      "report_too_large",
+      "The report matches more than 5,000 entries. Use a shorter date range or narrower filters.",
+      { max_entries: 5000 },
+    );
+  }
   const workspace = await getWorkspace(c.env.DB, member.workspaceId);
   return {
     rows: toReportRows(entries, workspace, range.start, range.end, generatedAt, query.timezone),
@@ -1375,7 +1378,7 @@ api.post("/exports/csv", async (c) => {
   return new Response(new TextEncoder().encode(content), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="iomechs-time-${input.mode}.csv"`,
+      "Content-Disposition": `attachment; filename="hourlark-${input.mode}.csv"`,
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     },

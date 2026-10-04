@@ -12,9 +12,15 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
+import {
+  findDescriptionCommand,
+  matchesDescriptionCommand,
+  removeDescriptionCommand,
+  type DescriptionCommandKind,
+} from "@/web/features/timer/description-command";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest, idempotencyKey } from "@/web/lib/api";
-import { formatDuration } from "@/web/lib/format";
+import { formatClockDuration } from "@/web/lib/format";
 import { broadcastTimerChange } from "@/web/lib/timer";
 import type { Project, Tag, TimeEntry } from "@/web/types";
 
@@ -25,11 +31,24 @@ interface RecentTime {
   client_name: string | null;
 }
 
+interface CommandSuggestion {
+  id: string;
+  kind: DescriptionCommandKind;
+  label: string;
+  detail: string;
+  color: string;
+  selected: boolean;
+}
+
 export function GlobalTimerBar() {
   const me = useMe();
   const queryClient = useQueryClient();
   const now = useNow();
+  const descriptionInput = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState("");
+  const [descriptionCursor, setDescriptionCursor] = useState(0);
+  const [commandDismissed, setCommandDismissed] = useState(false);
+  const [highlightedCommand, setHighlightedCommand] = useState(0);
   const [projectId, setProjectId] = useState("");
   const [billable, setBillable] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -52,6 +71,44 @@ export function GlobalTimerBar() {
     refetchOnWindowFocus: true,
   });
   const activeTimer = timer.data?.entry ?? null;
+  const descriptionCommand = findDescriptionCommand(description, descriptionCursor);
+  const commandSuggestions = useMemo<CommandSuggestion[]>(() => {
+    if (!descriptionCommand) return [];
+    const query = descriptionCommand.query;
+    if (descriptionCommand.kind === "project") {
+      return [...(projects.data?.projects ?? [])]
+        .filter((project) => matchesDescriptionCommand(project.name, query))
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .slice(0, 10)
+        .map((project) => ({
+          id: project.id,
+          kind: "project",
+          label: project.name,
+          detail: project.client_name || "No client",
+          color: project.color,
+          selected: project.id === projectId,
+        }));
+    }
+    return [...(tags.data?.tags ?? [])]
+      .filter((tag) => matchesDescriptionCommand(tag.name, query))
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .slice(0, 10)
+      .map((tag) => ({
+        id: tag.id,
+        kind: "tag",
+        label: tag.name,
+        detail: "Tag",
+        color: tag.color,
+        selected: selectedTags.includes(tag.id),
+      }));
+  }, [descriptionCommand, projectId, projects.data?.projects, selectedTags, tags.data?.tags]);
+  const commandMenuOpen = Boolean(descriptionCommand && !commandDismissed && !activeTimer);
+  const commandLoading =
+    descriptionCommand?.kind === "project" ? projects.isLoading : tags.isLoading;
+
+  useEffect(() => {
+    setHighlightedCommand(0);
+  }, [descriptionCommand?.kind, descriptionCommand?.query]);
 
   const refreshTimerSurfaces = async () => {
     broadcastTimerChange();
@@ -96,18 +153,87 @@ export function GlobalTimerBar() {
     (project) => project.id === (activeTimer?.project?.id ?? projectId),
   );
   const timerError = startMutation.error ?? stopMutation.error;
+  const selectCommandSuggestion = (suggestion: CommandSuggestion) => {
+    if (!descriptionCommand) return;
+    if (suggestion.kind === "project") {
+      setProjectId(suggestion.id);
+      const project = projects.data?.projects.find((item) => item.id === suggestion.id);
+      setBillable(project?.billable_default === true || project?.billable_default === 1);
+    } else {
+      setSelectedTags((current) =>
+        current.includes(suggestion.id) ? current : [...current, suggestion.id],
+      );
+    }
+
+    const next = removeDescriptionCommand(description, descriptionCommand);
+    setDescription(next.description);
+    setDescriptionCursor(next.cursor);
+    setCommandDismissed(false);
+    window.setTimeout(() => {
+      descriptionInput.current?.focus();
+      descriptionInput.current?.setSelectionRange(next.cursor, next.cursor);
+    }, 0);
+  };
+  const handleDescriptionKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!commandMenuOpen || !descriptionCommand) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setCommandDismissed(true);
+      return;
+    }
+    if (!commandSuggestions.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setHighlightedCommand((current) => (current + 1) % commandSuggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setHighlightedCommand(
+        (current) => (current - 1 + commandSuggestions.length) % commandSuggestions.length,
+      );
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const suggestion = commandSuggestions[highlightedCommand];
+      if (suggestion) selectCommandSuggestion(suggestion);
+    }
+  };
 
   return (
     <header className="global-timer sticky top-0 z-20 border-b border-white/10 bg-[#111710]/97 pr-3 pl-14 backdrop-blur md:px-5">
       <div className="mx-auto flex h-[72px] max-w-[1800px] items-center gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           <input
+            ref={descriptionInput}
             value={activeTimer?.description ?? description}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(event) => {
+              setDescription(event.target.value);
+              setDescriptionCursor(event.currentTarget.selectionStart ?? event.target.value.length);
+              setCommandDismissed(false);
+            }}
+            onSelect={(event) => {
+              setDescriptionCursor(
+                event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+              );
+              setCommandDismissed(false);
+            }}
+            onKeyUp={(event) =>
+              setDescriptionCursor(
+                event.currentTarget.selectionStart ?? event.currentTarget.value.length,
+              )
+            }
+            onKeyDown={handleDescriptionKeyDown}
             disabled={Boolean(activeTimer)}
-            list="recent-time-descriptions"
+            list={commandMenuOpen ? undefined : "recent-time-descriptions"}
             placeholder="What are you working on?"
             aria-label="Timer description"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={commandMenuOpen}
+            aria-controls={commandMenuOpen ? "timer-description-command-menu" : undefined}
+            aria-activedescendant={
+              commandMenuOpen && commandSuggestions[highlightedCommand]
+                ? `timer-description-command-${commandSuggestions[highlightedCommand].kind}-${commandSuggestions[highlightedCommand].id}`
+                : undefined
+            }
             className="h-12 w-full border-0 bg-transparent px-1 text-lg font-medium text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-90"
           />
           <datalist id="recent-time-descriptions">
@@ -117,6 +243,73 @@ export function GlobalTimerBar() {
               </option>
             ))}
           </datalist>
+          {commandMenuOpen && descriptionCommand ? (
+            <div
+              id="timer-description-command-menu"
+              className="timer-popover absolute top-[58px] left-0 z-50 w-[min(88vw,430px)]"
+              role="listbox"
+              aria-label={
+                descriptionCommand.kind === "project" ? "Project suggestions" : "Tag suggestions"
+              }
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
+                <p className="text-xs font-semibold text-slate-300">
+                  {descriptionCommand.kind === "project" ? "Choose a project" : "Add a tag"}
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  <kbd className="rounded border border-white/10 px-1 py-0.5">↑↓</kbd> navigate ·{" "}
+                  <kbd className="rounded border border-white/10 px-1 py-0.5">Enter</kbd> select
+                </p>
+              </div>
+              <div className="max-h-72 overflow-y-auto p-1.5">
+                {commandLoading ? (
+                  <p className="p-4 text-center text-sm text-slate-500">
+                    Loading {descriptionCommand.kind === "project" ? "projects" : "tags"}…
+                  </p>
+                ) : commandSuggestions.length ? (
+                  commandSuggestions.map((suggestion, index) => (
+                    <button
+                      key={`${suggestion.kind}:${suggestion.id}`}
+                      id={`timer-description-command-${suggestion.kind}-${suggestion.id}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === highlightedCommand}
+                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left ${
+                        index === highlightedCommand
+                          ? "bg-frosted-mint-900 text-frosted-mint-100"
+                          : "text-slate-300 hover:bg-white/7 hover:text-white"
+                      }`}
+                      onMouseEnter={() => setHighlightedCommand(index)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => selectCommandSuggestion(suggestion)}
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-600"
+                        style={{ backgroundColor: suggestion.color }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {suggestion.label}
+                        </span>
+                        <span className="block truncate text-[11px] text-slate-500">
+                          {suggestion.detail}
+                        </span>
+                      </span>
+                      {suggestion.selected ? <Check size={14} aria-hidden /> : null}
+                    </button>
+                  ))
+                ) : (
+                  <p className="p-4 text-center text-sm text-slate-500">
+                    No {descriptionCommand.kind === "project" ? "projects" : "tags"} start with{" "}
+                    <span className="font-mono text-slate-300">
+                      {descriptionCommand.marker}
+                      {descriptionCommand.query}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
           {timerError ? (
             <p className="absolute bottom-1 max-w-[55vw] truncate text-[11px] text-red-300">
               {timerError.message}
@@ -158,8 +351,8 @@ export function GlobalTimerBar() {
         ) : null}
         <div className="hidden min-w-24 text-right font-mono text-lg font-bold text-slate-200 sm:block">
           {activeTimer
-            ? formatDuration(now - new Date(activeTimer.started_at).getTime(), true)
-            : "00:00:00"}
+            ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
+            : "0:00:00"}
           {selectedProject ? (
             <span className="text-frosted-mint-300 mt-0.5 block max-w-24 truncate text-[10px] font-medium">
               {selectedProject.name}

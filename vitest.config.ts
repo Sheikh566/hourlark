@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -16,7 +16,7 @@ export default defineConfig({
         bindings: {
           ENVIRONMENT: "test",
           AUTH_MODE: "dev",
-          APP_NAME: "IOMechs Time Test",
+          APP_NAME: "Hourlark Test",
           COMPANY_NAME: "IOMechs",
           COMPANY_DOMAIN: "iomechs.com",
           DEFAULT_TIMEZONE: "Asia/Karachi",

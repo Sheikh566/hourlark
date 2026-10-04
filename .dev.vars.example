@@ -1,6 +1,6 @@
 ENVIRONMENT=development
 AUTH_MODE=dev
-APP_NAME=IOMechs Time
+APP_NAME=Hourlark
 COMPANY_NAME=IOMechs
 COMPANY_DOMAIN=iomechs.com
 DEFAULT_TIMEZONE=Asia/Karachi

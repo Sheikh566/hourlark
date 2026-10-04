@@ -10,18 +10,17 @@ import type {
 } from "@fullcalendar/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
-import { CalendarDays, List } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
-import { ErrorState, Select } from "@/web/components/ui";
+import { ErrorState } from "@/web/components/ui";
 import { CalendarQuickEntry } from "@/web/features/time/calendar-quick-entry";
 import { EntryEditor } from "@/web/features/time/entry-editor";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest } from "@/web/lib/api";
-import { formatDuration } from "@/web/lib/format";
-import type { Member, Project, Tag, TimeEntry } from "@/web/types";
+import { formatClockDuration, formatDuration } from "@/web/lib/format";
+import type { Project, Tag, TimeEntry } from "@/web/types";
+import { startOfWeek } from "date-fns";
 
 function calendarTextColor(background: string): string {
   const hex = background.replace("#", "");
@@ -33,22 +32,34 @@ function calendarTextColor(background: string): string {
   return luminance > 145 ? "#051f0a" : "#ffffff";
 }
 
-export function CalendarPage() {
+export function CalendarView({
+  weekStart,
+  memberId,
+  calendarMode = "week",
+}: {
+  weekStart: Date;
+  memberId: string;
+  calendarMode?: "week" | "day";
+}) {
   const me = useMe();
   const now = useNow(30_000);
   const queryClient = useQueryClient();
   const calendarRef = useRef<FullCalendar>(null);
-  const initialStart = new Date();
-  initialStart.setDate(initialStart.getDate() - ((initialStart.getDay() + 6) % 7));
-  initialStart.setHours(0, 0, 0, 0);
   const [range, setRange] = useState({
-    start: initialStart.toISOString(),
-    end: new Date(initialStart.getTime() + 7 * 86_400_000).toISOString(),
+    start: weekStart.toISOString(),
+    end: new Date(weekStart.getTime() + 7 * 86_400_000).toISOString(),
   });
-  const [memberId, setMemberId] = useState(me.member.id);
   const [editing, setEditing] = useState<TimeEntry | null>(null);
   const [selection, setSelection] = useState<{ start: Date; end: Date } | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    const dateKey = formatInTimeZone(weekStart, me.member.timezone, "yyyy-MM-dd");
+    api.gotoDate(dateKey);
+    api.changeView(calendarMode === "day" ? "timeGridDay" : "timeGridWeek");
+  }, [calendarMode, me.member.timezone, weekStart]);
 
   const projects = useQuery({
     queryKey: ["projects", "active"],
@@ -57,11 +68,6 @@ export function CalendarPage() {
   const tags = useQuery({
     queryKey: ["tags", "active"],
     queryFn: () => apiRequest<{ tags: Tag[] }>("/tags?status=active"),
-  });
-  const members = useQuery({
-    queryKey: ["members"],
-    queryFn: () => apiRequest<{ members: Member[] }>("/members"),
-    enabled: me.permissions.view_team,
   });
   const calendar = useQuery({
     queryKey: ["calendar", range, memberId],
@@ -153,44 +159,6 @@ export function CalendarPage() {
 
   return (
     <>
-      <section className="border-b border-white/10 bg-[#111710]">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
-          <div>
-            <h1 className="text-base font-bold text-slate-100">Calendar</h1>
-            <p className="mt-0.5 text-xs text-slate-500">
-              {me.member.timezone} · Drag to create, move, or resize time.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {me.permissions.view_team ? (
-              <Select
-                className="h-9 min-h-9 min-w-48"
-                value={memberId}
-                onChange={(event) => setMemberId(event.target.value)}
-                aria-label="Calendar member"
-              >
-                {(members.data?.members ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.display_name}
-                  </option>
-                ))}
-              </Select>
-            ) : null}
-            <div className="flex shrink-0 overflow-hidden rounded-md border border-white/15">
-              <span className="bg-frosted-mint-900 text-frosted-mint-200 flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold whitespace-nowrap">
-                <CalendarDays size={14} /> Calendar
-              </span>
-              <Link
-                to="/time"
-                className="flex shrink-0 items-center gap-1.5 border-l border-white/10 px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-slate-400 hover:bg-white/6 hover:text-white"
-              >
-                <List size={14} /> Time entries
-              </Link>
-            </div>
-          </div>
-        </div>
-        <div className="from-light-green-500 via-frosted-mint-700 mx-5 h-px bg-gradient-to-r to-transparent" />
-      </section>
       {mutationError ? (
         <div className="m-4 rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-sm text-red-300">
           The calendar change was rolled back: {mutationError}
@@ -205,10 +173,11 @@ export function CalendarPage() {
           <FullCalendar
             ref={calendarRef}
             plugins={[timeGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
+            initialView={calendarMode === "day" ? "timeGridDay" : "timeGridWeek"}
+            initialDate={formatInTimeZone(weekStart, me.member.timezone, "yyyy-MM-dd")}
             firstDay={me.workspace.week_start === "monday" ? 1 : 0}
             timeZone={me.member.timezone}
-            height="calc(100vh - 176px)"
+            height="calc(100vh - 200px)"
             allDaySlot={false}
             nowIndicator
             selectable
@@ -216,16 +185,10 @@ export function CalendarPage() {
             editable={memberId === me.member.id || me.permissions.view_team}
             eventResizableFromStart
             slotMinTime="06:00:00"
-            slotMaxTime="22:00:00"
+            slotMaxTime="24:00:00"
             slotDuration="00:30:00"
             scrollTime="08:00:00"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "timeGridWeek,timeGridDay",
-            }}
-            buttonIcons={false}
-            buttonText={{ prev: "‹", next: "›", today: "Today", week: "Week", day: "Day" }}
+            headerToolbar={false}
             events={entries.map((entry) => {
               const backgroundColor = entry.project?.color ?? "#14852B";
               return {
@@ -258,11 +221,26 @@ export function CalendarPage() {
             }
             dayHeaderContent={(info) => {
               const key = formatInTimeZone(info.date, me.member.timezone, "yyyy-MM-dd");
+              const isToday =
+                key === formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd");
               return (
                 <div className="py-1 text-center">
-                  <div>{formatInTimeZone(info.date, me.member.timezone, "EEE d")}</div>
-                  <div className="text-frosted-mint-300 mt-1 text-[10px] font-medium">
-                    {formatDuration(totalsByDay.get(key) ?? 0)}
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span
+                      className={
+                        isToday
+                          ? "bg-frosted-mint-600 grid h-6 w-6 place-items-center rounded-full text-xs font-bold text-white"
+                          : "text-sm font-semibold text-slate-200"
+                      }
+                    >
+                      {formatInTimeZone(info.date, me.member.timezone, "d")}
+                    </span>
+                    <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                      {formatInTimeZone(info.date, me.member.timezone, "EEE")}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-mono text-[10px] text-slate-400">
+                    {formatClockDuration(totalsByDay.get(key) ?? 0)}
                   </div>
                 </div>
               );
@@ -295,9 +273,7 @@ export function CalendarPage() {
       <EntryEditor
         open={editing !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setEditing(null);
-          }
+          if (!open) setEditing(null);
         }}
         entry={editing}
         projects={projects.data?.projects ?? []}
@@ -305,4 +281,13 @@ export function CalendarPage() {
       />
     </>
   );
+}
+
+/** @deprecated Prefer CalendarView inside the Timer page */
+export function CalendarPage() {
+  const me = useMe();
+  const weekStart = startOfWeek(new Date(), {
+    weekStartsOn: me.workspace.week_start === "monday" ? 1 : 0,
+  });
+  return <CalendarView weekStart={weekStart} memberId={me.member.id} />;
 }

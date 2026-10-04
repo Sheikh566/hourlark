@@ -27,6 +27,20 @@ Errors have the shape:
 Principal route groups are `/me`, `/timer`, `/time-entries`, `/calendar`, `/reports`, `/exports`,
 `/clients`, `/projects`, `/tags`, `/members`, `/settings`, and `/audit-log`.
 
+## Report completeness and member changes
+
+Summary, detailed, CSV, and PDF reports reject filters matching more than 5,000
+visible, non-deleted entries with HTTP 422, `report_too_large`, and `max_entries: 5000`.
+Use a shorter date range or narrower filters. Exactly 5,000 entries are supported;
+the separate PDF limit below still applies. Detailed-report page size does not
+change this limit on its full matching dataset.
+
+Member updates commit the profile, project assignments, timer stop, and audit event
+as one batch. A stale version aborts the batch with HTTP 409 `member_conflict`.
+Demoting or deactivating the final active administrator aborts with HTTP 422
+`last_admin_protected`, including when another administrator changes concurrently.
+Migration `0003_member_update_guards.sql` must be applied before serving the updated API.
+
 ## CSV
 
 Detailed column order is stable:

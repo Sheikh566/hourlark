@@ -27,7 +27,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
   }, [me.data]);
 
   useEffect(() => {
-    const channel = new BroadcastChannel("iomechs-time-timer");
+    const channel = new BroadcastChannel("hourlark-timer");
     channel.onmessage = () => {
       void queryClient.invalidateQueries({ queryKey: ["timer"] });
       void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
@@ -41,7 +41,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-[#0f150e]">
         <div className="text-center">
           <div className="bg-light-green-500 mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl" />
-          <p className="text-frosted-mint-200 text-sm font-medium">Loading IOMechs Time…</p>
+          <p className="text-frosted-mint-200 text-sm font-medium">Loading Hourlark…</p>
         </div>
       </div>
     );
@@ -52,7 +52,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center bg-[#0f150e] p-6">
         <div className="panel w-full max-w-lg p-8 text-center">
-          <h1 className="text-xl font-bold text-slate-900">Unable to open IOMechs Time</h1>
+          <h1 className="text-xl font-bold text-slate-900">Unable to open Hourlark</h1>
           <p className="mt-2 text-sm text-slate-600">{message}</p>
           <div className="mt-5 flex justify-center">
             <button

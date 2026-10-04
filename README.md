@@ -1,6 +1,6 @@
-# IOMechs Time
+# Hourlark
 
-IOMechs Time is a single-company time tracker deployed as one Cloudflare Worker. The Worker serves
+Hourlark is a single-company time tracker deployed as one Cloudflare Worker. The Worker serves
 the React application and the same-origin `/api/v1` API, with Cloudflare D1 as the authoritative
 database and Cloudflare Access as the production identity boundary.
 
@@ -24,7 +24,8 @@ Vitest in workerd, React Testing Library and Playwright.
 
 ## Local development
 
-Requirements: Node.js 22 or newer and pnpm 10.33.2.
+Requirements: Node.js 22.22.2+, 24.15.0+, or 26+ and pnpm 10.33.2 (matching the
+development tools' supported Node.js release lines).
 
 ```bash
 pnpm install
@@ -32,6 +33,9 @@ cp .dev.vars.example .dev.vars
 pnpm db:setup
 pnpm dev
 ```
+
+For an existing local installation, run `pnpm db:migrate:local` to apply the Hourlark workspace
+rename. The migration preserves time entries, company settings, and customized workspace names.
 
 Open `http://127.0.0.1:5173`. Development authentication is enabled only when both
 `AUTH_MODE=dev` and `ENVIRONMENT=development`. The seed provides:
@@ -82,4 +86,6 @@ must cover the entire production hostname, not only `/api`.
 - [Operations and recovery](docs/operations.md)
 - [API conventions and export contracts](docs/api-and-exports.md)
 - [Testing](docs/testing.md)
-- [Generated design reference](docs/design/iomechs-time-ui-reference.png)
+- [Dependency and Cloudflare review](docs/cloudflare-review.md)
+- [Toggl Track replacement scope](docs/toggl-parity.md)
+- [UI reference](docs/design/hourlark-ui-reference.png)

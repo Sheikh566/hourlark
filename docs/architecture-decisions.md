@@ -56,7 +56,7 @@ scheduler dependency.
 
 ## ADR-008 — Current Worker test integration syntax
 
-**Decision:** Use Vitest 4.1 with Cloudflare’s `cloudflareTest()` plugin and workerd-backed D1
+**Decision:** Use Vitest 4.1 with `@cloudflare/vitest-plugin`'s `cloudflareTest()` plugin and workerd-backed D1
 migrations. Run React component tests in a separate jsdom Vitest configuration.
 
 **Reason:** Custom jsdom environments are not supported inside the Workers integration, while both

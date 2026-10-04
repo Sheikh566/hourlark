@@ -205,8 +205,7 @@ export function ReportsPage() {
     }
   };
 
-  const exportCsv = () =>
-    apiDownload("/exports/csv", { ...common, mode }, `iomechs-time-${mode}.csv`);
+  const exportCsv = () => apiDownload("/exports/csv", { ...common, mode }, `hourlark-${mode}.csv`);
   const exportPdf = async () => {
     if (!clientId) return;
     await apiDownload(

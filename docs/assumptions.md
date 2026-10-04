@@ -2,7 +2,11 @@
 
 ## Product and company
 
-- The supplied application name was a placeholder, so the configurable default is **IOMechs Time**.
+- The application is named **Hourlark**; its workspace name remains configurable.
+- The primary goal is to replace the company's paid Toggl Track subscription for
+  fewer than 30 people. Close Toggl UI and feature parity is a product requirement;
+  the confirmed plan is Starter at $12/user/month. Calendar and Members are
+  additional used features, not assigned priorities. See [replacement scope](toggl-parity.md).
 - The application contains one visible workspace. The fixed workspace ID remains in the relational
   model to preserve a clean future boundary, but no workspace switcher or public tenant lifecycle is
   exposed.
@@ -29,8 +33,8 @@
 
 - The Cloudflare production hostname, D1 database ID, Access team domain and Access audience were not
   supplied. Checked placeholders remain in configuration and `pnpm check:production` blocks deploy.
-- The compatibility date is `2026-07-29`, the newest date supported by the pinned workerd runtime
-  used by the current Cloudflare Vitest integration on 2026-07-30.
+- The compatibility date is `2026-10-01`, matching the workerd runtime shipped with the
+  pinned Wrangler and Cloudflare Vitest plugin in the 2026-10-04 dependency refresh.
 - Production secrets are configured through Wrangler, not source-controlled variables.
 - English application copy and Latin PDF text cover the initial IOMechs operation. PDF text is
   normalized to the built-in font’s supported range; adding a bundled Unicode font is an isolated

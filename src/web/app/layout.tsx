@@ -2,7 +2,6 @@ import {
   BarChart3,
   BriefcaseBusiness,
   Building2,
-  CalendarDays,
   ChevronDown,
   Clock3,
   Menu,
@@ -31,10 +30,7 @@ export function AppLayout() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
-  const track: NavigationItem[] = [
-    { to: "/time", label: "Time", icon: Clock3 },
-    { to: "/calendar", label: "Calendar", icon: CalendarDays },
-  ];
+  const track: NavigationItem[] = [{ to: "/time", label: "Timer", icon: Clock3 }];
   const analyze: NavigationItem[] = [{ to: "/reports", label: "Reports", icon: BarChart3 }];
   const manage: NavigationItem[] = [
     { to: "/projects", label: "Projects", icon: BriefcaseBusiness },
@@ -47,7 +43,7 @@ export function AppLayout() {
   const admin: NavigationItem[] = me.permissions.view_audit
     ? [{ to: "/administration", label: "Administration", icon: Settings }]
     : [];
-  const edgeToEdge = location.pathname === "/time" || location.pathname === "/calendar";
+  const edgeToEdge = location.pathname === "/time";
 
   const sidebar = (
     <aside className="flex h-full w-[204px] flex-col border-r border-white/10 bg-[#0a0f09] text-white">
@@ -114,7 +110,7 @@ export function AppLayout() {
         </div>
       ) : (
         <div className="border-t border-white/10 px-4 py-3 text-[10px] text-slate-600">
-          IOMechs internal workspace
+          Hourlark workspace
         </div>
       )}
     </aside>

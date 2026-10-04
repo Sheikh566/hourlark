@@ -217,7 +217,8 @@ export async function listEntries(
     conditions.push("e.description LIKE ? ESCAPE '\\' COLLATE NOCASE");
     bindings.push(`%${escapeLike(filters.search)}%`);
   }
-  const limit = Math.min(Math.max(filters.limit ?? 1000, 1), 5000);
+  // Reports need one extra row to detect overflow; the public list API caps at 5,000.
+  const limit = Math.min(Math.max(filters.limit ?? 1000, 1), 5001);
   bindings.push(limit);
   const result = await db
     .prepare(

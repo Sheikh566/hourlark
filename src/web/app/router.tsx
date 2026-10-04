@@ -4,9 +4,6 @@ import { Navigate, Route, Routes } from "react-router";
 import { AppLayout } from "@/web/app/layout";
 import { TimePage } from "@/web/routes/time";
 
-const CalendarPage = lazy(() =>
-  import("@/web/routes/calendar").then((module) => ({ default: module.CalendarPage })),
-);
 const ReportsPage = lazy(() =>
   import("@/web/routes/reports").then((module) => ({ default: module.ReportsPage })),
 );
@@ -41,7 +38,7 @@ export function AppRouter() {
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/time" replace />} />
           <Route path="/time" element={<TimePage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/calendar" element={<Navigate to="/time?view=calendar" replace />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/clients" element={<ClientsPage />} />

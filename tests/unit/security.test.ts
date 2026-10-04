@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 const baseEnvironment = {
   ENVIRONMENT: "production",
   AUTH_MODE: "access",
-  APP_NAME: "IOMechs Time",
+  APP_NAME: "Hourlark",
   COMPANY_NAME: "IOMechs",
   COMPANY_DOMAIN: "iomechs.com",
   DEFAULT_TIMEZONE: "Asia/Karachi",

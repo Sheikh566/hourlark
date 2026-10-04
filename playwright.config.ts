@@ -6,14 +6,15 @@ export default defineConfig({
   retries: 1,
   reporter: "html",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:5186",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "pnpm dev --host 127.0.0.1",
-    url: "http://127.0.0.1:5173/api/v1/health",
-    reuseExistingServer: !process.env.CI,
+    command: "node scripts/e2e-server.mjs",
+    url: "http://127.0.0.1:5186/api/v1/health",
+    reuseExistingServer: false,
+    gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
     timeout: 120_000,
   },
   projects: [

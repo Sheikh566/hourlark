@@ -1,112 +1,143 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, addWeeks, startOfDay, startOfWeek } from "date-fns";
+import { addDays, addWeeks, getISOWeek, startOfDay, startOfWeek, subDays } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  List,
-  Play,
-  RotateCcw,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Copy, MoreHorizontal, Play, RotateCcw, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router";
+import { useSearchParams } from "react-router";
 
 import { useMe } from "@/web/app/context";
-import { Badge, Button, EmptyState, ErrorState, Input, Select } from "@/web/components/ui";
+import { Badge, Button, EmptyState, ErrorState, Select } from "@/web/components/ui";
 import { InlineEntryEditor } from "@/web/features/time/inline-entry-editor";
+import { CalendarView } from "@/web/routes/calendar";
+import { TimerToolbar, WorkspaceStripe, type TimerView } from "@/web/features/timer/timer-toolbar";
+import { TimesheetView } from "@/web/features/timer/timesheet-view";
 import { useNow } from "@/web/hooks/use-now";
 import { ApiClientError, apiRequest, idempotencyKey } from "@/web/lib/api";
-import { formatDuration } from "@/web/lib/format";
+import { formatClockDuration } from "@/web/lib/format";
 import { broadcastTimerChange } from "@/web/lib/timer";
-import type { Client, Member, Project, Tag, TimeEntry } from "@/web/types";
+import type { Member, Project, Tag, TimeEntry } from "@/web/types";
+
+function parseView(value: string | null): TimerView {
+  if (value === "calendar" || value === "timesheet" || value === "list") return value;
+  return "list";
+}
 
 export function TimePage() {
   const me = useMe();
-  const queryClient = useQueryClient();
   const now = useNow();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = parseView(searchParams.get("view"));
   const [anchor, setAnchor] = useState(new Date());
-  const [rangeMode, setRangeMode] = useState<"day" | "week">("week");
-  const [search, setSearch] = useState("");
-  const [filterProject, setFilterProject] = useState("");
-  const [filterClient, setFilterClient] = useState("");
-  const [filterTag, setFilterTag] = useState("");
-  const [filterBillable, setFilterBillable] = useState("");
   const [memberId, setMemberId] = useState(me.member.id);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [undoEntry, setUndoEntry] = useState<TimeEntry | null>(null);
+  const [calendarMode, setCalendarMode] = useState<"week" | "day">("week");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const periodStart =
-    rangeMode === "week"
-      ? startOfWeek(anchor, {
-          weekStartsOn: me.workspace.week_start === "monday" ? 1 : 0,
-        })
-      : startOfDay(anchor);
-  const periodEnd = addDays(periodStart, rangeMode === "week" ? 7 : 1);
-  const range = {
-    start: fromZonedTime(
-      formatInTimeZone(periodStart, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
-      me.member.timezone,
-    ).toISOString(),
-    end: fromZonedTime(
-      formatInTimeZone(periodEnd, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
-      me.member.timezone,
-    ).toISOString(),
+  const weekStartsOn = me.workspace.week_start === "monday" ? 1 : 0;
+  const weekStart = startOfWeek(anchor, { weekStartsOn });
+  const listAllDates = view === "list";
+
+  const setView = (next: TimerView) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === "list") params.delete("view");
+    else params.set("view", next);
+    setSearchParams(params, { replace: true });
   };
-  const rangeLabel =
-    rangeMode === "week"
-      ? `${formatInTimeZone(periodStart, me.member.timezone, "MMM d")} – ${formatInTimeZone(
-          addDays(periodEnd, -1),
+
+  const listRange = useMemo(() => {
+    if (listAllDates) {
+      const end = addDays(startOfDay(new Date()), 1);
+      const start = subDays(end, 60);
+      return {
+        start: fromZonedTime(
+          formatInTimeZone(start, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
           me.member.timezone,
-          "MMM d, yyyy",
-        )}`
-      : formatInTimeZone(periodStart, me.member.timezone, "EEEE, MMM d, yyyy");
+        ).toISOString(),
+        end: fromZonedTime(
+          formatInTimeZone(end, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
+          me.member.timezone,
+        ).toISOString(),
+      };
+    }
+    const periodEnd = addDays(weekStart, 7);
+    return {
+      start: fromZonedTime(
+        formatInTimeZone(weekStart, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
+        me.member.timezone,
+      ).toISOString(),
+      end: fromZonedTime(
+        formatInTimeZone(periodEnd, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
+        me.member.timezone,
+      ).toISOString(),
+    };
+  }, [listAllDates, me.member.timezone, weekStart]);
+
+  const weekRange = useMemo(() => {
+    const periodEnd = addDays(weekStart, 7);
+    return {
+      start: fromZonedTime(
+        formatInTimeZone(weekStart, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
+        me.member.timezone,
+      ).toISOString(),
+      end: fromZonedTime(
+        formatInTimeZone(periodEnd, me.member.timezone, "yyyy-MM-dd'T'00:00:00"),
+        me.member.timezone,
+      ).toISOString(),
+    };
+  }, [me.member.timezone, weekStart]);
 
   const projects = useQuery({
     queryKey: ["projects", "active"],
     queryFn: () => apiRequest<{ projects: Project[] }>("/projects?status=active"),
+  });
+  const tags = useQuery({
+    queryKey: ["tags", "active"],
+    queryFn: () => apiRequest<{ tags: Tag[] }>("/tags?status=active"),
   });
   const members = useQuery({
     queryKey: ["members"],
     queryFn: () => apiRequest<{ members: Member[] }>("/members"),
     enabled: me.permissions.view_team,
   });
-  const clients = useQuery({
-    queryKey: ["clients", "active"],
-    queryFn: () => apiRequest<{ clients: Client[] }>("/clients?status=active"),
-  });
-  const tags = useQuery({
-    queryKey: ["tags", "active"],
-    queryFn: () => apiRequest<{ tags: Tag[] }>("/tags?status=active"),
-  });
   const entries = useQuery({
-    queryKey: [
-      "time-entries",
-      range,
-      search,
-      filterProject,
-      filterClient,
-      filterTag,
-      filterBillable,
-      memberId,
-    ],
+    queryKey: ["time-entries", "timer-list", listRange, memberId],
     queryFn: () => {
       const params = new URLSearchParams({
-        start: range.start,
-        end: range.end,
-        ...(search ? { search } : {}),
-        ...(filterProject ? { project_id: filterProject } : {}),
-        ...(filterClient ? { client_id: filterClient } : {}),
-        ...(filterTag ? { tag_id: filterTag } : {}),
-        ...(filterBillable ? { billable: filterBillable } : {}),
+        start: listRange.start,
+        end: listRange.end,
         ...(me.permissions.view_team ? { member_id: memberId } : {}),
       });
       return apiRequest<{ entries: TimeEntry[]; generated_at: string }>(`/time-entries?${params}`);
     },
+    enabled: view === "list",
   });
+  const weekEntries = useQuery({
+    queryKey: ["time-entries", "timer-week", weekRange, memberId],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        start: weekRange.start,
+        end: weekRange.end,
+        ...(me.permissions.view_team ? { member_id: memberId } : {}),
+      });
+      return apiRequest<{ entries: TimeEntry[] }>(`/time-entries?${params}`);
+    },
+  });
+
+  const durationFor = (entry: TimeEntry) =>
+    entry.running ? Math.max(0, now - new Date(entry.started_at).getTime()) : entry.duration_ms;
+
+  const todayKey = formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd");
+  const todayTotal = (weekEntries.data?.entries ?? [])
+    .filter(
+      (entry) => formatInTimeZone(entry.started_at, me.member.timezone, "yyyy-MM-dd") === todayKey,
+    )
+    .reduce((sum, entry) => sum + durationFor(entry), 0);
+  const weekTotal = (weekEntries.data?.entries ?? []).reduce(
+    (sum, entry) => sum + durationFor(entry),
+    0,
+  );
 
   const deleteMutation = useMutation({
     mutationFn: async (entry: TimeEntry) => {
@@ -182,22 +213,10 @@ export function TimePage() {
           started_at: entry.started_at,
           stopped_at: entry.stopped_at ?? new Date().toISOString(),
           billable: entry.billable,
-          ...(me.permissions.financial &&
-          entry.rate_minor !== null &&
-          entry.rate_minor !== undefined
-            ? {
-                rate_minor: entry.rate_minor,
-                rate_currency: entry.rate_currency ?? me.workspace.currency,
-              }
-            : {}),
         }),
       }),
     onSuccess: async ({ entry }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["time-entries"] }),
-        queryClient.invalidateQueries({ queryKey: ["calendar"] }),
-        queryClient.invalidateQueries({ queryKey: ["reports"] }),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: ["time-entries"] });
       setEditingEntryId(entry.id);
     },
   });
@@ -210,73 +229,61 @@ export function TimePage() {
     }
     return [...groups.entries()].sort(([left], [right]) => right.localeCompare(left));
   }, [entries.data, me.member.timezone]);
-  const durationFor = (entry: TimeEntry) =>
-    entry.running ? Math.max(0, now - new Date(entry.started_at).getTime()) : entry.duration_ms;
-  const total = (entries.data?.entries ?? []).reduce((sum, entry) => sum + durationFor(entry), 0);
-  const activeFilterCount = [search, filterProject, filterClient, filterTag, filterBillable].filter(
-    Boolean,
-  ).length;
+
+  const periodLabel = view === "list" ? "All dates" : `This week · W${getISOWeek(weekStart)}`;
+
+  const onPrevious = () => {
+    if (view === "list") return;
+    setAnchor(addWeeks(anchor, -1));
+  };
+  const onNext = () => {
+    if (view === "list") return;
+    setAnchor(addWeeks(anchor, 1));
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   return (
     <>
-      <section className="border-b border-white/10 bg-[#111710]">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
-          <div className="flex min-w-0 items-center gap-1">
-            <h1 className="mr-3 hidden text-sm font-bold text-slate-100 lg:block">Time</h1>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              onClick={() =>
-                setAnchor(rangeMode === "week" ? addWeeks(anchor, -1) : addDays(anchor, -1))
-              }
-            >
-              <ChevronLeft size={16} />
-              <span className="sr-only">Previous range</span>
-            </Button>
-            <button
-              type="button"
-              className="hover:border-frosted-mint-700 min-w-44 rounded-md border border-white/15 bg-white/3 px-3 py-2 text-left text-sm font-semibold text-slate-200"
-              onClick={() => setAnchor(new Date())}
-              title="Return to today"
-            >
-              {rangeLabel}
-            </button>
-            <Button
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              onClick={() =>
-                setAnchor(rangeMode === "week" ? addWeeks(anchor, 1) : addDays(anchor, 1))
-              }
-            >
-              <ChevronRight size={16} />
-              <span className="sr-only">Next range</span>
-            </Button>
-            <Select
-              className="ml-1 h-9 min-h-9 w-24"
-              value={rangeMode}
-              onChange={(event) => setRangeMode(event.target.value as typeof rangeMode)}
-              aria-label="Time range mode"
-            >
-              <option value="week">Week</option>
-              <option value="day">Day</option>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="hidden text-right md:block">
-              <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                Range total
-              </p>
-              <p className="text-frosted-mint-300 font-mono text-sm font-bold">
-                {formatDuration(total)}
-              </p>
-            </div>
+      <h1 className="sr-only">Timer</h1>
+      <TimerToolbar
+        view={view}
+        onViewChange={setView}
+        periodLabel={periodLabel}
+        onPrevious={onPrevious}
+        onNext={onNext}
+        onPeriodClick={() => setAnchor(new Date())}
+        previousDisabled={view === "list"}
+        nextDisabled={view === "list"}
+        showTodayTotal={view === "list"}
+        todayTotal={formatClockDuration(todayTotal)}
+        weekTotal={formatClockDuration(weekTotal)}
+        trailing={
+          <>
+            {view === "calendar" ? (
+              <Select
+                className="h-8 min-h-8 w-28 text-xs"
+                value={calendarMode}
+                onChange={(event) => setCalendarMode(event.target.value as "week" | "day")}
+                aria-label="Calendar density"
+              >
+                <option value="week">Week view</option>
+                <option value="day">Day view</option>
+              </Select>
+            ) : null}
             {me.permissions.view_team ? (
               <Select
-                className="h-9 min-h-9 min-w-44"
+                className="h-8 min-h-8 min-w-40 text-xs"
                 value={memberId}
                 onChange={(event) => setMemberId(event.target.value)}
-                aria-label="Time list member"
+                aria-label="Timer member"
               >
                 {(members.data?.members ?? []).map((member) => (
                   <option key={member.id} value={member.id}>
@@ -285,250 +292,213 @@ export function TimePage() {
                 ))}
               </Select>
             ) : null}
-          </div>
-        </div>
+          </>
+        }
+      />
+      <WorkspaceStripe label={me.workspace.company_name} />
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/8 px-4 py-2 md:px-5">
-          <div className="flex items-center gap-2">
-            <span className="text-light-green-400 text-[10px] font-black tracking-[0.12em] uppercase">
-              {me.workspace.company_name}
-            </span>
-          </div>
-          <div className="flex shrink-0 overflow-hidden rounded-md border border-white/15">
-            <Link
-              to="/calendar"
-              className="flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-slate-400 hover:bg-white/6 hover:text-white"
-            >
-              <CalendarDays size={14} /> Calendar
-            </Link>
-            <span className="bg-frosted-mint-900 text-frosted-mint-200 flex shrink-0 items-center gap-1.5 border-l border-white/10 px-3 py-1.5 text-xs font-semibold whitespace-nowrap">
-              <List size={14} /> Time entries
-            </span>
-          </div>
-        </div>
-
-        <div className="grid gap-2 border-t border-white/8 px-4 py-2.5 md:grid-cols-2 md:px-5 xl:grid-cols-5">
-          <div className="relative">
-            <Search className="absolute top-2.5 left-3 text-slate-600" size={15} />
-            <Input
-              className="h-9 min-h-9 pl-9"
-              placeholder="Search descriptions"
-              aria-label="Search time descriptions"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+      {view === "calendar" ? (
+        <CalendarView weekStart={weekStart} memberId={memberId} calendarMode={calendarMode} />
+      ) : null}
+      {view === "timesheet" ? <TimesheetView weekStart={weekStart} memberId={memberId} /> : null}
+      {view === "list" ? (
+        <section className="min-h-[calc(100vh-210px)] bg-[#141a13]">
+          {entries.isLoading ? (
+            <div className="space-y-2 p-4">
+              {[1, 2, 3].map((item) => (
+                <div key={item} className="h-14 animate-pulse rounded-md bg-white/5" />
+              ))}
+            </div>
+          ) : entries.error ? (
+            <div className="p-4">
+              <ErrorState message={entries.error.message} onRetry={() => void entries.refetch()} />
+            </div>
+          ) : grouped.length === 0 ? (
+            <EmptyState
+              title="No time recorded yet"
+              description="Start the timer above, or switch to Calendar and drag a time range."
             />
-          </div>
-          <Select
-            className="h-9 min-h-9"
-            value={filterProject}
-            onChange={(event) => setFilterProject(event.target.value)}
-            aria-label="Filter by project"
-          >
-            <option value="">All projects</option>
-            {(projects.data?.projects ?? []).map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            className="h-9 min-h-9"
-            value={filterClient}
-            onChange={(event) => setFilterClient(event.target.value)}
-            aria-label="Filter by client"
-          >
-            <option value="">All clients</option>
-            {(clients.data?.clients ?? []).map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            className="h-9 min-h-9"
-            value={filterTag}
-            onChange={(event) => setFilterTag(event.target.value)}
-            aria-label="Filter by tag"
-          >
-            <option value="">All tags</option>
-            {(tags.data?.tags ?? []).map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            className="h-9 min-h-9"
-            value={filterBillable}
-            onChange={(event) => setFilterBillable(event.target.value)}
-            aria-label={`Filter by billing status; ${activeFilterCount} filters active`}
-          >
-            <option value="">All billing states</option>
-            <option value="true">Billable</option>
-            <option value="false">Non-billable</option>
-          </Select>
-        </div>
-      </section>
-
-      <section className="min-h-[calc(100vh-230px)] bg-[#141a13]">
-        {entries.isLoading ? (
-          <div className="space-y-2 p-4">
-            {[1, 2, 3].map((item) => (
-              <div key={item} className="h-14 animate-pulse rounded-md bg-white/5" />
-            ))}
-          </div>
-        ) : entries.error ? (
-          <div className="p-4">
-            <ErrorState message={entries.error.message} onRetry={() => void entries.refetch()} />
-          </div>
-        ) : grouped.length === 0 ? (
-          <EmptyState
-            title="No time recorded in this range"
-            description="Start the timer above, or drag across a time range in Calendar."
-            action={
-              <Link
-                to="/calendar"
-                className="border-frosted-mint-800 hover:border-frosted-mint-600 inline-flex min-h-9 items-center gap-2 rounded-lg border bg-white/4 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-white/8"
-              >
-                <CalendarDays size={15} /> Open Calendar
-              </Link>
-            }
-          />
-        ) : (
-          grouped.map(([day, dayEntries]) => {
-            const dayTotal = dayEntries.reduce((sum, entry) => sum + durationFor(entry), 0);
-            const isToday = day === formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd");
-            return (
-              <section key={day} aria-labelledby={`day-${day}`}>
-                <div className="flex items-center justify-between border-y border-white/8 bg-[#111710] px-5 py-2.5">
-                  <h2 id={`day-${day}`} className="text-sm font-bold text-slate-200">
-                    {isToday
-                      ? "Today"
-                      : formatInTimeZone(`${day}T12:00:00Z`, me.member.timezone, "EEEE, MMMM d")}
-                  </h2>
-                  <span className="font-mono text-sm font-bold text-slate-300">
-                    {formatDuration(dayTotal)}
-                  </span>
-                </div>
-                {dayEntries.map((entry) =>
-                  editingEntryId === entry.id ? (
-                    <InlineEntryEditor
-                      key={entry.id}
-                      entry={entry}
-                      projects={projects.data?.projects ?? []}
-                      tags={tags.data?.tags ?? []}
-                      onCancel={() => setEditingEntryId(null)}
-                      onSaved={() => setEditingEntryId(null)}
+          ) : (
+            grouped.map(([day, dayEntries]) => {
+              const dayTotal = dayEntries.reduce((sum, entry) => sum + durationFor(entry), 0);
+              const isToday = day === todayKey;
+              const allSelected = dayEntries.every((entry) => selectedIds.has(entry.id));
+              return (
+                <section key={day} aria-labelledby={`day-${day}`}>
+                  <div className="flex items-center gap-3 border-y border-white/8 bg-[#111710] px-4 py-2.5 md:px-5">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={() => {
+                        setSelectedIds((current) => {
+                          const next = new Set(current);
+                          if (allSelected) dayEntries.forEach((entry) => next.delete(entry.id));
+                          else dayEntries.forEach((entry) => next.add(entry.id));
+                          return next;
+                        });
+                      }}
+                      aria-label={`Select all entries for ${day}`}
                     />
-                  ) : (
-                    <article
-                      key={entry.id}
-                      className={`group grid min-h-[58px] items-center gap-3 border-b border-white/7 px-5 py-2.5 transition hover:bg-white/[0.035] md:grid-cols-[minmax(180px,1fr)_240px_175px_auto] ${
-                        entry.running ? "bg-frosted-mint-950/30" : ""
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <button
-                          type="button"
-                          className="hover:text-frosted-mint-300 block max-w-full truncate rounded-sm text-left text-sm font-semibold text-slate-100"
-                          onClick={() => setEditingEntryId(entry.id)}
-                          title="Edit description"
-                        >
-                          {entry.description || "No description"}
-                        </button>
-                        {entry.tags.length ? (
+                    <h2 id={`day-${day}`} className="flex-1 text-sm font-bold text-slate-200">
+                      {isToday
+                        ? "Today"
+                        : formatInTimeZone(`${day}T12:00:00Z`, me.member.timezone, "EEEE, MMMM d")}
+                    </h2>
+                    <span className="font-mono text-sm font-semibold text-slate-300">
+                      {formatClockDuration(dayTotal)}
+                    </span>
+                  </div>
+                  {dayEntries.map((entry) =>
+                    editingEntryId === entry.id ? (
+                      <InlineEntryEditor
+                        key={entry.id}
+                        entry={entry}
+                        projects={projects.data?.projects ?? []}
+                        tags={tags.data?.tags ?? []}
+                        onCancel={() => setEditingEntryId(null)}
+                        onSaved={() => setEditingEntryId(null)}
+                      />
+                    ) : (
+                      <article
+                        key={entry.id}
+                        className={`group grid min-h-[56px] items-center gap-2 border-b border-white/7 px-4 py-2 transition hover:bg-white/[0.035] md:grid-cols-[auto_minmax(260px,1fr)_minmax(70px,auto)_minmax(150px,auto)_auto] md:px-5 ${
+                          entry.running ? "bg-frosted-mint-950/30" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(entry.id)}
+                          onChange={() => toggleSelected(entry.id)}
+                          aria-label={`Select ${entry.description || "time entry"}`}
+                        />
+                        <div className="flex min-w-0 items-center gap-4">
                           <button
                             type="button"
-                            className="mt-1 flex max-w-full flex-wrap gap-1 rounded-sm text-left"
+                            className={`max-w-[55%] min-w-0 shrink truncate rounded-sm text-left text-sm ${
+                              entry.description
+                                ? "hover:text-frosted-mint-300 font-semibold text-slate-100"
+                                : "text-slate-500 hover:text-slate-300"
+                            }`}
                             onClick={() => setEditingEntryId(entry.id)}
-                            aria-label={`Edit tags for ${entry.description || "time entry"}`}
+                            title="Edit description"
                           >
-                            {entry.tags.map((tag) => (
-                              <Badge key={tag.id} color={tag.color}>
-                                {tag.name}
-                              </Badge>
-                            ))}
+                            {entry.description || "Add description"}
                           </button>
-                        ) : null}
-                      </div>
-                      <button
-                        type="button"
-                        className="flex min-w-0 items-center gap-2 rounded-sm text-left text-sm"
-                        onClick={() => setEditingEntryId(entry.id)}
-                        title="Edit project"
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
-                          style={
-                            entry.project?.color
-                              ? { backgroundColor: entry.project.color }
-                              : undefined
-                          }
-                        />
-                        <span className="text-frosted-mint-300 truncate">
-                          {entry.project?.name ?? "No project"}
-                        </span>
-                        {entry.client?.name ? (
-                          <span className="truncate text-xs text-slate-600">
-                            {entry.client.name}
+                          <button
+                            type="button"
+                            className="flex max-w-[40%] min-w-0 shrink items-center gap-2 rounded-sm text-left text-sm"
+                            onClick={() => setEditingEntryId(entry.id)}
+                            title="Edit project"
+                          >
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
+                              style={
+                                entry.project?.color
+                                  ? { backgroundColor: entry.project.color }
+                                  : undefined
+                              }
+                            />
+                            <span
+                              className={
+                                entry.project?.name
+                                  ? "text-frosted-mint-300 truncate"
+                                  : "truncate text-slate-500"
+                              }
+                            >
+                              {entry.project?.name ?? "+ Add project"}
+                            </span>
+                          </button>
+                        </div>
+                        <div className="hidden min-w-0 md:block">
+                          {entry.tags.length ? (
+                            <button
+                              type="button"
+                              className="flex max-w-full flex-wrap gap-1 rounded-sm text-left"
+                              onClick={() => setEditingEntryId(entry.id)}
+                              aria-label={`Edit tags for ${entry.description || "time entry"}`}
+                            >
+                              {entry.tags.map((tag) => (
+                                <Badge key={tag.id} color={tag.color}>
+                                  {tag.name}
+                                </Badge>
+                              ))}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-xs text-slate-600 hover:text-slate-400"
+                              onClick={() => setEditingEntryId(entry.id)}
+                            >
+                              —
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-sm text-left font-mono text-xs text-slate-500 md:text-right"
+                          onClick={() => setEditingEntryId(entry.id)}
+                          title="Edit date, times, and duration"
+                        >
+                          <span>
+                            {formatInTimeZone(entry.started_at, me.member.timezone, "h:mm a")} –{" "}
+                            {entry.stopped_at
+                              ? formatInTimeZone(entry.stopped_at, me.member.timezone, "h:mm a")
+                              : "running"}
                           </span>
-                        ) : null}
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-sm font-mono text-xs text-slate-500 md:text-right"
-                        onClick={() => setEditingEntryId(entry.id)}
-                        title="Edit date, times, and duration"
-                      >
-                        {formatInTimeZone(entry.started_at, me.member.timezone, "HH:mm")} –{" "}
-                        {entry.stopped_at
-                          ? formatInTimeZone(entry.stopped_at, me.member.timezone, "HH:mm")
-                          : "running"}
-                        <strong
-                          className={`ml-3 text-sm ${
-                            entry.running ? "text-light-green-400" : "text-slate-200"
-                          }`}
-                        >
-                          {formatDuration(durationFor(entry))}
-                        </strong>
-                      </button>
-                      <div className="flex justify-end gap-0.5 opacity-70 transition group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={() => continueMutation.mutate(entry)}
-                          title="Continue"
-                        >
-                          <Play size={14} />
-                        </Button>
-                        {!entry.running ? (
+                          <strong
+                            className={`ml-3 text-sm ${
+                              entry.running ? "text-light-green-400" : "text-slate-200"
+                            }`}
+                          >
+                            {formatClockDuration(durationFor(entry))}
+                          </strong>
+                        </button>
+                        <div className="flex justify-end gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                           <Button
                             variant="ghost"
                             className="h-8 w-8 p-0"
-                            onClick={() => duplicateMutation.mutate(entry)}
-                            title="Duplicate and edit inline"
-                            disabled={duplicateMutation.isPending}
+                            onClick={() => continueMutation.mutate(entry)}
+                            title="Continue"
+                            aria-label="Continue time entry"
                           >
-                            <Copy size={14} />
+                            <Play size={14} />
                           </Button>
-                        ) : null}
-                        <Button
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-red-400"
-                          onClick={() => deleteMutation.mutate(entry)}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
-                    </article>
-                  ),
-                )}
-              </section>
-            );
-          })
-        )}
-      </section>
+                          <div className="relative">
+                            <details className="group/menu">
+                              <summary className="grid h-8 w-8 list-none place-items-center rounded-lg text-slate-400 hover:bg-white/7 hover:text-slate-100 [&::-webkit-details-marker]:hidden">
+                                <MoreHorizontal size={14} />
+                                <span className="sr-only">More actions</span>
+                              </summary>
+                              <div className="timer-popover absolute top-9 right-0 z-20 w-40 p-1">
+                                {!entry.running ? (
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-slate-300 hover:bg-white/8"
+                                    onClick={() => duplicateMutation.mutate(entry)}
+                                  >
+                                    <Copy size={13} /> Duplicate
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-300 hover:bg-white/8"
+                                  onClick={() => deleteMutation.mutate(entry)}
+                                >
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                            </details>
+                          </div>
+                        </div>
+                      </article>
+                    ),
+                  )}
+                </section>
+              );
+            })
+          )}
+        </section>
+      ) : null}
 
       {undoEntry ? (
         <div className="fixed right-4 bottom-4 z-30 flex items-center gap-3 rounded-xl border border-white/10 bg-[#171d16] px-4 py-3 text-sm text-white shadow-xl">
