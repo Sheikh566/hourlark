@@ -57,3 +57,9 @@ This repository has `wrangler.jsonc`; use Wrangler and project scripts. Keep sec
 in local `.dev.vars` or Wrangler secrets. Run `pnpm check:production` before
 deployment; production requires configured D1 and Access settings. Back up D1
 before destructive remote migrations.
+
+## Cursor Cloud specific instructions
+
+- The default `node` on this image can be older than `package.json` `engines` (`^22.22.2 || ^24.15.0 || >=26`). Use Node 22.22.2 from `~/.local/node-v22.22.2` (the environment links it ahead of `/exec-daemon/node`). `pnpm` must be 12.9.1.
+- `.dev.vars` is gitignored. Copy `.dev.vars.example` when it is missing. Development auth requires `AUTH_MODE=dev` and `ENVIRONMENT=development`. Seeded accounts are listed in the README.
+- `pnpm db:setup` migrates and seeds local D1, then `pnpm dev` serves the app at `http://127.0.0.1:5173`. `pnpm test:e2e` starts its own server on port 5186 and does not reuse that dev server.
