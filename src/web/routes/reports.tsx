@@ -1,19 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  addDays,
-  addMonths,
-  differenceInCalendarDays,
-  format,
-  parseISO,
-  startOfMonth,
-  startOfQuarter,
-  startOfWeek,
-  startOfYear,
-  subMonths,
-  subWeeks,
-} from "date-fns";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -40,6 +26,17 @@ import { useMe } from "@/web/app/context";
 import { Badge, Button, ErrorState, Field, Input, Modal, Select } from "@/web/components/ui";
 import { useRestoreFocus } from "@/web/features/timer/use-dismiss-popover";
 import { DateRangePopover } from "@/web/features/timer/date-range-popover";
+import {
+  addCalendarDays,
+  exclusiveEndIso,
+  inclusiveDayCount,
+  parseYearMonth,
+  shiftYearMonth,
+  startOfWeekDate,
+  yearMonthKey,
+  zonedDayStartIso,
+  zonedToday,
+} from "@/web/features/timer/list-date-range";
 import { apiDownload, apiRequest } from "@/web/lib/api";
 import { formatDuration, formatMoney } from "@/web/lib/format";
 import type { Client, Member, Project, Tag } from "@/web/types";
@@ -89,20 +86,47 @@ interface DetailedRow {
 }
 
 const chartColors = ["#f59e0b", "#56b4e9", "#e69f00", "#009e73", "#f0e442", "#cc79a7"];
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
-function dateOnly(date: Date): string {
-  return format(date, "yyyy-MM-dd");
+function reportDayLabel(dateStr: string): string {
+  const month = SHORT_MONTHS[Number(dateStr.slice(5, 7)) - 1] ?? "";
+  return `${Number(dateStr.slice(8, 10))} ${month} ${dateStr.slice(0, 4)}`;
+}
+
+function monthRange(year: number, month: number): { start: string; end: string } {
+  const start = `${yearMonthKey(year, month)}-01`;
+  const next = shiftYearMonth(year, month, 1);
+  return { start, end: addCalendarDays(`${yearMonthKey(next.year, next.month)}-01`, -1) };
+}
+
+function quarterRange(year: number, month: number): { start: string; end: string } {
+  const quarterMonth = Math.floor((month - 1) / 3) * 3 + 1;
+  const start = `${yearMonthKey(year, quarterMonth)}-01`;
+  const next = shiftYearMonth(year, quarterMonth, 3);
+  return { start, end: addCalendarDays(`${yearMonthKey(next.year, next.month)}-01`, -1) };
 }
 
 export function ReportsPage() {
   const me = useMe();
-  const today = parseISO(formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd"));
-  const weekStart = startOfWeek(today, {
-    weekStartsOn: me.workspace.week_start === "monday" ? 1 : 0,
-  });
+  const weekStartsOn = me.workspace.week_start === "monday" ? 1 : 0;
+  const initialToday = zonedToday(new Date(), me.member.timezone);
+  const initialWeek = startOfWeekDate(initialToday, weekStartsOn);
   const [mode, setMode] = useState<"summary" | "detailed">("summary");
-  const [start, setStart] = useState(dateOnly(weekStart));
-  const [end, setEnd] = useState(dateOnly(addDays(weekStart, 6)));
+  const [start, setStart] = useState(initialWeek);
+  const [end, setEnd] = useState(addCalendarDays(initialWeek, 6));
   const [datesOpen, setDatesOpen] = useState(false);
   const dateTrigger = useRef<HTMLButtonElement>(null);
   const [restoreDateFocus, setRestoreDateFocus] = useState(false);
@@ -173,11 +197,8 @@ export function ReportsPage() {
 
   const common = useMemo(
     () => ({
-      start: fromZonedTime(`${start}T00:00:00`, me.member.timezone).toISOString(),
-      end: fromZonedTime(
-        `${dateOnly(addDays(parseISO(end), 1))}T00:00:00`,
-        me.member.timezone,
-      ).toISOString(),
+      start: zonedDayStartIso(start, me.member.timezone),
+      end: exclusiveEndIso(end, me.member.timezone),
       timezone: me.member.timezone,
       group_by: groupBy,
       ...(secondary ? { secondary_group_by: secondary } : {}),
@@ -236,34 +257,42 @@ export function ReportsPage() {
       apiRequest<SummaryReport>(`/reports/summary?${new URLSearchParams(dailyParams)}`),
     enabled: mode === "summary",
   });
-  const dayCount = Math.max(1, differenceInCalendarDays(parseISO(end), parseISO(start)) + 1);
-  const dateLabel = `${format(parseISO(start), "d MMM yyyy")} – ${format(parseISO(end), "d MMM yyyy")}`;
-  const applyRange = (first: Date, last: Date) => {
-    setStart(dateOnly(first));
-    setEnd(dateOnly(last));
+  const dayCount = Math.max(1, inclusiveDayCount(start, end));
+  const dateLabel = `${reportDayLabel(start)} – ${reportDayLabel(end)}`;
+  const applyRange = (first: string, last: string) => {
+    setStart(first);
+    setEnd(last);
     setDatesOpen(false);
     setRestoreDateFocus(datesOpen);
   };
   const setPreset = (preset: string) => {
-    const now = parseISO(formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd"));
-    const week = startOfWeek(now, { weekStartsOn: me.workspace.week_start === "monday" ? 1 : 0 });
-    if (preset === "today") applyRange(now, now);
-    else if (preset === "yesterday") applyRange(addDays(now, -1), addDays(now, -1));
-    else if (preset === "this_week") applyRange(week, addDays(week, 6));
-    else if (preset === "last_week") applyRange(subWeeks(week, 1), addDays(week, -1));
-    else if (preset === "this_month")
-      applyRange(startOfMonth(now), addDays(addMonths(startOfMonth(now), 1), -1));
-    else if (preset === "last_month")
-      applyRange(startOfMonth(subMonths(now, 1)), addDays(startOfMonth(now), -1));
-    else if (preset === "this_quarter")
-      applyRange(startOfQuarter(now), addDays(addMonths(startOfQuarter(now), 3), -1));
-    else if (preset === "this_year")
-      applyRange(startOfYear(now), parseISO(`${now.getFullYear()}-12-31`));
+    const today = zonedToday(new Date(), me.member.timezone);
+    const { year, month } = parseYearMonth(today);
+    const week = startOfWeekDate(today, weekStartsOn);
+    if (preset === "today") applyRange(today, today);
+    else if (preset === "yesterday") {
+      const day = addCalendarDays(today, -1);
+      applyRange(day, day);
+    } else if (preset === "this_week") applyRange(week, addCalendarDays(week, 6));
+    else if (preset === "last_week") {
+      const previous = addCalendarDays(week, -7);
+      applyRange(previous, addCalendarDays(previous, 6));
+    } else if (preset === "this_month") {
+      const range = monthRange(year, month);
+      applyRange(range.start, range.end);
+    } else if (preset === "last_month") {
+      const previous = shiftYearMonth(year, month, -1);
+      const range = monthRange(previous.year, previous.month);
+      applyRange(range.start, range.end);
+    } else if (preset === "this_quarter") {
+      const range = quarterRange(year, month);
+      applyRange(range.start, range.end);
+    } else if (preset === "this_year") applyRange(`${year}-01-01`, `${year}-12-31`);
   };
   const movePeriod = (direction: number) =>
     applyRange(
-      addDays(parseISO(start), dayCount * direction),
-      addDays(parseISO(end), dayCount * direction),
+      addCalendarDays(start, dayCount * direction),
+      addCalendarDays(end, dayCount * direction),
     );
   const resetFilters = () => {
     setClientId("");
@@ -406,8 +435,7 @@ export function ReportsPage() {
             triggerRef={dateTrigger}
             ariaLabel="Choose report dates"
             onChange={(next) => {
-              if (next.startDate && next.endDate)
-                applyRange(parseISO(next.startDate), parseISO(next.endDate));
+              if (next.startDate && next.endDate) applyRange(next.startDate, next.endDate);
             }}
             onClose={(restore) => {
               setDatesOpen(false);

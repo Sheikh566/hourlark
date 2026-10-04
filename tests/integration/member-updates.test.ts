@@ -177,6 +177,19 @@ describe("atomic member updates", () => {
     expect(await snapshot(adminId)).toEqual(assigned);
   });
 
+  it("rejects unknown project ids without dropping the current assignments", async () => {
+    const initial = await snapshot();
+    const response = await patch(memberId, {
+      version: 1,
+      project_ids: ["00000000-0000-4000-8000-000000000399"],
+    });
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "project_assignment_invalid" },
+    });
+    expect(await snapshot()).toEqual(initial);
+  });
+
   it("rolls back unrelated SQL failures and does not mislabel them as conflicts", async () => {
     const initial = await snapshot();
     const db = new Proxy(env.DB, {

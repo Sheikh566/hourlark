@@ -4,6 +4,9 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildSummary } from "@/domain/reports/reporting";
+import type { ReportRow } from "@/domain/reports/reporting";
+import type { AuthenticatedMember, WorkspaceRow } from "@/domain/types";
 import { ReportsPage } from "@/web/routes/reports";
 
 const { apiRequestMock, apiDownloadMock, identity } = vi.hoisted(() => ({
@@ -118,6 +121,107 @@ describe("report date and filter workflow", () => {
       ).toBe(true),
     );
     expect(screen.getByRole("button", { name: "Report date range" })).toHaveFocus();
+  });
+
+  it("keeps the Karachi week when the process zone is America/Los_Angeles", async () => {
+    const previous = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      renderPage();
+      await screen.findByText("Total Hours");
+      expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
+        "5 Oct 2026 – 11 Oct 2026",
+      );
+      const request = summaryRequests()[0];
+      expect(request?.searchParams.get("start")).toBe("2026-10-04T19:00:00.000Z");
+      expect(request?.searchParams.get("end")).toBe("2026-10-11T19:00:00.000Z");
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
+  });
+
+  it("groups report weeks in the member zone when the process zone is Asia/Karachi", () => {
+    const previous = process.env.TZ;
+    process.env.TZ = "Asia/Karachi";
+    try {
+      const clippedStart = Date.parse("2026-10-04T19:30:00.000Z");
+      const row: ReportRow = {
+        id: "entry",
+        date: "2026-10-05",
+        memberId: "member",
+        memberName: "Member",
+        clientId: null,
+        clientName: "No client",
+        projectId: null,
+        projectName: "No project",
+        projectColor: null,
+        projectBudgetMinutes: null,
+        description: "Work",
+        tags: [],
+        startedAt: clippedStart,
+        stoppedAt: clippedStart + 60_000,
+        clippedStart,
+        clippedStop: clippedStart + 60_000,
+        rawDurationMs: 60_000,
+        roundedDurationMs: 60_000,
+        billable: false,
+        rateMinor: null,
+        currency: null,
+        amountMinor: null,
+        running: false,
+      };
+      const viewer = {
+        id: "member",
+        workspaceId: "workspace",
+        email: "member@iomechs.com",
+        displayName: "Member",
+        role: "admin",
+        status: "active",
+        timezone: "Asia/Karachi",
+        accessSubject: null,
+      } satisfies AuthenticatedMember;
+      const workspace = {
+        id: "workspace",
+        app_name: "Hourlark",
+        company_name: "IOMechs",
+        company_domain: "iomechs.com",
+        timezone: "Asia/Karachi",
+        currency: "USD",
+        week_start: "monday",
+        allowed_email_domains_json: "[]",
+        default_rate_minor: null,
+        members_can_set_billable: 1,
+        lock_entries_after_days: null,
+        rounding_increment_minutes: 0,
+        rounding_method: "nearest",
+        report_show_descriptions: 1,
+        report_show_tags: 1,
+        report_show_members: 1,
+        bootstrap_completed_at: null,
+        created_at: 0,
+        updated_at: 0,
+        version: 1,
+      } satisfies WorkspaceRow;
+      expect(
+        buildSummary([row], viewer, workspace, "week", undefined, "Asia/Karachi", clippedStart)
+          .groups[0]?.key,
+      ).toBe("2026-10-05");
+      expect(
+        buildSummary(
+          [row],
+          viewer,
+          { ...workspace, week_start: "sunday" },
+          "week",
+          undefined,
+          "Asia/Karachi",
+          clippedStart,
+        ).groups[0]?.key,
+      ).toBe("2026-10-04");
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
   });
 
   it("applies an inclusive custom range across fall DST", async () => {

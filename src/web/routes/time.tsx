@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, addWeeks, format, getISOWeek, parseISO, startOfWeek } from "date-fns";
+import { format, getISOWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { Copy, MoreHorizontal, Play, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,13 +13,17 @@ import { DateRangePopover, TimeEntryListCapWarning } from "@/web/features/timer/
 import {
   ALL_DATES_SELECTION,
   addCalendarDays,
-  zonedDayStartIso,
+  exclusiveEndIso,
   listPeriodLabel,
+  localCalendarDate,
   selectionFromPreset,
   shiftSelection,
+  startOfWeekDate,
   TIME_ENTRY_LIST_LIMIT,
   toApiRange,
   weekStartFromWorkspace,
+  zonedDayStartIso,
+  zonedToday,
 } from "@/web/features/timer/list-date-range";
 import {
   groupSessionsByDay,
@@ -292,7 +296,7 @@ export function TimePage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const view = parseView(searchParams.get("view"));
-  const localToday = () => parseISO(formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd"));
+  const localToday = () => localCalendarDate(zonedToday(new Date(), me.member.timezone));
   const [anchor, setAnchor] = useState(localToday);
   const [memberId, setMemberId] = useState(me.member.id);
   const [editingTarget, setEditingTarget] = useState<{
@@ -311,7 +315,9 @@ export function TimePage() {
 
   const weekStartsOn = me.workspace.week_start === "monday" ? 1 : 0;
   const listWeekStartsOn = weekStartFromWorkspace(me.workspace.week_start);
-  const weekStart = startOfWeek(anchor, { weekStartsOn });
+  const anchorDate = format(anchor, "yyyy-MM-dd");
+  const weekStartDate = startOfWeekDate(anchorDate, weekStartsOn);
+  const weekStart = localCalendarDate(weekStartDate);
   const todayKey = formatInTimeZone(new Date(now), me.member.timezone, "yyyy-MM-dd");
 
   const setView = (next: TimerView) => {
@@ -333,13 +339,13 @@ export function TimePage() {
     setExpandedGroups(new Set());
   }, [memberId, listRange.start, listRange.end]);
 
-  const totalsWeekStart = format(
-    view === "list" ? startOfWeek(localToday(), { weekStartsOn }) : weekStart,
-    "yyyy-MM-dd",
-  );
+  const totalsWeekStart =
+    view === "list"
+      ? startOfWeekDate(zonedToday(new Date(now), me.member.timezone), weekStartsOn)
+      : weekStartDate;
   const weekRange = {
     start: zonedDayStartIso(totalsWeekStart, me.member.timezone),
-    end: zonedDayStartIso(addCalendarDays(totalsWeekStart, 7), me.member.timezone),
+    end: exclusiveEndIso(addCalendarDays(totalsWeekStart, 6), me.member.timezone),
   };
 
   const projects = useQuery({
@@ -509,10 +515,12 @@ export function TimePage() {
           ...(me.permissions.view_team ? { member_id: entry.member.id } : {}),
           description: entry.description,
           project_id: entry.project?.id ?? null,
-          tag_ids: entry.tags.map((tag) => tag.id),
+          tag_ids: entry.tags.filter((tag) => tag.status === "active").map((tag) => tag.id),
           started_at: entry.started_at,
           stopped_at: entry.stopped_at ?? new Date().toISOString(),
-          billable: entry.billable,
+          billable:
+            (me.workspace.members_can_set_billable || me.member.role !== "member") &&
+            entry.billable,
         }),
       }),
     onSuccess: async ({ entry }) => {
@@ -549,7 +557,7 @@ export function TimePage() {
       ? listPeriodLabel(listSelection)
       : view === "calendar" && calendarMode === "day"
         ? format(anchor, "EEE, d MMM yyyy")
-        : `${format(weekStart, "d MMM")} – ${format(addDays(weekStart, 6), "d MMM yyyy")} · W${getISOWeek(weekStart)}`;
+        : `${format(weekStart, "d MMM")} – ${format(localCalendarDate(addCalendarDays(weekStartDate, 6)), "d MMM yyyy")} · W${getISOWeek(weekStart)}`;
   const applyListPreset = (preset: "today" | "this_week" | "all") => {
     setListSelection(selectionFromPreset(preset, listClock, me.member.timezone, listWeekStartsOn));
     setRangeOpen(false);
@@ -563,7 +571,9 @@ export function TimePage() {
       return;
     }
     setAnchor(
-      view === "calendar" && calendarMode === "day" ? addDays(anchor, -1) : addWeeks(anchor, -1),
+      localCalendarDate(
+        addCalendarDays(anchorDate, view === "calendar" && calendarMode === "day" ? -1 : -7),
+      ),
     );
   };
   const onNext = () => {
@@ -574,7 +584,9 @@ export function TimePage() {
       return;
     }
     setAnchor(
-      view === "calendar" && calendarMode === "day" ? addDays(anchor, 1) : addWeeks(anchor, 1),
+      localCalendarDate(
+        addCalendarDays(anchorDate, view === "calendar" && calendarMode === "day" ? 1 : 7),
+      ),
     );
   };
 
@@ -666,7 +678,9 @@ export function TimePage() {
           calendarMode={calendarMode}
         />
       ) : null}
-      {view === "timesheet" ? <TimesheetView weekStart={weekStart} memberId={memberId} /> : null}
+      {view === "timesheet" ? (
+        <TimesheetView weekStart={weekStartDate} memberId={memberId} />
+      ) : null}
       {view === "list" ? (
         <section className="min-w-0 bg-[#212121]">
           <TimeEntryListCapWarning entryCount={entries.data?.entries.length ?? 0} />

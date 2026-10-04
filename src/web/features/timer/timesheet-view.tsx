@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { Plus, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
@@ -33,13 +32,13 @@ export function TimesheetView({
   memberId,
   timezone,
 }: {
-  weekStart: Date;
+  weekStart: string;
   memberId: string;
   timezone?: string;
 }) {
   const me = useMe();
   const zone = timezone ?? me.member.timezone;
-  const startDate = format(weekStart, "yyyy-MM-dd");
+  const startDate = weekStart;
   return (
     <TimesheetWeek
       key={`${memberId}:${startDate}:${zone}`}

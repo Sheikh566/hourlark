@@ -131,6 +131,9 @@ export function GlobalTimerBar() {
   );
   const displayedProjectId = activeTimer ? (activeTimer.project?.id ?? "") : idleProjectId;
   const displayedTagIds = activeTimer ? activeTimer.tags.map((tag) => tag.id) : selectedTags;
+  const canSetBillable = me.workspace.members_can_set_billable || me.member.role !== "member";
+  const billableForProject = (project: ProjectChoice | undefined) =>
+    canSetBillable && (project?.billable_default === true || project?.billable_default === 1);
   const displayedBillable = activeTimer ? activeTimer.billable : billable;
   const displayedDescription = activeTimer
     ? (runningDraft ?? rejectedDraft ?? activeTimer.description)
@@ -333,7 +336,7 @@ export function GlobalTimerBar() {
           description,
           project_id: idleProjectId || null,
           tag_ids: selectedTags,
-          billable,
+          billable: canSetBillable ? billable : false,
         }),
       }),
     onSuccess: async () => {
@@ -360,7 +363,7 @@ export function GlobalTimerBar() {
     if (suggestion.kind === "project") {
       setProjectId(suggestion.id);
       const project = pickerProjects.find((item) => item.id === suggestion.id);
-      setBillable(project?.billable_default === true || project?.billable_default === 1);
+      setBillable(billableForProject(project));
     } else {
       setSelectedTags((current) =>
         current.includes(suggestion.id) ? current : [...current, suggestion.id],
@@ -611,7 +614,7 @@ export function GlobalTimerBar() {
             }
             setProjectId(value);
             const project = pickerProjects.find((item) => item.id === value);
-            setBillable(project?.billable_default === true || project?.billable_default === 1);
+            setBillable(billableForProject(project));
           }}
         />
         <TagPicker

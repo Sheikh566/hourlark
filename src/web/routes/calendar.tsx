@@ -11,7 +11,14 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
 import { overlapDuration } from "@/domain/dates/time";
-import { addCalendarDays, zonedDayStartIso } from "@/web/features/timer/list-date-range";
+import {
+  addCalendarDays,
+  exclusiveEndIso,
+  localCalendarDate,
+  startOfWeekDate,
+  zonedDayStartIso,
+  zonedToday,
+} from "@/web/features/timer/list-date-range";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
@@ -23,7 +30,7 @@ import { useNow } from "@/web/hooks/use-now";
 import { apiRequest } from "@/web/lib/api";
 import { formatClockDuration, formatDuration } from "@/web/lib/format";
 import type { Project, Tag, TimeEntry } from "@/web/types";
-import { format, startOfWeek } from "date-fns";
+import { format } from "date-fns";
 
 function calendarTextColor(background: string): string {
   const hex = background.replace("#", "");
@@ -48,15 +55,16 @@ export function CalendarView({
   const now = useNow(30_000);
   const queryClient = useQueryClient();
   const calendarRef = useRef<FullCalendar>(null);
+  const dateKey = format(weekStart, "yyyy-MM-dd");
+  const inclusiveDays = calendarMode === "day" ? 0 : 6;
   const [range, setRange] = useState({
-    start: weekStart.toISOString(),
-    end: new Date(weekStart.getTime() + 7 * 86_400_000).toISOString(),
+    start: zonedDayStartIso(dateKey, me.member.timezone),
+    end: exclusiveEndIso(addCalendarDays(dateKey, inclusiveDays), me.member.timezone),
   });
   const [editing, setEditing] = useState<TimeEntry | null>(null);
   const [selection, setSelection] = useState<{ start: Date; end: Date } | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const dateKey = format(weekStart, "yyyy-MM-dd");
   useEffect(() => {
     setEditing(null);
     setSelection(null);
@@ -204,7 +212,7 @@ export function CalendarView({
             ref={calendarRef}
             plugins={[timeGridPlugin, interactionPlugin, calendarTimezonePlugin]}
             initialView={calendarMode === "day" ? "timeGridDay" : "timeGridWeek"}
-            initialDate={format(weekStart, "yyyy-MM-dd")}
+            initialDate={dateKey}
             firstDay={me.workspace.week_start === "monday" ? 1 : 0}
             timeZone={me.member.timezone}
             height="max(320px, calc(100dvh - 200px))"
@@ -318,8 +326,8 @@ export function CalendarView({
 /** @deprecated Prefer CalendarView inside the Timer page */
 export function CalendarPage() {
   const me = useMe();
-  const weekStart = startOfWeek(new Date(), {
-    weekStartsOn: me.workspace.week_start === "monday" ? 1 : 0,
-  });
+  const today = zonedToday(new Date(), me.member.timezone);
+  const weekStartsOn = me.workspace.week_start === "monday" ? 1 : 0;
+  const weekStart = localCalendarDate(startOfWeekDate(today, weekStartsOn));
   return <CalendarView weekStart={weekStart} memberId={me.member.id} />;
 }

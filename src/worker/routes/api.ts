@@ -1,4 +1,4 @@
-import { startOfWeek } from "date-fns";
+import { addDays, startOfWeek } from "date-fns";
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 import { Hono, type Context } from "hono";
 import { z, type ZodType } from "zod";
@@ -9,9 +9,10 @@ import {
   listEntries,
   loadActiveTimer,
   loadEntry,
+  parseTags,
   serializeEntry,
 } from "@/db/repositories/time-entries";
-import { assertValidTimeZone } from "@/domain/dates/time";
+import { assertValidTimeZone, formatInclusivePeriod } from "@/domain/dates/time";
 import { normalizeEmail, normalizeName } from "@/domain/normalization";
 import { can, canViewMemberTime, hasFinancialAccess } from "@/domain/permissions/policy";
 import {
@@ -54,6 +55,7 @@ import {
   stopTimer,
   updateEntry,
 } from "@/worker/services/entries";
+import { isOptimisticVersionMismatch, optimisticVersionGuard } from "@/worker/version-guard";
 
 const api = new Hono<AppContext>();
 
@@ -291,6 +293,8 @@ api.post("/time-entries/:id/continue", async (c) => {
   if (!entry || !canViewMemberTime(member, entry.member_id)) {
     throw new ApiError(404, "entry_not_found", "Time entry not found.");
   }
+  const workspace = await getWorkspace(c.env.DB, member.workspaceId);
+  const canKeepBillable = member.role !== "member" || workspace.members_can_set_billable === 1;
   return c.json(
     await startTimer(
       c.env.DB,
@@ -298,11 +302,10 @@ api.post("/time-entries/:id/continue", async (c) => {
       {
         description: entry.description,
         project_id: entry.project_id,
-        tag_ids:
-          JSON.parse(entry.tags_json) instanceof Array
-            ? (JSON.parse(entry.tags_json) as Array<{ id: string }>).map((tag) => tag.id)
-            : [],
-        billable: entry.billable === 1,
+        tag_ids: parseTags(entry.tags_json)
+          .filter((tag) => tag.status === "active")
+          .map((tag) => tag.id),
+        billable: canKeepBillable && entry.billable === 1,
       },
       idempotencyKey(c),
       mutationMeta(c),
@@ -437,39 +440,45 @@ api.patch("/clients/:id", async (c) => {
   if (existing.version !== input.version)
     throw new ApiError(409, "client_conflict", "The client changed.");
   const now = Date.now();
-  const result = await c.env.DB.batch([
-    c.env.DB.prepare(
-      `UPDATE clients SET name = ?, billing_contact_name = ?, billing_email = ?, billing_address = ?,
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE clients SET name = ?, billing_contact_name = ?, billing_email = ?, billing_address = ?,
            tax_identifier = ?, default_rate_minor = ?, currency = ?, notes = ?, updated_at = ?,
            version = version + 1 WHERE id = ? AND version = ?`,
-    ).bind(
-      input.name,
-      input.billing_contact_name ?? null,
-      input.billing_email ?? null,
-      input.billing_address ?? null,
-      input.tax_identifier ?? null,
-      input.default_rate_minor ?? null,
-      input.currency,
-      input.notes ?? null,
-      now,
-      id,
-      input.version,
-    ),
-    createAuditStatement(
-      c.env.DB,
-      member,
-      "client.updated",
-      "client",
-      id,
-      existing,
-      input,
-      null,
-      mutationMeta(c),
-      now,
-    ),
-  ]);
-  if (result[0]?.meta.changes === 0)
-    throw new ApiError(409, "client_conflict", "The client changed.");
+      ).bind(
+        input.name,
+        input.billing_contact_name ?? null,
+        input.billing_email ?? null,
+        input.billing_address ?? null,
+        input.tax_identifier ?? null,
+        input.default_rate_minor ?? null,
+        input.currency,
+        input.notes ?? null,
+        now,
+        id,
+        input.version,
+      ),
+      ...optimisticVersionGuard(c.env.DB),
+      createAuditStatement(
+        c.env.DB,
+        member,
+        "client.updated",
+        "client",
+        id,
+        existing,
+        input,
+        null,
+        mutationMeta(c),
+        now,
+      ),
+    ]);
+  } catch (error) {
+    if (isOptimisticVersionMismatch(error)) {
+      throw new ApiError(409, "client_conflict", "The client changed.");
+    }
+    throw error;
+  }
   return c.json({
     client: await c.env.DB.prepare("SELECT * FROM clients WHERE id = ?").bind(id).first(),
   });
@@ -729,41 +738,48 @@ api.patch("/projects/:id", async (c) => {
     throw new ApiError(422, "client_unavailable", "An active client is required.");
   }
   const now = Date.now();
-  const results = await c.env.DB.batch([
-    c.env.DB.prepare(
-      `UPDATE projects SET client_id = ?, name = ?, color = ?, billable_default = ?,
+  const assignmentStatements = await replaceProjectMembers(c.env.DB, id, input.member_ids, now);
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE projects SET client_id = ?, name = ?, color = ?, billable_default = ?,
            hourly_rate_minor = ?, currency = ?, budget_minutes = ?, visibility = ?, notes = ?,
            updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`,
-    ).bind(
-      input.client_id,
-      input.name,
-      input.color,
-      input.billable_default ? 1 : 0,
-      input.hourly_rate_minor ?? null,
-      input.currency,
-      input.budget_minutes ?? null,
-      input.visibility,
-      input.notes ?? null,
-      now,
-      id,
-      input.version,
-    ),
-    ...(await replaceProjectMembers(c.env.DB, id, input.member_ids, now)),
-    createAuditStatement(
-      c.env.DB,
-      member,
-      "project.updated",
-      "project",
-      id,
-      existing,
-      input,
-      null,
-      mutationMeta(c),
-      now,
-    ),
-  ]);
-  if (results[0]?.meta.changes === 0)
-    throw new ApiError(409, "project_conflict", "The project changed.");
+      ).bind(
+        input.client_id,
+        input.name,
+        input.color,
+        input.billable_default ? 1 : 0,
+        input.hourly_rate_minor ?? null,
+        input.currency,
+        input.budget_minutes ?? null,
+        input.visibility,
+        input.notes ?? null,
+        now,
+        id,
+        input.version,
+      ),
+      ...optimisticVersionGuard(c.env.DB),
+      ...assignmentStatements,
+      createAuditStatement(
+        c.env.DB,
+        member,
+        "project.updated",
+        "project",
+        id,
+        existing,
+        input,
+        null,
+        mutationMeta(c),
+        now,
+      ),
+    ]);
+  } catch (error) {
+    if (isOptimisticVersionMismatch(error)) {
+      throw new ApiError(409, "project_conflict", "The project changed.");
+    }
+    throw error;
+  }
   return c.json({
     project: await c.env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(id).first(),
   });
@@ -842,11 +858,12 @@ api.patch("/tags/:id", async (c) => {
     throw new ApiError(409, "tag_conflict", "The tag changed.");
   const now = Date.now();
   try {
-    const results = await c.env.DB.batch([
+    await c.env.DB.batch([
       c.env.DB.prepare(
         `UPDATE tags SET name = ?, normalized_name = ?, color = ?, updated_at = ?,
            version = version + 1 WHERE id = ? AND version = ?`,
       ).bind(input.name, normalizeName(input.name), input.color, now, id, input.version),
+      ...optimisticVersionGuard(c.env.DB),
       createAuditStatement(
         c.env.DB,
         member,
@@ -860,9 +877,11 @@ api.patch("/tags/:id", async (c) => {
         now,
       ),
     ]);
-    if (results[0]?.meta.changes === 0) throw new ApiError(409, "tag_conflict", "The tag changed.");
   } catch (error) {
     if (error instanceof ApiError) throw error;
+    if (isOptimisticVersionMismatch(error)) {
+      throw new ApiError(409, "tag_conflict", "The tag changed.");
+    }
     throw new ApiError(409, "tag_name_exists", "A tag with this name already exists.");
   }
   return c.json({
@@ -881,24 +900,27 @@ api.get("/members", async (c) => {
   const actor = c.get("member");
   requireAction(actor, "member:view");
   const workspace = await getWorkspace(c.env.DB, actor.workspaceId);
-  const localWeekStart = startOfWeek(toZonedTime(Date.now(), workspace.timezone), {
+  const now = Date.now();
+  const localWeekStart = startOfWeek(toZonedTime(now, workspace.timezone), {
     weekStartsOn: workspace.week_start === "monday" ? 1 : 0,
   });
   const weekStart = fromZonedTime(localWeekStart, workspace.timezone).getTime();
+  const weekEnd = fromZonedTime(addDays(localWeekStart, 7), workspace.timezone).getTime();
   const result = await c.env.DB.prepare(
     `SELECT m.*,
               (SELECT e.id FROM time_entries e
                WHERE e.member_id = m.id AND e.stopped_at IS NULL AND e.deleted_at IS NULL LIMIT 1) AS running_entry_id,
-              COALESCE((SELECT SUM(COALESCE(e.stopped_at, ?) - e.started_at)
+              COALESCE((SELECT SUM(min(COALESCE(e.stopped_at, ?), ?) - max(e.started_at, ?))
                         FROM time_entries e
-                        WHERE e.member_id = m.id AND e.deleted_at IS NULL AND e.started_at >= ?), 0) AS week_tracked_ms,
+                        WHERE e.member_id = m.id AND e.deleted_at IS NULL
+                          AND e.started_at < ? AND COALESCE(e.stopped_at, ?) > ?), 0) AS week_tracked_ms,
               COALESCE((SELECT json_group_array(pm.project_id)
                         FROM project_members pm WHERE pm.member_id = m.id), '[]') AS project_ids_json
        FROM members m
        WHERE m.workspace_id = ?
        ORDER BY CASE m.status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, m.display_name`,
   )
-    .bind(Date.now(), weekStart, actor.workspaceId)
+    .bind(now, weekEnd, weekStart, weekEnd, now, weekStart, actor.workspaceId)
     .all();
   return c.json({ members: result.results });
 });
@@ -1016,12 +1038,26 @@ api.patch("/members/:id", async (c) => {
     );
   }
   if (input.project_ids) {
+    const projectIds = [...new Set(input.project_ids)];
+    if (projectIds.length > 0) {
+      const placeholders = projectIds.map(() => "?").join(",");
+      statements.push(
+        c.env.DB.prepare(
+          `INSERT INTO project_assignment_checks (matched_rows)
+           SELECT CASE WHEN (
+             SELECT COUNT(*) FROM projects
+             WHERE workspace_id = ? AND status = 'active' AND id IN (${placeholders})
+           ) = ? THEN 1 ELSE 0 END`,
+        ).bind(actor.workspaceId, ...projectIds, projectIds.length),
+        c.env.DB.prepare("DELETE FROM project_assignment_checks"),
+      );
+    }
     statements.push(
       c.env.DB.prepare("DELETE FROM project_members WHERE member_id = ?").bind(id),
-      ...[...new Set(input.project_ids)].map((projectId) =>
+      ...projectIds.map((projectId) =>
         c.env.DB.prepare(
           `INSERT INTO project_members (project_id, member_id, created_at)
-             SELECT id, ?, ? FROM projects WHERE id = ? AND workspace_id = ?`,
+             SELECT id, ?, ? FROM projects WHERE id = ? AND workspace_id = ? AND status = 'active'`,
         ).bind(id, now, projectId, actor.workspaceId),
       ),
     );
@@ -1046,6 +1082,13 @@ api.patch("/members/:id", async (c) => {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes("member_update_version_matches")) {
       throw new ApiError(409, "member_conflict", "The member changed.");
+    }
+    if (message.includes("project_assignment_ids_match")) {
+      throw new ApiError(
+        422,
+        "project_assignment_invalid",
+        "One or more assigned projects are unavailable.",
+      );
     }
     if (message.includes("last_admin_protected")) {
       throw new ApiError(
@@ -1175,48 +1218,54 @@ api.patch("/settings", async (c) => {
           : 0,
   };
   const now = Date.now();
-  const results = await c.env.DB.batch([
-    c.env.DB.prepare(
-      `UPDATE workspaces SET app_name = ?, company_name = ?, company_domain = ?, timezone = ?,
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE workspaces SET app_name = ?, company_name = ?, company_domain = ?, timezone = ?,
          currency = ?, week_start = ?, allowed_email_domains_json = ?, default_rate_minor = ?,
          members_can_set_billable = ?, lock_entries_after_days = ?, rounding_increment_minutes = ?,
          rounding_method = ?, report_show_descriptions = ?, report_show_tags = ?, report_show_members = ?,
          updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`,
-    ).bind(
-      next.app_name,
-      next.company_name,
-      next.company_domain,
-      next.timezone,
-      next.currency,
-      next.week_start,
-      next.allowed_email_domains_json,
-      next.default_rate_minor,
-      next.members_can_set_billable,
-      next.lock_entries_after_days,
-      next.rounding_increment_minutes,
-      next.rounding_method,
-      next.report_show_descriptions,
-      next.report_show_tags,
-      next.report_show_members,
-      now,
-      member.workspaceId,
-      input.version,
-    ),
-    createAuditStatement(
-      c.env.DB,
-      member,
-      "workspace.settings_updated",
-      "workspace",
-      member.workspaceId,
-      existing,
-      next,
-      null,
-      mutationMeta(c),
-      now,
-    ),
-  ]);
-  if (results[0]?.meta.changes === 0)
-    throw new ApiError(409, "settings_conflict", "Settings changed.");
+      ).bind(
+        next.app_name,
+        next.company_name,
+        next.company_domain,
+        next.timezone,
+        next.currency,
+        next.week_start,
+        next.allowed_email_domains_json,
+        next.default_rate_minor,
+        next.members_can_set_billable,
+        next.lock_entries_after_days,
+        next.rounding_increment_minutes,
+        next.rounding_method,
+        next.report_show_descriptions,
+        next.report_show_tags,
+        next.report_show_members,
+        now,
+        member.workspaceId,
+        input.version,
+      ),
+      ...optimisticVersionGuard(c.env.DB),
+      createAuditStatement(
+        c.env.DB,
+        member,
+        "workspace.settings_updated",
+        "workspace",
+        member.workspaceId,
+        existing,
+        next,
+        null,
+        mutationMeta(c),
+        now,
+      ),
+    ]);
+  } catch (error) {
+    if (isOptimisticVersionMismatch(error)) {
+      throw new ApiError(409, "settings_conflict", "Settings changed.");
+    }
+    throw error;
+  }
   return c.json({ settings: safeWorkspace(await getWorkspace(c.env.DB, member.workspaceId)) });
 });
 
@@ -1416,7 +1465,7 @@ api.post("/exports/pdf", async (c) => {
     companyName: workspace.company_name,
     clientName: client.name,
     clientAddress: client.billing_address,
-    dateRange: `${input.start.slice(0, 10)} to ${input.end.slice(0, 10)}`,
+    dateRange: formatInclusivePeriod(input.start, input.end, input.timezone),
     timezone: input.timezone,
     reference: input.reference,
     notes: input.notes,
