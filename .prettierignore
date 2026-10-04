@@ -5,3 +5,5 @@ coverage
 playwright-report
 worker-configuration.d.ts
 pnpm-lock.yaml
+.agents/skills
+.claude/skills

@@ -50,8 +50,13 @@ Deliberate compatibility holds:
   `fc-*` selectors and browser tests targeting the v6 DOM. Migrate the calendar as
   one separate UI change with drag/resize and visual verification. See the
   [v7 migration](https://fullcalendar.io/docs/upgrading-from-v6).
-- **pnpm 10.33.2:** retained as the project's package manager. Updating libraries
-  does not require a global package-manager migration.
+- **pnpm 12.9.1:** the project's package manager, matching npm latest. The earlier
+  library upgrade retained 10.33.2; this follow-up upgrades only the package
+  manager. Non-auth settings live in `pnpm-workspace.yaml`, and builds remain
+  allowed only for esbuild and workerd. Five exact versions already present in
+  the committed lockfile have release-age exceptions for this migration;
+  other versions retain pnpm's default 24-hour release-age gate. Application
+  dependency versions and the application section of the lockfile are unchanged.
 
 The deployment script now invokes `pnpm run build`, including the existing
 `.dev.vars` artifact sanitization. Previously it invoked `vite build` directly

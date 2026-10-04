@@ -13,7 +13,7 @@ Hourlark replaces Toggl Track using React, Hono, and D1 in one Cloudflare Worker
 
 ## Build, Test, and Development Commands
 
-Use pnpm 10.33.2 and a supported Node release, such as Node 24.15.0+.
+Use pnpm 12.9.1 and a supported Node release, such as Node 24.15.0+.
 
 - `pnpm install --frozen-lockfile`: install locked dependencies.
 - `pnpm db:setup`: migrate and seed a local development database.

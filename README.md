@@ -24,11 +24,19 @@ Vitest in workerd, React Testing Library and Playwright.
 
 ## Local development
 
-Requirements: Node.js 22.22.2+, 24.15.0+, or 26+ and pnpm 10.33.2 (matching the
-development tools' supported Node.js release lines).
+Requirements: Node.js 22.22.2+, 24.15.0+, or 26+ and pnpm 12.9.1 (matching the
+`packageManager` field). pnpm 12 is a native executable. If an existing pnpm 10
+install cannot activate that pin, bootstrap the exact version from the npm
+registry into a temporary prefix and use that binary:
 
 ```bash
-pnpm install
+npm install pnpm@12.9.1 --prefix /tmp/pnpm-12.9.1
+export PATH="/tmp/pnpm-12.9.1/node_modules/.bin:$PATH"
+pnpm --version
+```
+
+```bash
+pnpm install --frozen-lockfile
 cp .dev.vars.example .dev.vars
 pnpm db:setup
 pnpm dev

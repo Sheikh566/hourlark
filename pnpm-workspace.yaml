@@ -1,0 +1,15 @@
+saveExact: true
+autoInstallPeers: true
+strictPeerDependencies: true
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+# Retain the already-reviewed lockfile versions during the pnpm 12 migration.
+# Other versions still use pnpm's default 24-hour release-age gate.
+minimumReleaseAgeExclude:
+  - "@cloudflare/workers-types@5.20261004.1"
+  - "hono@4.13.13"
+  - "lucide-react@1.52.0"
+  - "tr46@7.0.0"
+  - "whatwg-url@17.2.0"
