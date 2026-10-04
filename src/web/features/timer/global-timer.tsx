@@ -1,14 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  BriefcaseBusiness,
-  Check,
-  CircleDollarSign,
-  Play,
-  Search,
-  Square,
-  Tags,
-  X,
-} from "lucide-react";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { Check, CircleDollarSign, Folder, Play, Search, Square, Tags, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
@@ -18,8 +9,13 @@ import {
   removeDescriptionCommand,
   type DescriptionCommandKind,
 } from "@/web/features/timer/description-command";
+import {
+  useDismissPopover,
+  useEscapeToClose,
+  useRestoreFocus,
+} from "@/web/features/timer/use-dismiss-popover";
 import { useNow } from "@/web/hooks/use-now";
-import { apiRequest, idempotencyKey } from "@/web/lib/api";
+import { ApiClientError, apiRequest, idempotencyKey } from "@/web/lib/api";
 import { formatClockDuration } from "@/web/lib/format";
 import { broadcastTimerChange } from "@/web/lib/timer";
 import type { Project, Tag, TimeEntry } from "@/web/types";
@@ -40,21 +36,75 @@ interface CommandSuggestion {
   selected: boolean;
 }
 
+interface TimerQuery {
+  entry: TimeEntry | null;
+  server_now: string;
+}
+
+type ProjectChoice = Pick<Project, "id" | "name" | "color" | "client_name" | "billable_default">;
+
+interface RunningMetadataPatch {
+  description?: string;
+  project_id?: string | null;
+  tag_ids?: string[];
+  billable?: boolean;
+}
+
+function applyEntryToCaches(queryClient: QueryClient, entry: TimeEntry) {
+  queryClient.setQueryData<TimerQuery>(["timer"], (current) => ({
+    entry: entry.running ? entry : null,
+    server_now: current?.server_now ?? entry.updated_at,
+  }));
+  queryClient.setQueriesData({ queryKey: ["time-entries"] }, (current: unknown) => {
+    if (!current || typeof current !== "object" || !("entries" in current)) return current;
+    const data = current as { entries: TimeEntry[] };
+    return {
+      ...data,
+      entries: data.entries.map((item) => (item.id === entry.id ? entry : item)),
+    };
+  });
+  queryClient.setQueriesData({ queryKey: ["calendar"] }, (current: unknown) => {
+    if (!current || typeof current !== "object" || !("events" in current)) return current;
+    const data = current as { events: TimeEntry[] };
+    return {
+      ...data,
+      events: data.events.map((item) => (item.id === entry.id ? entry : item)),
+    };
+  });
+}
+
+function isTimeEntry(value: unknown): value is TimeEntry {
+  return Boolean(value && typeof value === "object" && "id" in value && "version" in value);
+}
+
 export function GlobalTimerBar() {
   const me = useMe();
   const queryClient = useQueryClient();
   const now = useNow();
   const descriptionInput = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState("");
+  const [runningDraft, setRunningDraft] = useState<string | null>(null);
+  const [rejectedDraft, setRejectedDraft] = useState<string | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
   const [descriptionCursor, setDescriptionCursor] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
   const [highlightedCommand, setHighlightedCommand] = useState(0);
   const [projectId, setProjectId] = useState("");
   const [billable, setBillable] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [operationPending, setOperationPending] = useState(false);
+  const runningDraftRef = useRef<string | null>(null);
+  const rejectedDraftRef = useRef<string | null>(null);
+  const persistPromiseRef = useRef<Promise<boolean> | null>(null);
+  const exclusiveRef = useRef<Promise<unknown> | null>(null);
+
   const projects = useQuery({
     queryKey: ["projects", "active"],
     queryFn: () => apiRequest<{ projects: Project[] }>("/projects?status=active"),
+    select: (data) => ({
+      ...data,
+      projects: data.projects.filter((project) => project.client_status !== "archived"),
+    }),
   });
   const tags = useQuery({
     queryKey: ["tags", "active"],
@@ -66,17 +116,53 @@ export function GlobalTimerBar() {
   });
   const timer = useQuery({
     queryKey: ["timer"],
-    queryFn: () => apiRequest<{ entry: TimeEntry | null; server_now: string }>("/timer"),
+    queryFn: () => apiRequest<TimerQuery>("/timer"),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
   const activeTimer = timer.data?.entry ?? null;
-  const descriptionCommand = findDescriptionCommand(description, descriptionCursor);
+  const idleProjectId =
+    projects.data && !projects.data.projects.some((project) => project.id === projectId)
+      ? ""
+      : projectId;
+  const descriptionCommand = findDescriptionCommand(
+    activeTimer ? (runningDraft ?? rejectedDraft ?? activeTimer.description) : description,
+    descriptionCursor,
+  );
+  const displayedProjectId = activeTimer ? (activeTimer.project?.id ?? "") : idleProjectId;
+  const displayedTagIds = activeTimer ? activeTimer.tags.map((tag) => tag.id) : selectedTags;
+  const displayedBillable = activeTimer ? activeTimer.billable : billable;
+  const displayedDescription = activeTimer
+    ? (runningDraft ?? rejectedDraft ?? activeTimer.description)
+    : description;
+  const pickerProjects = useMemo<ProjectChoice[]>(() => {
+    const merged = new Map<string, ProjectChoice>(
+      (projects.data?.projects ?? []).map((project) => [project.id, project]),
+    );
+    if (activeTimer?.project) {
+      const archived = !merged.has(activeTimer.project.id);
+      merged.set(activeTimer.project.id, {
+        id: activeTimer.project.id,
+        name: activeTimer.project.name ?? "Archived project",
+        color: activeTimer.project.color ?? "#64748b",
+        client_name: activeTimer.client?.name ?? (archived ? "Archived" : "No client"),
+        billable_default: false,
+      });
+    }
+    return [...merged.values()];
+  }, [activeTimer, projects.data?.projects]);
+  const pickerTags = useMemo(() => {
+    const merged = new Map((tags.data?.tags ?? []).map((tag) => [tag.id, tag]));
+    if (activeTimer) {
+      for (const tag of activeTimer.tags) merged.set(tag.id, tag);
+    }
+    return [...merged.values()];
+  }, [activeTimer, tags.data?.tags]);
   const commandSuggestions = useMemo<CommandSuggestion[]>(() => {
     if (!descriptionCommand) return [];
     const query = descriptionCommand.query;
     if (descriptionCommand.kind === "project") {
-      return [...(projects.data?.projects ?? [])]
+      return [...pickerProjects]
         .filter((project) => matchesDescriptionCommand(project.name, query))
         .sort((left, right) => left.name.localeCompare(right.name))
         .slice(0, 10)
@@ -86,10 +172,10 @@ export function GlobalTimerBar() {
           label: project.name,
           detail: project.client_name || "No client",
           color: project.color,
-          selected: project.id === projectId,
+          selected: project.id === displayedProjectId,
         }));
     }
-    return [...(tags.data?.tags ?? [])]
+    return [...pickerTags]
       .filter((tag) => matchesDescriptionCommand(tag.name, query))
       .sort((left, right) => left.name.localeCompare(right.name))
       .slice(0, 10)
@@ -99,9 +185,9 @@ export function GlobalTimerBar() {
         label: tag.name,
         detail: "Tag",
         color: tag.color,
-        selected: selectedTags.includes(tag.id),
+        selected: displayedTagIds.includes(tag.id),
       }));
-  }, [descriptionCommand, projectId, projects.data?.projects, selectedTags, tags.data?.tags]);
+  }, [descriptionCommand, displayedProjectId, displayedTagIds, pickerProjects, pickerTags]);
   const commandMenuOpen = Boolean(descriptionCommand && !commandDismissed && !activeTimer);
   const commandLoading =
     descriptionCommand?.kind === "project" ? projects.isLoading : tags.isLoading;
@@ -109,6 +195,19 @@ export function GlobalTimerBar() {
   useEffect(() => {
     setHighlightedCommand(0);
   }, [descriptionCommand?.kind, descriptionCommand?.query]);
+
+  useEffect(() => {
+    runningDraftRef.current = runningDraft;
+    rejectedDraftRef.current = rejectedDraft;
+  }, [rejectedDraft, runningDraft]);
+
+  useEffect(() => {
+    runningDraftRef.current = null;
+    rejectedDraftRef.current = null;
+    setRunningDraft(null);
+    setRejectedDraft(null);
+    setPatchError(null);
+  }, [activeTimer?.id]);
 
   const refreshTimerSurfaces = async () => {
     broadcastTimerChange();
@@ -120,6 +219,111 @@ export function GlobalTimerBar() {
       queryClient.invalidateQueries({ queryKey: ["recent-time"] }),
     ]);
   };
+
+  const runExclusive = async <T,>(task: () => Promise<T>): Promise<T> => {
+    while (exclusiveRef.current) {
+      try {
+        await exclusiveRef.current;
+      } catch {
+        // The previous operation already surfaced its error.
+      }
+    }
+    const run = task();
+    exclusiveRef.current = run;
+    setOperationPending(true);
+    try {
+      return await run;
+    } finally {
+      if (exclusiveRef.current === run) exclusiveRef.current = null;
+      if (!exclusiveRef.current) setOperationPending(false);
+    }
+  };
+
+  const patchRunningMetadata = async (patch: RunningMetadataPatch): Promise<TimeEntry> => {
+    const entryId = activeTimer?.id;
+    return runExclusive(async () => {
+      const current = queryClient.getQueryData<TimerQuery>(["timer"])?.entry;
+      if (!current || current.id !== entryId) {
+        throw new Error("The running timer changed. Review the current entry before editing.");
+      }
+      const body: Record<string, unknown> = { version: current.version };
+      if (patch.description !== undefined) body.description = patch.description;
+      if (patch.project_id !== undefined) body.project_id = patch.project_id;
+      if (patch.tag_ids !== undefined) body.tag_ids = patch.tag_ids;
+      if (patch.billable !== undefined) body.billable = patch.billable;
+      try {
+        const result = await apiRequest<{ entry: TimeEntry }>(`/time-entries/${current.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+        if (queryClient.getQueryData<TimerQuery>(["timer"])?.entry?.id !== entryId) {
+          await refreshTimerSurfaces();
+          return result.entry;
+        }
+        applyEntryToCaches(queryClient, result.entry);
+        if (patch.description !== undefined) {
+          const latestDraft = runningDraftRef.current ?? rejectedDraftRef.current;
+          if (latestDraft === null || latestDraft === patch.description) {
+            runningDraftRef.current = null;
+            rejectedDraftRef.current = null;
+            setRunningDraft(null);
+            setRejectedDraft(null);
+          }
+        }
+        setPatchError(null);
+        await refreshTimerSurfaces();
+        return result.entry;
+      } catch (error) {
+        if (queryClient.getQueryData<TimerQuery>(["timer"])?.entry?.id !== entryId) {
+          await refreshTimerSurfaces();
+          throw error;
+        }
+        if (error instanceof ApiClientError && error.code === "entry_conflict") {
+          if (isTimeEntry(error.details?.authoritative)) {
+            applyEntryToCaches(queryClient, error.details.authoritative);
+          }
+          await queryClient.invalidateQueries({ queryKey: ["timer"] });
+          setPatchError(
+            "This entry changed elsewhere. Retry your edit or cancel to keep the latest timer.",
+          );
+        } else {
+          setPatchError(error instanceof Error ? error.message : "The timer could not be updated.");
+        }
+        if (patch.description !== undefined) {
+          rejectedDraftRef.current = patch.description;
+          setRejectedDraft(patch.description);
+        }
+        throw error;
+      }
+    });
+  };
+
+  const persistRunningDescription = (): Promise<boolean> => {
+    if (persistPromiseRef.current) return persistPromiseRef.current;
+    const promise = (async () => {
+      const current = queryClient.getQueryData<TimerQuery>(["timer"])?.entry;
+      if (!current) return true;
+      const draft = runningDraftRef.current ?? rejectedDraftRef.current;
+      if (draft === null || draft === current.description) {
+        runningDraftRef.current = null;
+        rejectedDraftRef.current = null;
+        setRunningDraft(null);
+        setRejectedDraft(null);
+        return true;
+      }
+      try {
+        await patchRunningMetadata({ description: draft });
+        return true;
+      } catch {
+        return false;
+      }
+    })().finally(() => {
+      if (persistPromiseRef.current === promise) persistPromiseRef.current = null;
+    });
+    persistPromiseRef.current = promise;
+    return promise;
+  };
+
   const startMutation = useMutation({
     mutationFn: () =>
       apiRequest("/timer/start", {
@@ -127,7 +331,7 @@ export function GlobalTimerBar() {
         headers: { "Idempotency-Key": idempotencyKey() },
         body: JSON.stringify({
           description,
-          project_id: projectId || null,
+          project_id: idleProjectId || null,
           tag_ids: selectedTags,
           billable,
         }),
@@ -149,15 +353,13 @@ export function GlobalTimerBar() {
     onError: refreshTimerSurfaces,
   });
 
-  const selectedProject = projects.data?.projects.find(
-    (project) => project.id === (activeTimer?.project?.id ?? projectId),
-  );
-  const timerError = startMutation.error ?? stopMutation.error;
+  const timerError = patchError ?? startMutation.error?.message ?? stopMutation.error?.message;
+  const metadataBusy = operationPending || stopMutation.isPending;
   const selectCommandSuggestion = (suggestion: CommandSuggestion) => {
-    if (!descriptionCommand) return;
+    if (!descriptionCommand || activeTimer) return;
     if (suggestion.kind === "project") {
       setProjectId(suggestion.id);
-      const project = projects.data?.projects.find((item) => item.id === suggestion.id);
+      const project = pickerProjects.find((item) => item.id === suggestion.id);
       setBillable(project?.billable_default === true || project?.billable_default === 1);
     } else {
       setSelectedTags((current) =>
@@ -174,7 +376,26 @@ export function GlobalTimerBar() {
       descriptionInput.current?.setSelectionRange(next.cursor, next.cursor);
     }, 0);
   };
+  const cancelRejectedDescription = () => {
+    runningDraftRef.current = null;
+    rejectedDraftRef.current = null;
+    setRunningDraft(null);
+    setRejectedDraft(null);
+    setPatchError(null);
+  };
   const handleDescriptionKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (activeTimer) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelRejectedDescription();
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void persistRunningDescription();
+      }
+      return;
+    }
     if (!commandMenuOpen || !descriptionCommand) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -196,18 +417,52 @@ export function GlobalTimerBar() {
       if (suggestion) selectCommandSuggestion(suggestion);
     }
   };
+  const handleStop = async () => {
+    const entryId = activeTimer?.id;
+    if (exclusiveRef.current) {
+      try {
+        await exclusiveRef.current;
+      } catch {
+        return;
+      }
+    }
+    if (queryClient.getQueryData<TimerQuery>(["timer"])?.entry?.id !== entryId) return;
+    do {
+      const draft = runningDraftRef.current ?? rejectedDraftRef.current;
+      if (rejectedDraftRef.current !== null && draft === rejectedDraftRef.current) return;
+      const saved = await persistRunningDescription();
+      if (!saved || queryClient.getQueryData<TimerQuery>(["timer"])?.entry?.id !== entryId) {
+        return;
+      }
+    } while (runningDraftRef.current !== null);
+    try {
+      await runExclusive(async () => {
+        if (queryClient.getQueryData<TimerQuery>(["timer"])?.entry?.id === entryId) {
+          await stopMutation.mutateAsync();
+        }
+      });
+    } catch {
+      // The stop mutation displays its error and refreshes the timer.
+    }
+  };
 
   return (
-    <header className="global-timer sticky top-0 z-20 border-b border-white/10 bg-[#111710]/97 pr-3 pl-14 backdrop-blur md:px-5">
-      <div className="mx-auto flex h-[72px] max-w-[1800px] items-center gap-2">
-        <div className="relative min-w-0 flex-1">
+    <header className="global-timer sticky top-0 z-20 border-b border-[#3b3b3b] bg-[#1b1b1b] pr-3 pl-14 md:px-5">
+      <div className="flex min-h-[84px] w-full flex-wrap items-center gap-2 py-3 sm:h-[84px] sm:flex-nowrap sm:py-0">
+        <div className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <input
             ref={descriptionInput}
-            value={activeTimer?.description ?? description}
+            value={displayedDescription}
             onChange={(event) => {
-              setDescription(event.target.value);
-              setDescriptionCursor(event.currentTarget.selectionStart ?? event.target.value.length);
+              const value = event.target.value;
+              setDescriptionCursor(event.currentTarget.selectionStart ?? value.length);
               setCommandDismissed(false);
+              if (activeTimer) {
+                runningDraftRef.current = value;
+                setRunningDraft(value);
+                return;
+              }
+              setDescription(value);
             }}
             onSelect={(event) => {
               setDescriptionCursor(
@@ -221,7 +476,12 @@ export function GlobalTimerBar() {
               )
             }
             onKeyDown={handleDescriptionKeyDown}
-            disabled={Boolean(activeTimer)}
+            onBlur={() => {
+              if (!activeTimer) return;
+              const draft = runningDraftRef.current ?? rejectedDraftRef.current;
+              if (rejectedDraftRef.current !== null && draft === rejectedDraftRef.current) return;
+              void persistRunningDescription();
+            }}
             list={commandMenuOpen ? undefined : "recent-time-descriptions"}
             placeholder="What are you working on?"
             aria-label="Timer description"
@@ -234,7 +494,7 @@ export function GlobalTimerBar() {
                 ? `timer-description-command-${commandSuggestions[highlightedCommand].kind}-${commandSuggestions[highlightedCommand].id}`
                 : undefined
             }
-            className="h-12 w-full border-0 bg-transparent px-1 text-lg font-medium text-slate-100 outline-none placeholder:text-slate-500 disabled:opacity-90"
+            className="h-12 w-full border-0 bg-transparent px-1 text-[18px] font-medium text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
           />
           <datalist id="recent-time-descriptions">
             {(recent.data?.recent ?? []).map((item) => (
@@ -252,18 +512,18 @@ export function GlobalTimerBar() {
                 descriptionCommand.kind === "project" ? "Project suggestions" : "Tag suggestions"
               }
             >
-              <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-                <p className="text-xs font-semibold text-slate-300">
+              <div className="flex items-center justify-between border-b border-[#3b3b3b] px-3 py-2">
+                <p className="text-xs font-semibold text-[#fafafa]">
                   {descriptionCommand.kind === "project" ? "Choose a project" : "Add a tag"}
                 </p>
-                <p className="text-[10px] text-slate-500">
-                  <kbd className="rounded border border-white/10 px-1 py-0.5">↑↓</kbd> navigate ·{" "}
-                  <kbd className="rounded border border-white/10 px-1 py-0.5">Enter</kbd> select
+                <p className="text-[10px] text-[#a4a4a4]">
+                  <kbd className="rounded border border-[#3b3b3b] px-1 py-0.5">↑↓</kbd> navigate ·{" "}
+                  <kbd className="rounded border border-[#3b3b3b] px-1 py-0.5">Enter</kbd> select
                 </p>
               </div>
               <div className="max-h-72 overflow-y-auto p-1.5">
                 {commandLoading ? (
-                  <p className="p-4 text-center text-sm text-slate-500">
+                  <p className="p-4 text-center text-sm text-[#a4a4a4]">
                     Loading {descriptionCommand.kind === "project" ? "projects" : "tags"}…
                   </p>
                 ) : commandSuggestions.length ? (
@@ -276,22 +536,22 @@ export function GlobalTimerBar() {
                       aria-selected={index === highlightedCommand}
                       className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left ${
                         index === highlightedCommand
-                          ? "bg-frosted-mint-900 text-frosted-mint-100"
-                          : "text-slate-300 hover:bg-white/7 hover:text-white"
+                          ? "bg-[#382b16] text-[#fbbf24]"
+                          : "text-[#fafafa] hover:bg-white/7"
                       }`}
                       onMouseEnter={() => setHighlightedCommand(index)}
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => selectCommandSuggestion(suggestion)}
                     >
                       <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-600"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#a4a4a4]"
                         style={{ backgroundColor: suggestion.color }}
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">
                           {suggestion.label}
                         </span>
-                        <span className="block truncate text-[11px] text-slate-500">
+                        <span className="block truncate text-[11px] text-[#a4a4a4]">
                           {suggestion.detail}
                         </span>
                       </span>
@@ -299,9 +559,9 @@ export function GlobalTimerBar() {
                     </button>
                   ))
                 ) : (
-                  <p className="p-4 text-center text-sm text-slate-500">
+                  <p className="p-4 text-center text-sm text-[#a4a4a4]">
                     No {descriptionCommand.kind === "project" ? "projects" : "tags"} start with{" "}
-                    <span className="font-mono text-slate-300">
+                    <span className="font-mono text-[#fafafa]">
                       {descriptionCommand.marker}
                       {descriptionCommand.query}
                     </span>
@@ -311,59 +571,91 @@ export function GlobalTimerBar() {
             </div>
           ) : null}
           {timerError ? (
-            <p className="absolute bottom-1 max-w-[55vw] truncate text-[11px] text-red-300">
-              {timerError.message}
+            <p
+              className="absolute bottom-0 left-0 flex max-w-full flex-wrap items-center gap-2 text-[11px] text-red-300"
+              role="alert"
+            >
+              <span className="truncate">{timerError}</span>
+              {rejectedDraft !== null ? (
+                <>
+                  <button
+                    type="button"
+                    className="shrink-0 font-semibold text-[#fbbf24] underline"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => void persistRunningDescription()}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    className="shrink-0 font-semibold text-[#fafafa] underline"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={cancelRejectedDescription}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : null}
             </p>
           ) : null}
         </div>
 
         <ProjectPicker
-          projects={projects.data?.projects ?? []}
-          value={activeTimer?.project?.id ?? projectId}
-          disabled={Boolean(activeTimer)}
+          projects={pickerProjects}
+          value={displayedProjectId}
+          disabled={metadataBusy}
           onChange={(value) => {
+            if (activeTimer) {
+              void patchRunningMetadata({ project_id: value || null }).catch(() => undefined);
+              return;
+            }
             setProjectId(value);
-            const project = projects.data?.projects.find((item) => item.id === value);
+            const project = pickerProjects.find((item) => item.id === value);
             setBillable(project?.billable_default === true || project?.billable_default === 1);
           }}
         />
         <TagPicker
-          tags={tags.data?.tags ?? []}
-          value={activeTimer ? activeTimer.tags.map((tag) => tag.id) : selectedTags}
-          disabled={Boolean(activeTimer)}
-          onChange={setSelectedTags}
+          tags={pickerTags}
+          value={displayedTagIds}
+          disabled={metadataBusy}
+          onChange={(value) => {
+            if (activeTimer) {
+              void patchRunningMetadata({ tag_ids: value }).catch(() => undefined);
+              return;
+            }
+            setSelectedTags(value);
+          }}
         />
         {me.workspace.members_can_set_billable ? (
           <button
             type="button"
-            className={`timer-tool hidden sm:grid ${
-              activeTimer?.billable || billable
-                ? "bg-frosted-mint-900 text-light-green-400"
-                : "text-slate-500"
-            }`}
-            aria-label={billable ? "Mark non-billable" : "Mark billable"}
-            aria-pressed={activeTimer?.billable ?? billable}
-            disabled={Boolean(activeTimer)}
-            onClick={() => setBillable((value) => !value)}
+            className={`timer-tool hidden sm:grid ${displayedBillable ? "timer-tool-active" : ""}`}
+            aria-label={displayedBillable ? "Mark non-billable" : "Mark billable"}
+            aria-pressed={displayedBillable}
+            disabled={metadataBusy}
+            onClick={() => {
+              if (activeTimer) {
+                void patchRunningMetadata({ billable: !activeTimer.billable }).catch(
+                  () => undefined,
+                );
+                return;
+              }
+              setBillable((value) => !value);
+            }}
           >
             <CircleDollarSign size={19} />
           </button>
         ) : null}
-        <div className="hidden min-w-24 text-right font-mono text-lg font-bold text-slate-200 sm:block">
+        <div className="ml-auto w-[95px] shrink-0 text-right font-mono text-lg font-bold text-[#fafafa]">
           {activeTimer
             ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
             : "0:00:00"}
-          {selectedProject ? (
-            <span className="text-frosted-mint-300 mt-0.5 block max-w-24 truncate text-[10px] font-medium">
-              {selectedProject.name}
-            </span>
-          ) : null}
         </div>
         {activeTimer ? (
           <button
             type="button"
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-red-500 text-white shadow-[0_0_0_5px_rgb(239_68_68_/_0.14)] transition hover:bg-red-400"
-            onClick={() => stopMutation.mutate()}
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-red-500 text-white transition hover:bg-red-400"
+            onClick={() => void handleStop()}
             disabled={stopMutation.isPending}
             aria-label="Stop timer"
           >
@@ -372,17 +664,27 @@ export function GlobalTimerBar() {
         ) : (
           <button
             type="button"
-            className="bg-light-green-500 text-light-green-950 hover:bg-light-green-400 shadow-light-green-500/15 grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-[0_0_0_5px] transition"
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#18181b] transition hover:bg-[#fbbf24]"
             onClick={() => startMutation.mutate()}
             disabled={startMutation.isPending}
             aria-label="Start timer"
           >
-            <Play className="ml-0.5" size={21} fill="currentColor" />
+            <Play className="ml-0.5" size={18} fill="currentColor" />
           </button>
         )}
       </div>
     </header>
   );
+}
+
+function projectVisibleLabel(project: { name: string; client_name: string }): string {
+  if (!project.client_name || project.client_name === "No client") return project.name;
+  return `${project.name} • ${project.client_name}`;
+}
+
+function matchesProjectSearch(project: ProjectChoice, search: string): boolean {
+  if (!search) return true;
+  return `${project.name} ${project.client_name}`.toLowerCase().includes(search.toLowerCase());
 }
 
 function ProjectPicker({
@@ -391,7 +693,7 @@ function ProjectPicker({
   disabled,
   onChange,
 }: {
-  projects: Project[];
+  projects: ProjectChoice[];
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;
@@ -399,77 +701,136 @@ function ProjectPicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const root = useRef<HTMLDivElement>(null);
-  useDismissPopover(root, () => setOpen(false));
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [restoreFocus, setRestoreFocus] = useState(false);
+  const requestClose = (shouldRestore: boolean) => {
+    setRestoreFocus(shouldRestore);
+    setOpen(false);
+  };
+  useDismissPopover(root, () => requestClose(false), undefined, open);
+  useEscapeToClose(open, () => requestClose(true));
+  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
+  useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
   const selected = projects.find((project) => project.id === value);
+  const selectedLabel = selected ? projectVisibleLabel(selected) : null;
+  const selectedVisible = Boolean(selected && matchesProjectSearch(selected, search));
   const grouped = useMemo(() => {
-    const result = new Map<string, Project[]>();
+    const result = new Map<string, ProjectChoice[]>();
     for (const project of projects) {
-      if (
-        search &&
-        !`${project.name} ${project.client_name}`.toLowerCase().includes(search.toLowerCase())
-      ) {
-        continue;
-      }
-      result.set(project.client_name || "No client", [
-        ...(result.get(project.client_name || "No client") ?? []),
-        project,
-      ]);
+      if (project.id === value || !matchesProjectSearch(project, search)) continue;
+      const client = project.client_name || "No client";
+      result.set(client, [...(result.get(client) ?? []), project]);
     }
     return [...result.entries()];
-  }, [projects, search]);
+  }, [projects, search, value]);
 
   return (
-    <div ref={root} className="relative">
+    <div
+      ref={root}
+      className={`relative min-w-0 ${selected ? "shrink basis-full sm:basis-auto" : "shrink-0"}`}
+    >
       <button
+        ref={trigger}
         type="button"
-        className={`timer-tool ${selected ? "text-frosted-mint-300" : "text-slate-500"}`}
+        className={selected ? "timer-project-chip" : "timer-tool grid"}
+        style={
+          selected
+            ? {
+                color: `color-mix(in srgb, ${selected.color} 45%, #fafafa)`,
+                backgroundColor: `color-mix(in srgb, ${selected.color} 16%, #1b1b1b)`,
+              }
+            : undefined
+        }
         disabled={disabled}
-        aria-label={selected ? `Project: ${selected.name}` : "Choose project"}
+        aria-label={selected ? `Project: ${selectedLabel}` : "Choose project"}
+        title={selectedLabel ?? "Choose project"}
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((current) => !current)}
       >
-        <BriefcaseBusiness size={19} />
+        {selected ? (
+          <>
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: selected.color }}
+            />
+            <span className="min-w-0 truncate text-left text-sm font-medium">
+              <span>{selected.name}</span>
+              {selected.client_name && selected.client_name !== "No client" ? (
+                <>
+                  <span className="font-normal text-[#a4a4a4]"> • </span>
+                  <span className="font-normal text-[#a4a4a4]">{selected.client_name}</span>
+                </>
+              ) : null}
+            </span>
+          </>
+        ) : (
+          <Folder size={19} />
+        )}
       </button>
       {open ? (
-        <div className="timer-popover absolute top-12 right-0 w-[min(88vw,360px)]">
-          <div className="relative border-b border-white/10 p-2">
-            <Search className="absolute top-4 left-4 text-slate-500" size={15} />
+        <div className="timer-popover absolute top-12 right-0 z-50 w-[min(88vw,360px)]">
+          <div className="relative border-b border-[#3b3b3b] p-2">
+            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-white/15 bg-[#0d120c] pr-3 pl-9 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#212121] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Search projects or clients"
+              aria-label="Search projects or clients"
             />
           </div>
           <div className="max-h-72 overflow-y-auto p-1.5">
             <PickerOption
               label="No project"
               active={!value}
+              disabled={disabled}
               onClick={() => {
                 onChange("");
-                setOpen(false);
+                requestClose(true);
               }}
             />
-            {grouped.map(([client, clientProjects]) => (
-              <div key={client} className="mt-2 first:mt-1">
-                <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                  {client}
+            {selected && selectedVisible ? (
+              <div className="mt-2">
+                <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+                  Selected project
                 </p>
-                {clientProjects.map((project) => (
-                  <PickerOption
-                    key={project.id}
-                    label={project.name}
-                    active={project.id === value}
-                    color={project.color}
-                    onClick={() => {
-                      onChange(project.id);
-                      setOpen(false);
-                    }}
-                  />
-                ))}
+                <PickerOption
+                  label={selected.name}
+                  detail={selected.client_name || "No client"}
+                  active
+                  color={selected.color}
+                  disabled={disabled}
+                  onClick={() => requestClose(true)}
+                />
               </div>
-            ))}
+            ) : null}
+            {grouped.length ? (
+              grouped.map(([client, clientProjects]) => (
+                <div key={client} className="mt-2 first:mt-1">
+                  <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+                    {client}
+                  </p>
+                  {clientProjects.map((project) => (
+                    <PickerOption
+                      key={project.id}
+                      label={project.name}
+                      disabled={disabled}
+                      color={project.color}
+                      onClick={() => {
+                        onChange(project.id);
+                        requestClose(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              ))
+            ) : selectedVisible ? null : (
+              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching projects</p>
+            )}
           </div>
         </div>
       ) : null}
@@ -491,41 +852,55 @@ function TagPicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const root = useRef<HTMLDivElement>(null);
-  useDismissPopover(root, () => setOpen(false));
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [restoreFocus, setRestoreFocus] = useState(false);
+  const requestClose = (shouldRestore: boolean) => {
+    setRestoreFocus(shouldRestore);
+    setOpen(false);
+  };
+  useDismissPopover(root, () => requestClose(false), undefined, open);
+  useEscapeToClose(open, () => requestClose(true));
+  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
+  useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
   const visible = tags.filter((tag) => tag.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div ref={root} className="relative">
+    <div ref={root} className="relative shrink-0">
       <button
+        ref={trigger}
         type="button"
-        className={`timer-tool ${value.length ? "text-light-green-400" : "text-slate-500"}`}
+        className={`timer-tool grid ${value.length ? "timer-tool-active" : ""}`}
         disabled={disabled}
         aria-label={value.length ? `${value.length} timer tags selected` : "Choose timer tags"}
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((current) => !current)}
       >
         <Tags size={19} />
         {value.length ? (
-          <span className="bg-light-green-500 text-light-green-950 absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold">
+          <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-[#18181b]">
             {value.length}
           </span>
         ) : null}
       </button>
       {open ? (
-        <div className="timer-popover absolute top-12 right-0 w-[min(82vw,280px)]">
-          <div className="relative border-b border-white/10 p-2">
-            <Search className="absolute top-4 left-4 text-slate-500" size={15} />
+        <div className="timer-popover absolute top-12 right-0 z-50 w-[min(82vw,280px)]">
+          <div className="relative border-b border-[#3b3b3b] p-2">
+            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-white/15 bg-[#0d120c] pr-8 pl-9 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#212121] pr-8 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Filter tags"
+              aria-label="Search timer tags"
             />
             {search ? (
               <button
                 type="button"
-                className="absolute top-3.5 right-4 text-slate-500 hover:text-slate-200"
+                className="absolute top-3.5 right-4 text-[#a4a4a4] hover:text-[#fafafa]"
                 onClick={() => setSearch("")}
                 aria-label="Clear tag search"
               >
@@ -541,7 +916,8 @@ function TagPicker({
                   <button
                     type="button"
                     key={tag.id}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-slate-300 hover:bg-white/8 hover:text-white"
+                    disabled={disabled}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-[#fafafa] hover:bg-white/8"
                     onClick={() =>
                       onChange(
                         active ? value.filter((tagId) => tagId !== tag.id) : [...value, tag.id],
@@ -559,7 +935,7 @@ function TagPicker({
                 );
               })
             ) : (
-              <p className="p-4 text-center text-sm text-slate-500">No matching tags</p>
+              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching tags</p>
             )}
           </div>
         </div>
@@ -570,41 +946,40 @@ function TagPicker({
 
 function PickerOption({
   label,
+  detail,
   active,
   color,
+  disabled,
   onClick,
 }: {
   label: string;
-  active: boolean;
+  detail?: string;
+  active?: boolean;
   color?: string;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      aria-label={label}
+      disabled={disabled}
       className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm ${
-        active
-          ? "bg-frosted-mint-900 text-frosted-mint-200"
-          : "text-slate-300 hover:bg-white/8 hover:text-white"
+        active ? "bg-[#382b16] text-[#fbbf24]" : "text-[#fafafa] hover:bg-white/8"
       }`}
       onClick={onClick}
     >
       <span
-        className="h-2 w-2 rounded-full bg-slate-600"
+        className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
         style={color ? { backgroundColor: color } : undefined}
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{label}</span>
+        {detail ? (
+          <span className="block truncate text-[11px] text-[#a4a4a4]">{detail}</span>
+        ) : null}
+      </span>
       {active ? <Check size={14} /> : null}
     </button>
   );
-}
-
-function useDismissPopover(root: React.RefObject<HTMLDivElement | null>, dismiss: () => void) {
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) dismiss();
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [dismiss, root]);
 }

@@ -10,17 +10,20 @@ import type {
 } from "@fullcalendar/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
+import { overlapDuration } from "@/domain/dates/time";
+import { addCalendarDays, zonedDayStartIso } from "@/web/features/timer/list-date-range";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
 import { ErrorState } from "@/web/components/ui";
 import { CalendarQuickEntry } from "@/web/features/time/calendar-quick-entry";
 import { EntryEditor } from "@/web/features/time/entry-editor";
+import { calendarTimezonePlugin } from "@/web/features/time/calendar-timezone";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest } from "@/web/lib/api";
 import { formatClockDuration, formatDuration } from "@/web/lib/format";
 import type { Project, Tag, TimeEntry } from "@/web/types";
-import { startOfWeek } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 
 function calendarTextColor(background: string): string {
   const hex = background.replace("#", "");
@@ -53,17 +56,30 @@ export function CalendarView({
   const [selection, setSelection] = useState<{ start: Date; end: Date } | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
+  const dateKey = format(weekStart, "yyyy-MM-dd");
   useEffect(() => {
-    const api = calendarRef.current?.getApi();
-    if (!api) return;
-    const dateKey = formatInTimeZone(weekStart, me.member.timezone, "yyyy-MM-dd");
-    api.gotoDate(dateKey);
-    api.changeView(calendarMode === "day" ? "timeGridDay" : "timeGridWeek");
-  }, [calendarMode, me.member.timezone, weekStart]);
+    setEditing(null);
+    setSelection(null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      const api = calendarRef.current?.getApi();
+      if (!api || cancelled) return;
+      api.unselect();
+      api.gotoDate(dateKey);
+      api.changeView(calendarMode === "day" ? "timeGridDay" : "timeGridWeek");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [calendarMode, me.member.timezone, dateKey, memberId]);
 
   const projects = useQuery({
     queryKey: ["projects", "active"],
     queryFn: () => apiRequest<{ projects: Project[] }>("/projects?status=active"),
+    select: (data) => ({
+      ...data,
+      projects: data.projects.filter((project) => project.client_status !== "archived"),
+    }),
   });
   const tags = useQuery({
     queryKey: ["tags", "active"],
@@ -96,6 +112,7 @@ export function CalendarView({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["calendar"] }),
         queryClient.invalidateQueries({ queryKey: ["time-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
       ]);
     },
   });
@@ -124,20 +141,33 @@ export function CalendarView({
   }, [entries, now]);
   const totalsByDay = useMemo(() => {
     const totals = new Map<string, number>();
-    for (const entry of entries) {
-      const day = formatInTimeZone(entry.started_at, me.member.timezone, "yyyy-MM-dd");
+    const timezone = me.member.timezone;
+    const firstDay = formatInTimeZone(range.start, timezone, "yyyy-MM-dd");
+    const lastDay = formatInTimeZone(range.end, timezone, "yyyy-MM-dd");
+    for (let day = firstDay; day < lastDay; day = addCalendarDays(day, 1)) {
+      const start = Date.parse(zonedDayStartIso(day, timezone));
+      const end = Date.parse(zonedDayStartIso(addCalendarDays(day, 1), timezone));
       totals.set(
         day,
-        (totals.get(day) ?? 0) +
-          (entry.running ? now - new Date(entry.started_at).getTime() : entry.duration_ms),
+        entries.reduce(
+          (sum, entry) =>
+            sum +
+            overlapDuration(
+              Date.parse(entry.started_at),
+              entry.stopped_at ? Date.parse(entry.stopped_at) : now,
+              start,
+              end,
+            ),
+          0,
+        ),
       );
     }
     return totals;
-  }, [entries, me.member.timezone, now]);
+  }, [entries, me.member.timezone, now, range.start, range.end]);
 
   const moveEntry = (entryId: string, start: Date | null, end: Date | null, revert: () => void) => {
     const entry = entries.find((item) => item.id === entryId);
-    if (!entry || !start || !end) {
+    if (!entry || entry.running || updateMutation.isPending || !start || !end) {
       revert();
       return;
     }
@@ -169,28 +199,29 @@ export function CalendarView({
           <ErrorState message={calendar.error.message} onRetry={() => void calendar.refetch()} />
         </div>
       ) : (
-        <section className="overflow-hidden bg-[#111710] p-3">
+        <section className="overflow-hidden bg-[#212121] p-3">
           <FullCalendar
             ref={calendarRef}
-            plugins={[timeGridPlugin, interactionPlugin]}
+            plugins={[timeGridPlugin, interactionPlugin, calendarTimezonePlugin]}
             initialView={calendarMode === "day" ? "timeGridDay" : "timeGridWeek"}
-            initialDate={formatInTimeZone(weekStart, me.member.timezone, "yyyy-MM-dd")}
+            initialDate={format(weekStart, "yyyy-MM-dd")}
             firstDay={me.workspace.week_start === "monday" ? 1 : 0}
             timeZone={me.member.timezone}
-            height="calc(100vh - 200px)"
+            height="max(320px, calc(100dvh - 200px))"
             allDaySlot={false}
             nowIndicator
             selectable
             selectMirror
             editable={memberId === me.member.id || me.permissions.view_team}
+            slotEventOverlap={false}
             eventResizableFromStart
-            slotMinTime="06:00:00"
+            slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
             slotDuration="00:30:00"
             scrollTime="08:00:00"
             headerToolbar={false}
             events={entries.map((entry) => {
-              const backgroundColor = entry.project?.color ?? "#14852B";
+              const backgroundColor = entry.project?.color ?? "#48361b";
               return {
                 id: entry.id,
                 title: entry.description || entry.project?.name || "No description",
@@ -198,7 +229,8 @@ export function CalendarView({
                 end: entry.stopped_at ?? new Date(now).toISOString(),
                 backgroundColor,
                 textColor: calendarTextColor(backgroundColor),
-                borderColor: overlaps.has(entry.id) ? "#82CF30" : backgroundColor,
+                borderColor: overlaps.has(entry.id) ? "#f59e0b" : backgroundColor,
+                editable: !entry.running,
                 extendedProps: { entry },
               };
             })}
@@ -229,7 +261,7 @@ export function CalendarView({
                     <span
                       className={
                         isToday
-                          ? "bg-frosted-mint-600 grid h-6 w-6 place-items-center rounded-full text-xs font-bold text-white"
+                          ? "grid h-6 w-6 place-items-center rounded-full bg-[#f59e0b] text-xs font-bold text-[#18181b]"
                           : "text-sm font-semibold text-slate-200"
                       }
                     >
@@ -261,7 +293,7 @@ export function CalendarView({
       )}
       {selection ? (
         <CalendarQuickEntry
-          key={`${selection.start.toISOString()}:${selection.end.toISOString()}`}
+          key={`${memberId}:${selection.start.toISOString()}:${selection.end.toISOString()}`}
           start={selection.start}
           stop={selection.end}
           targetMemberId={me.permissions.view_team ? memberId : undefined}

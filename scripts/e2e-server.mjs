@@ -11,18 +11,25 @@ const env = {
 };
 let child;
 let stopping = false;
+const port = process.env.HOURLARK_E2E_PORT ?? "5186";
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     stopping = true;
-    child?.kill(signal);
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    if (child.pid && process.platform !== "win32") process.kill(-child.pid, signal);
+    else child.kill(signal);
   });
 }
 
 async function run(args) {
   if (stopping) throw new Error("Browser test server stopped.");
   await new Promise((resolve, reject) => {
-    child = spawn("pnpm", ["exec", ...args], { env, stdio: "inherit" });
+    child = spawn("pnpm", ["exec", ...args], {
+      env,
+      stdio: "inherit",
+      detached: process.platform !== "win32",
+    });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (code === 0 || stopping) resolve();
@@ -52,7 +59,7 @@ try {
     "--host",
     "127.0.0.1",
     "--port",
-    "5186",
+    port,
     "--strictPort",
   ]);
 } finally {

@@ -146,6 +146,9 @@ function safeWorkspace(workspace: WorkspaceRow) {
     lock_entries_after_days: workspace.lock_entries_after_days,
     rounding_increment_minutes: workspace.rounding_increment_minutes,
     rounding_method: workspace.rounding_method,
+    report_show_members: workspace.report_show_members === 1,
+    report_show_descriptions: workspace.report_show_descriptions === 1,
+    report_show_tags: workspace.report_show_tags === 1,
     version: workspace.version,
   };
 }
@@ -722,7 +725,7 @@ api.patch("/projects/:id", async (c) => {
   )
     .bind(input.client_id, member.workspaceId)
     .first<{ status: string }>();
-  if (!client || client.status !== "active") {
+  if (!client || (client.status !== "active" && existing.client_id !== input.client_id)) {
     throw new ApiError(422, "client_unavailable", "An active client is required.");
   }
   const now = Date.now();

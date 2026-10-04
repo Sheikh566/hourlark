@@ -52,3 +52,16 @@ export function localInputValue(iso: string, timezone: string): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 import { minorToMajor } from "@/domain/billing/money";
+
+export function parseClockDuration(value: string): number | null {
+  const parts = value.trim().split(":");
+  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !/^\d+$/.test(part))) {
+    return null;
+  }
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  const seconds = Number(parts[2] ?? 0);
+  if (minutes > 59 || seconds > 59) return null;
+  const total = hours * 3600 + minutes * 60 + seconds;
+  return Number.isFinite(total) && total > 0 && total <= 7 * 86400 ? total : null;
+}

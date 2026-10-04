@@ -12,24 +12,41 @@ import {
   Badge,
   Button,
   EmptyState,
+  ErrorState,
+  Loading,
   Field,
   Input,
   Modal,
   PageHeader,
   Select,
 } from "@/web/components/ui";
+import { FormErrors } from "@/web/components/form-errors";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
 import type { Client } from "@/web/types";
 
 const clientFormSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1, "This field is required."),
   billing_contact_name: z.string(),
-  billing_email: z.union([z.literal(""), z.email()]),
+  billing_email: z
+    .string()
+    .trim()
+    .refine(
+      (value) => !value || z.email().safeParse(value).success,
+      "Enter a valid billing email address.",
+    ),
   billing_address: z.string(),
   tax_identifier: z.string(),
-  default_rate_major: z.string(),
-  currency: z.string().length(3),
+  default_rate_major: z
+    .string()
+    .refine(
+      (value) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0),
+      "Enter a non-negative number.",
+    ),
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "Enter a three-letter currency code."),
   notes: z.string(),
 });
 type ClientForm = z.infer<typeof clientFormSchema>;
@@ -51,7 +68,9 @@ export function ClientsPage() {
   const statusMutation = useMutation({
     mutationFn: ({ client, next }: { client: Client; next: "archive" | "reactivate" }) =>
       apiRequest(`/clients/${client.id}/${next}`, { method: "POST", body: "{}" }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["clients"] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
   });
 
   return (
@@ -73,7 +92,7 @@ export function ClientsPage() {
       />
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-3">
-          <div className="relative min-w-64 flex-1">
+          <div className="relative min-w-0 flex-1 basis-56">
             <Search className="absolute top-3 left-3 text-slate-400" size={15} />
             <Input
               className="pl-9"
@@ -85,6 +104,7 @@ export function ClientsPage() {
           {me.permissions.manage_workspace ? (
             <Select
               className="w-40"
+              aria-label="Filter clients by status"
               value={status}
               onChange={(event) => setStatus(event.target.value as typeof status)}
             >
@@ -93,7 +113,21 @@ export function ClientsPage() {
             </Select>
           ) : null}
         </div>
-        {(clients.data?.clients ?? []).length === 0 ? (
+        {statusMutation.isPending ? (
+          <p role="status" className="p-4 text-sm text-slate-500">
+            Updating client status…
+          </p>
+        ) : null}
+        {statusMutation.error ? (
+          <p role="alert" className="p-4 text-sm text-red-300">
+            {statusMutation.error.message}
+          </p>
+        ) : null}
+        {clients.isPending ? (
+          <Loading label="Loading clients…" />
+        ) : clients.error ? (
+          <ErrorState message={clients.error.message} onRetry={() => void clients.refetch()} />
+        ) : clients.data.clients.length === 0 ? (
           <EmptyState
             title="No clients found"
             description="Create a client before adding its first project."
@@ -107,11 +141,11 @@ export function ClientsPage() {
           />
         ) : (
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-            {(clients.data?.clients ?? []).map((client) => (
+            {clients.data.clients.map((client) => (
               <article key={client.id} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="bg-frosted-mint-50 text-frosted-mint-700 grid h-10 w-10 shrink-0 place-items-center rounded-lg">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#382b16] text-[#fbbf24]">
                       <Building2 size={19} />
                     </span>
                     <div className="min-w-0">
@@ -152,6 +186,7 @@ export function ClientsPage() {
                       <Button
                         variant="ghost"
                         className="text-slate-500"
+                        disabled={statusMutation.isPending}
                         onClick={() => statusMutation.mutate({ client, next: "archive" })}
                       >
                         <Archive size={14} /> Archive
@@ -159,6 +194,7 @@ export function ClientsPage() {
                     ) : (
                       <Button
                         variant="ghost"
+                        disabled={statusMutation.isPending}
                         onClick={() => statusMutation.mutate({ client, next: "reactivate" })}
                       >
                         <RotateCcw size={14} /> Reactivate
@@ -172,6 +208,7 @@ export function ClientsPage() {
         )}
       </section>
       <ClientEditor
+        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         open={editing !== null}
         client={editing === "new" ? null : editing}
         onOpenChange={(open) => !open && setEditing(null)}
@@ -242,66 +279,111 @@ function ClientEditor({
       });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["clients"] });
+      await queryClient.invalidateQueries();
       onOpenChange(false);
     },
   });
   return (
     <Modal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!mutation.isPending) onOpenChange(next);
+      }}
       title={client ? "Edit client" : "New client"}
       footer={
         <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="secondary"
+            disabled={mutation.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button onClick={() => void form.handleSubmit((values) => mutation.mutate(values))()}>
-            Save client
+          <Button
+            disabled={mutation.isPending}
+            onClick={() =>
+              void form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))()
+            }
+          >
+            {mutation.isPending ? "Saving…" : "Save client"}
           </Button>
         </>
       }
     >
-      <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => event.preventDefault()}>
-        <div className="sm:col-span-2">
-          <Field label="Client name">
-            <Input {...form.register("name")} />
-          </Field>
-        </div>
-        <Field label="Billing contact">
-          <Input {...form.register("billing_contact_name")} />
-        </Field>
-        <Field label="Billing email">
-          <Input type="email" {...form.register("billing_email")} />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Billing address">
-            <textarea
-              className="min-h-20 rounded-lg border border-slate-300 p-3 text-sm"
-              {...form.register("billing_address")}
+      <form
+        noValidate
+        className="grid gap-4 sm:grid-cols-2"
+        onSubmit={form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))}
+      >
+        <fieldset disabled={mutation.isPending} className="contents">
+          <FormErrors errors={form.formState.errors} />
+          <div className="sm:col-span-2">
+            <Field label="Client name">
+              <Input
+                aria-invalid={Boolean(form.formState.errors.name)}
+                {...form.register("name")}
+              />
+            </Field>
+          </div>
+          <Field label="Billing contact">
+            <Input
+              aria-invalid={Boolean(form.formState.errors.billing_contact_name)}
+              {...form.register("billing_contact_name")}
             />
           </Field>
-        </div>
-        <Field label="Tax / registration ID">
-          <Input {...form.register("tax_identifier")} />
-        </Field>
-        <Field label="Currency">
-          <Input maxLength={3} {...form.register("currency")} />
-        </Field>
-        <Field label="Default hourly rate">
-          <Input type="number" min="0" step="0.01" {...form.register("default_rate_major")} />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="Notes">
-            <textarea
-              className="min-h-24 rounded-lg border border-slate-300 p-3 text-sm"
-              {...form.register("notes")}
+          <Field label="Billing email">
+            <Input
+              type="email"
+              aria-invalid={Boolean(form.formState.errors.billing_email)}
+              {...form.register("billing_email")}
             />
           </Field>
-        </div>
-        {mutation.error ? (
-          <p className="text-sm text-red-600 sm:col-span-2">{mutation.error.message}</p>
-        ) : null}
+          <div className="sm:col-span-2">
+            <Field label="Billing address">
+              <textarea
+                className="min-h-20 rounded-lg border border-slate-300 p-3 text-sm"
+                aria-invalid={Boolean(form.formState.errors.billing_address)}
+                {...form.register("billing_address")}
+              />
+            </Field>
+          </div>
+          <Field label="Tax / registration ID">
+            <Input
+              aria-invalid={Boolean(form.formState.errors.tax_identifier)}
+              {...form.register("tax_identifier")}
+            />
+          </Field>
+          <Field label="Currency">
+            <Input
+              maxLength={3}
+              aria-invalid={Boolean(form.formState.errors.currency)}
+              {...form.register("currency")}
+            />
+          </Field>
+          <Field label="Default hourly rate">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              aria-invalid={Boolean(form.formState.errors.default_rate_major)}
+              {...form.register("default_rate_major")}
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Notes">
+              <textarea
+                className="min-h-24 rounded-lg border border-slate-300 p-3 text-sm"
+                aria-invalid={Boolean(form.formState.errors.notes)}
+                {...form.register("notes")}
+              />
+            </Field>
+          </div>
+          {mutation.error ? (
+            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
+              {mutation.error.message}
+            </p>
+          ) : null}
+        </fieldset>
       </form>
     </Modal>
   );

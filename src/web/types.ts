@@ -22,6 +22,9 @@ export interface MeResponse {
     lock_entries_after_days: number | null;
     rounding_increment_minutes: number;
     rounding_method: string;
+    report_show_members?: boolean;
+    report_show_descriptions?: boolean;
+    report_show_tags?: boolean;
     version: number;
   };
   permissions: {

@@ -53,24 +53,96 @@ locally; their guard migration must be applied before serving the updated API.
 This inventory reflects local source inspection on 2026-10-04. Present means code
 exists, not that Toggl parity or production acceptance has been demonstrated.
 
-| Area                       | Hourlark today                                                                        | Parity work or decision                                                                                                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Running timer              | Start/stop, persisted timestamps, recent descriptions, project/tag/billable selection | Running description/project/tag controls are disabled. Match Toggl's editing-while-running behavior and duration/manual input.                                                                    |
-| Timer descriptions         | `@` project and `#` tag picker                                                        | Verify autocomplete selection preserves project, tags, and billable state; validate keyboard interactions against Toggl.                                                                          |
-| List view                  | Day groups, daily totals, inline editor, continue, duplicate, delete, restore         | Selected checkboxes currently have no bulk action. Add agreed bulk edit/delete, similar-entry grouping, split, and favorites behavior.                                                            |
-| Calendar                   | Day/week display, create, drag/resize, open entries                                   | Compare event layout, controls, overlap handling, and edits visually and behaviorally. External calendars are not integrated.                                                                     |
-| Timesheet                  | Weekly project/description rows and create-empty-cell flow                            | Existing filled cells are disabled; implement editing and an explicit policy for cells aggregating multiple entries.                                                                              |
-| Clients/projects/tags/team | CRUD/archive, assignment, roles, rates, budget field, weekly targets                  | No task/sub-project model, automated estimate alerts, or email invitation flow. Compare permissions and project dashboards.                                                                       |
-| Reports and exports        | Summary/detail filters, grouping, financial totals, CSV/PDF                           | Fix the silent 5,000-entry cap first. Compare presets, grouped totals, filters, rounding, timezone boundaries, and export columns. No saved/scheduled reports.                                    |
-| Historical rates and locks | Per-entry rate snapshots and age-based entry lock with audited admin override         | These are not proof of Toggl's effective-dated rates or calendar-date timesheet locking parity. Validate required company behavior. No timesheet approval workflow.                               |
-| Migration                  | No Toggl importer found                                                               | Add a previewable, repeat-safe import with original source IDs, member/project/client/tag mapping, timezone handling, and reconciliation.                                                         |
-| Other clients/integrations | Browser app                                                                           | Native apps, extension timer, offline sync, idle detection, calendar providers, and Jira/Salesforce integration were not found. Confirm use before establishing the replacement acceptance scope. |
+| Area                       | Hourlark today                                                                                                                                      | Parity work or decision                                                                                                                                                                           |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Running timer              | Start/stop, persisted timestamps, recent descriptions, project/tag/billable selection; running description/project/tags/billable now PATCH in place | Duration popover (start/stop/date) and manual mode are still outstanding. Do not treat this slice as full timer parity.                                                                           |
+| Timer descriptions         | `@` project and `#` tag picker                                                                                                                      | Verify autocomplete selection preserves project, tags, and billable state; validate keyboard interactions against Toggl.                                                                          |
+| List view                  | Day groups, daily totals, inline editor, continue, duplicate, delete, restore                                                                       | Same-day session grouping, bulk delete and Undo are implemented. Bulk metadata edits, split, and favorites remain open.                                                                           |
+| Calendar                   | Day/week display, create, drag/resize, open entries                                                                                                 | Compare event layout, controls, overlap handling, and edits visually and behaviorally. External calendars are not integrated.                                                                     |
+| Timesheet                  | Weekly project/description rows and create-empty-cell flow                                                                                          | Filled cells open the entry editor; aggregated cells offer an entry chooser. Copy last week remains open.                                                                                         |
+| Clients/projects/tags/team | CRUD/archive, assignment, roles, rates, budget field, weekly targets                                                                                | No task/sub-project model, automated estimate alerts, or email invitation flow. Compare permissions and project dashboards.                                                                       |
+| Reports and exports        | Summary/detail filters, grouping, financial totals, CSV/PDF                                                                                         | The 5,000-entry ceiling now rejects oversized reports explicitly. Compare presets, grouped totals, filters, rounding, timezone boundaries, and export columns. No saved/scheduled reports.        |
+| Historical rates and locks | Per-entry rate snapshots and age-based entry lock with audited admin override                                                                       | These are not proof of Toggl's effective-dated rates or calendar-date timesheet locking parity. Validate required company behavior. No timesheet approval workflow.                               |
+| Migration                  | No Toggl importer found                                                                                                                             | Add a previewable, repeat-safe import with original source IDs, member/project/client/tag mapping, timezone handling, and reconciliation.                                                         |
+| Other clients/integrations | Browser app                                                                                                                                         | Native apps, extension timer, offline sync, idle detection, calendar providers, and Jira/Salesforce integration were not found. Confirm use before establishing the replacement acceptance scope. |
 
 Source anchors: `src/web/features/timer/global-timer.tsx`,
 `src/web/routes/time.tsx`, `src/web/routes/calendar.tsx`,
 `src/web/features/timer/timesheet-view.tsx`, `src/web/routes/reports.tsx`,
 `src/worker/routes/api.ts`, `src/worker/schemas.ts`, and
 `migrations/0001_initial.sql`.
+
+## First timer/list slice (not full parity)
+
+This slice aligns the desktop Timer chrome and running-entry metadata with the
+company's Toggl Track screens. See the [live comparison notes](design/toggl-live-comparison.md)
+for observed report, calendar, list-action, and timesheet gaps. It is a first visual/behavioral cut, not a claim
+that Hourlark now matches Toggl.
+
+Implemented:
+
+- Full-width dark timer/list layout: 226px sidebar (47px Hourlark rail + 179px
+  navigation), main `#212121`, borders `#3b3b3b`, pink accent `#cd7fc2`. Content
+  is no longer centered in an 1800px column.
+- 84px running/idle header with in-place description, project, tags, and
+  billable controls. Play is 42px pink; no decorative manual-mode button.
+- One-row toolbar on wide desktop screens with a shared 322×36 date control, compact Today/Week totals,
+  text-only Calendar / List view / Timesheet segments, and a compact admin
+  member selector that does not replace those controls.
+- Compact 50px day headers (`Today` or `Thu, 30 Jul`) and entry rows with
+  muted comma-separated tags, hover continue/more actions, and a working
+  **View full history in reports** link. The workspace stripe is removed from
+  the timer page only.
+- Running description saves on blur or Enter; Escape restores the latest server
+  value; polling does not clobber a local draft. Stop waits for a pending
+  description or metadata save and stays put when that save fails. Edits typed
+  during a save are persisted before stopping. A rejected description requires
+  Retry or Cancel; pressing Stop does not silently overwrite a conflict. Drafts
+  and late responses do not carry over to a replacement timer from another tab.
+- Running project, tags, and billable persist through `PATCH /time-entries/:id`
+  with the current `version` and only the changed metadata. Timestamps and rate
+  fields are not sent. A project change does not reset running billable/rate.
+  A null running project is not replaced by a stale idle project selection.
+  Archived project/tag labels stay available on the running timer.
+- Success updates the timer/list/calendar query cache, then invalidates timer,
+  list, calendar, reports, and recent queries and broadcasts. A 409 refreshes
+  authoritative state, shows an error, and keeps the rejected draft for
+  explicit Retry/Cancel. It does not silently retry against the new version.
+
+Still outstanding (do not treat as done):
+
+- Duration editor / start-stop-date calendar popover on the running timer.
+- Manual mode.
+- Bulk metadata edits, split, and favorites.
+- Timesheet Copy last week and further comparison with Toggl.
+- Calendar control/visual parity (five-day mode, zoom, `T` shortcut, popovers).
+- Members invitation flow and remaining team-group behaviors.
+- Saved/scheduled reports and remaining grouping/rounding comparisons after
+  the existing 5,000-entry ceiling guard. Common presets are implemented below.
+- Toggl importer and other clients/integrations.
+
+Keep Hourlark branding and existing permissions. Calendar and Members remain
+confirmed workflows without an assigned implementation priority.
+
+## Timer/list and report workflow pass
+
+The selected project shows its colored name and client in idle and running
+states. Project search includes client names, selected state and empty results.
+Entry project/tag/time controls open the corresponding editor directly; Escape
+closes nested pickers before the editor and restores trigger focus.
+
+List dates now have presets, a calendar range and working period navigation.
+All dates includes historical entries instead of the former 60-day window;
+capped results show a warning. Changing member or range clears stale selections
+and editors. Empty periods offer a reset to All dates.
+
+Reports now has compact Summary/Detailed navigation and filters, a metrics strip,
+daily duration chart, project distribution and grouping controls. Its shared date
+picker displays inclusive local dates and requests the next local midnight as
+the exclusive API end, including DST transitions. The global timer stays mounted
+but hidden on Reports so navigation preserves the idle draft. These changes are
+implemented locally; the remaining workflows above still need work and company
+acceptance. See the [live comparison notes](design/toggl-live-comparison.md).
 
 Official Toggl references reviewed:
 
@@ -87,6 +159,13 @@ Official Toggl references reviewed:
 Toggl's current marketing site and Track-specific help articles describe different
 product bundles and rates. The company's account and invoice define the baseline,
 not whichever public page gives the largest savings number.
+
+## Existing-feature repair audit
+
+The [workflow audit](design/feature-workflow-audit.md) records the subsequent
+editor, calendar, timesheet, bulk-action, management, and export repairs, with
+manual and automated evidence distinguished. These are local changes. Remaining
+Toggl features are listed explicitly; the audit is not full replacement acceptance.
 
 ## Delivery and switch criteria
 

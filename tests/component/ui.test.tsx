@@ -19,5 +19,8 @@ describe("shared UI primitives", () => {
     expect(screen.getByRole("heading", { name: "No time recorded" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Add time" }));
     expect(onClick).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Add time" }).className).toContain("bg-[#f59e0b]");
+    expect(screen.getByRole("button", { name: "Add time" }).className).toContain("text-[#18181b]");
+    expect(screen.getByRole("button", { name: "Add time" }).className).not.toContain("#cd7fc2");
   });
 });

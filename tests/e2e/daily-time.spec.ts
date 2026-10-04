@@ -68,11 +68,18 @@ test("member can open the timer workspace and navigate core views", async ({ pag
   await expect(page).toHaveURL(/view=calendar/);
   const calendarColumn = page.locator(".fc-timegrid-col[data-date]").nth(2);
   const calendarBox = await calendarColumn.boundingBox();
+  const startSlot = page.locator('.fc-timegrid-slot[data-time="11:00:00"]').last();
+  const stopSlot = page.locator('.fc-timegrid-slot[data-time="12:00:00"]').last();
+  await startSlot.scrollIntoViewIfNeeded();
+  const startBox = await startSlot.boundingBox();
+  const stopBox = await stopSlot.boundingBox();
   expect(calendarBox).not.toBeNull();
-  if (calendarBox) {
-    await page.mouse.move(calendarBox.x + calendarBox.width / 2, calendarBox.y + 180);
+  expect(startBox).not.toBeNull();
+  expect(stopBox).not.toBeNull();
+  if (calendarBox && startBox && stopBox) {
+    await page.mouse.move(calendarBox.x + calendarBox.width / 2, startBox.y + 3);
     await page.mouse.down();
-    await page.mouse.move(calendarBox.x + calendarBox.width / 2, calendarBox.y + 230, {
+    await page.mouse.move(calendarBox.x + calendarBox.width / 2, stopBox.y + 3, {
       steps: 8,
     });
     await page.mouse.up();

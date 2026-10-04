@@ -21,24 +21,40 @@ import {
   Badge,
   Button,
   EmptyState,
+  ErrorState,
+  Loading,
   Field,
   Input,
   Modal,
   PageHeader,
   Select,
 } from "@/web/components/ui";
+import { FormErrors } from "@/web/components/form-errors";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
 import type { Client, Member, Project, TimeEntry } from "@/web/types";
 
 const projectSchema = z.object({
-  client_id: z.string().min(1),
-  name: z.string().min(1),
+  client_id: z.string().trim().min(1, "This field is required."),
+  name: z.string().trim().min(1, "This field is required."),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   billable_default: z.boolean(),
-  hourly_rate_major: z.string(),
-  currency: z.string().length(3),
-  budget_hours: z.string(),
+  hourly_rate_major: z
+    .string()
+    .refine(
+      (value) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0),
+      "Enter a non-negative number.",
+    ),
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "Enter a three-letter currency code."),
+  budget_hours: z
+    .string()
+    .refine(
+      (value) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0),
+      "Enter a non-negative number.",
+    ),
   visibility: z.enum(["all", "assigned"]),
   notes: z.string(),
   member_ids: z.array(z.string()),
@@ -69,7 +85,9 @@ export function ProjectsPage() {
   const statusMutation = useMutation({
     mutationFn: ({ project, next }: { project: Project; next: "archive" | "reactivate" }) =>
       apiRequest(`/projects/${project.id}/${next}`, { method: "POST", body: "{}" }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
   });
 
   return (
@@ -87,7 +105,7 @@ export function ProjectsPage() {
       />
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-3">
-          <div className="relative min-w-64 flex-1">
+          <div className="relative min-w-0 flex-1 basis-56">
             <Search className="absolute top-3 left-3 text-slate-400" size={15} />
             <Input
               className="pl-9"
@@ -123,7 +141,21 @@ export function ProjectsPage() {
             </>
           ) : null}
         </div>
-        {(projects.data?.projects ?? []).length === 0 ? (
+        {statusMutation.isPending ? (
+          <p role="status" className="p-4 text-sm text-slate-500">
+            Updating project status…
+          </p>
+        ) : null}
+        {statusMutation.error ? (
+          <p role="alert" className="p-4 text-sm text-red-300">
+            {statusMutation.error.message}
+          </p>
+        ) : null}
+        {projects.isPending ? (
+          <Loading label="Loading projects…" />
+        ) : projects.error ? (
+          <ErrorState message={projects.error.message} onRetry={() => void projects.refetch()} />
+        ) : projects.data.projects.length === 0 ? (
           <EmptyState
             title="No projects found"
             description="Adjust the filters or create a project to make it available for tracking."
@@ -137,7 +169,7 @@ export function ProjectsPage() {
           />
         ) : (
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-            {(projects.data?.projects ?? []).map((project) => {
+            {projects.data.projects.map((project) => {
               const budgetMs = (project.budget_minutes ?? 0) * 60_000;
               const utilization =
                 budgetMs > 0
@@ -192,7 +224,7 @@ export function ProjectsPage() {
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                           <div
-                            className="bg-willow-green-500 h-full rounded-full"
+                            className="h-full rounded-full bg-[#f59e0b]"
                             style={{ width: `${utilization}%` }}
                           />
                         </div>
@@ -205,6 +237,7 @@ export function ProjectsPage() {
                         <Button
                           variant="ghost"
                           className="text-slate-500"
+                          disabled={statusMutation.isPending}
                           onClick={() => statusMutation.mutate({ project, next: "archive" })}
                         >
                           <Archive size={14} /> Archive
@@ -212,6 +245,7 @@ export function ProjectsPage() {
                       ) : (
                         <Button
                           variant="ghost"
+                          disabled={statusMutation.isPending}
                           onClick={() => statusMutation.mutate({ project, next: "reactivate" })}
                         >
                           <RotateCcw size={14} /> Reactivate
@@ -226,6 +260,7 @@ export function ProjectsPage() {
         )}
       </section>
       <ProjectEditor
+        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         open={editing !== null}
         project={editing === "new" ? null : editing}
         onOpenChange={(open) => !open && setEditing(null)}
@@ -322,9 +357,14 @@ function ProjectEditor({
       } catch (error) {
         if (
           error instanceof Error &&
-          error.message.includes("Historical entries will keep their client snapshot") &&
-          window.confirm(`${error.message} Continue with this client change?`)
+          error.message.includes("Historical entries will keep their client snapshot")
         ) {
+          if (!window.confirm(`${error.message} Continue with this client change?`)) {
+            throw new Error(
+              "Client change cancelled. Your edits are still here; choose the original client or save again to confirm the change.",
+              { cause: error },
+            );
+          }
           if (!project) throw error;
           return apiRequest(`/projects/${project.id}`, {
             method: "PATCH",
@@ -335,7 +375,7 @@ function ProjectEditor({
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries();
       onOpenChange(false);
     },
   });
@@ -343,118 +383,199 @@ function ProjectEditor({
   return (
     <Modal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!mutation.isPending) onOpenChange(next);
+      }}
       title={project ? "Edit project" : "New project"}
       footer={
         <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="secondary"
+            disabled={mutation.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button onClick={() => void form.handleSubmit((values) => mutation.mutate(values))()}>
-            Save project
+          <Button
+            disabled={
+              mutation.isPending ||
+              clients.isPending ||
+              Boolean(clients.error) ||
+              (form.watch("visibility") === "assigned" &&
+                (members.isPending || Boolean(members.error)))
+            }
+            onClick={() =>
+              void form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))()
+            }
+          >
+            {mutation.isPending ? "Saving…" : "Save project"}
           </Button>
         </>
       }
     >
-      <form className="grid gap-4 sm:grid-cols-2" onSubmit={(event) => event.preventDefault()}>
-        <div className="sm:col-span-2">
-          <Field label="Client">
-            <Select {...form.register("client_id")}>
-              <option value="">Select a client</option>
-              {(clients.data?.clients ?? []).map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </Select>
+      <form
+        noValidate
+        className="grid gap-4 sm:grid-cols-2"
+        onSubmit={form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))}
+      >
+        <fieldset disabled={mutation.isPending} className="contents">
+          <FormErrors errors={form.formState.errors} />
+          {clients.isPending ? (
+            <Loading label="Loading clients…" />
+          ) : clients.error ? (
+            <ErrorState message={clients.error.message} onRetry={() => void clients.refetch()} />
+          ) : null}
+          <div className="sm:col-span-2">
+            <Field label="Client">
+              <Select
+                aria-invalid={Boolean(form.formState.errors.client_id)}
+                {...form.register("client_id")}
+              >
+                <option value="">Select a client</option>
+                {project &&
+                !clients.isPending &&
+                !clients.data?.clients.some((client) => client.id === project.client_id) ? (
+                  <option value={project.client_id}>{project.client_name} (archived)</option>
+                ) : null}
+                {(clients.data?.clients ?? []).map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Project name">
+            <Input aria-invalid={Boolean(form.formState.errors.name)} {...form.register("name")} />
           </Field>
-        </div>
-        <Field label="Project name">
-          <Input {...form.register("name")} />
-        </Field>
-        <Field label="Project color">
-          <Input type="color" className="p-1" {...form.register("color")} />
-        </Field>
-        <Field label="Currency">
-          <Input maxLength={3} {...form.register("currency")} />
-        </Field>
-        <Field label="Hourly rate">
-          <Input type="number" min="0" step="0.01" {...form.register("hourly_rate_major")} />
-        </Field>
-        <Field label="Budget hours">
-          <Input type="number" min="0" step="0.25" {...form.register("budget_hours")} />
-        </Field>
-        <Field label="Visibility">
-          <Select {...form.register("visibility")}>
-            <option value="all">All active members</option>
-            <option value="assigned">Assigned members only</option>
-          </Select>
-        </Field>
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-2">
-          <input type="checkbox" {...form.register("billable_default")} />
-          Billable by default
-        </label>
-        {form.watch("visibility") === "assigned" ? (
-          <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
-            <legend className="px-1 text-sm font-semibold">Assigned members</legend>
-            {(members.data?.members ?? [])
-              .filter((member) => member.status !== "inactive")
-              .map((member) => (
-                <label key={member.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" value={member.id} {...form.register("member_ids")} />
-                  {member.display_name} <span className="text-slate-400">({member.email})</span>
-                </label>
-              ))}
-          </fieldset>
-        ) : null}
-        <div className="sm:col-span-2">
-          <Field label="Notes">
-            <textarea
-              className="min-h-24 rounded-lg border border-slate-300 p-3 text-sm"
-              {...form.register("notes")}
+          <Field label="Project color">
+            <Input
+              type="color"
+              className="p-1"
+              aria-invalid={Boolean(form.formState.errors.color)}
+              {...form.register("color")}
             />
           </Field>
-        </div>
-        {project ? (
-          <section className="rounded-lg border border-slate-200 p-3 sm:col-span-2">
-            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-              <Clock3 size={15} /> Recent time
-            </h3>
-            {recentEntries.isLoading ? (
-              <p className="mt-2 text-sm text-slate-500">Loading recent entries…</p>
-            ) : (recentEntries.data?.entries.length ?? 0) === 0 ? (
-              <p className="mt-2 text-sm text-slate-500">No time has been tracked yet.</p>
-            ) : (
-              <ul className="mt-2 divide-y divide-slate-100">
-                {(recentEntries.data?.entries ?? []).map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="flex items-center justify-between gap-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-slate-700">
-                        {entry.description || "Untitled entry"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {entry.member.name} ·{" "}
-                        {new Intl.DateTimeFormat(undefined, {
-                          dateStyle: "medium",
-                          timeZone: me.member.timezone,
-                        }).format(new Date(entry.started_at))}
-                      </p>
-                    </div>
-                    <span className="shrink-0 font-semibold">
-                      {formatDuration(entry.duration_ms)}
-                    </span>
-                  </li>
+          <Field label="Currency">
+            <Input
+              maxLength={3}
+              aria-invalid={Boolean(form.formState.errors.currency)}
+              {...form.register("currency")}
+            />
+          </Field>
+          <Field label="Hourly rate">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              aria-invalid={Boolean(form.formState.errors.hourly_rate_major)}
+              {...form.register("hourly_rate_major")}
+            />
+          </Field>
+          <Field label="Budget hours">
+            <Input
+              type="number"
+              min="0"
+              step="0.25"
+              aria-invalid={Boolean(form.formState.errors.budget_hours)}
+              {...form.register("budget_hours")}
+            />
+          </Field>
+          <Field label="Visibility">
+            <Select
+              aria-invalid={Boolean(form.formState.errors.visibility)}
+              {...form.register("visibility")}
+            >
+              <option value="all">All active members</option>
+              <option value="assigned">Assigned members only</option>
+            </Select>
+          </Field>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-2">
+            <input
+              type="checkbox"
+              aria-invalid={Boolean(form.formState.errors.billable_default)}
+              {...form.register("billable_default")}
+            />
+            Billable by default
+          </label>
+          {form.watch("visibility") === "assigned" && members.error ? (
+            <ErrorState message={members.error.message} onRetry={() => void members.refetch()} />
+          ) : null}
+          {form.watch("visibility") === "assigned" ? (
+            <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
+              <legend className="px-1 text-sm font-semibold">Assigned members</legend>
+              {(members.data?.members ?? [])
+                .filter((member) => member.status !== "inactive")
+                .map((member) => (
+                  <label key={member.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      value={member.id}
+                      aria-invalid={Boolean(form.formState.errors.member_ids)}
+                      {...form.register("member_ids")}
+                    />
+                    {member.display_name} <span className="text-slate-400">({member.email})</span>
+                  </label>
                 ))}
-              </ul>
-            )}
-          </section>
-        ) : null}
-        {mutation.error ? (
-          <p className="text-sm text-red-600 sm:col-span-2">{mutation.error.message}</p>
-        ) : null}
+            </fieldset>
+          ) : null}
+          <div className="sm:col-span-2">
+            <Field label="Notes">
+              <textarea
+                className="min-h-24 rounded-lg border border-slate-300 p-3 text-sm"
+                aria-invalid={Boolean(form.formState.errors.notes)}
+                {...form.register("notes")}
+              />
+            </Field>
+          </div>
+          {project ? (
+            <section className="rounded-lg border border-slate-200 p-3 sm:col-span-2">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <Clock3 size={15} /> Recent time
+              </h3>
+              {recentEntries.isLoading ? (
+                <p className="mt-2 text-sm text-slate-500">Loading recent entries…</p>
+              ) : recentEntries.error ? (
+                <ErrorState
+                  message={recentEntries.error.message}
+                  onRetry={() => void recentEntries.refetch()}
+                />
+              ) : (recentEntries.data?.entries.length ?? 0) === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">No time has been tracked yet.</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-slate-100">
+                  {(recentEntries.data?.entries ?? []).map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="flex items-center justify-between gap-3 py-2 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-slate-700">
+                          {entry.description || "Untitled entry"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {entry.member.name} ·{" "}
+                          {new Intl.DateTimeFormat(undefined, {
+                            dateStyle: "medium",
+                            timeZone: me.member.timezone,
+                          }).format(new Date(entry.started_at))}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-semibold">
+                        {formatDuration(entry.duration_ms)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
+          {mutation.error ? (
+            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
+              {mutation.error.message}
+            </p>
+          ) : null}
+        </fieldset>
       </form>
     </Modal>
   );

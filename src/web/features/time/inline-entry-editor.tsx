@@ -2,30 +2,24 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { addSeconds } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { CalendarClock, Check, CircleDollarSign, Search, Tags, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import { useMe } from "@/web/app/context";
 import { Button } from "@/web/components/ui";
+import {
+  useDismissPopover,
+  useEscapeToClose,
+  useRestoreFocus,
+} from "@/web/features/timer/use-dismiss-popover";
 import { ApiClientError, apiRequest } from "@/web/lib/api";
-import { formatClockDuration } from "@/web/lib/format";
+import { formatClockDuration, parseClockDuration } from "@/web/lib/format";
 import type { Project, Tag, TimeEntry } from "@/web/types";
+
+export type InlineEditorField = "description" | "project" | "tags" | "time";
 
 function localValueWithSeconds(iso: string, timezone: string): string {
   return formatInTimeZone(new Date(iso), timezone, "yyyy-MM-dd'T'HH:mm:ss");
-}
-
-function parseClockDuration(value: string): number | null {
-  const parts = value.trim().split(":");
-  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !/^\d+$/.test(part))) {
-    return null;
-  }
-  const hours = Number(parts[0]);
-  const minutes = Number(parts[1]);
-  const seconds = Number(parts[2] ?? 0);
-  if (minutes > 59 || seconds > 59) return null;
-  const total = hours * 3600 + minutes * 60 + seconds;
-  return total > 0 ? total : null;
 }
 
 function replaceDate(value: string, date: string): string {
@@ -36,10 +30,16 @@ function replaceTime(value: string, time: string): string {
   return `${value.slice(0, 10)}T${time}`;
 }
 
+function projectVisibleLabel(project: { name: string; client_name: string }): string {
+  if (!project.client_name || project.client_name === "No client") return project.name;
+  return `${project.name} • ${project.client_name}`;
+}
+
 interface InlineEntryEditorProps {
   entry: TimeEntry;
   projects: Project[];
   tags: Tag[];
+  initialField?: InlineEditorField;
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -50,11 +50,19 @@ export function InlineEntryEditor({
   entry,
   projects,
   tags,
+  initialField = "description",
   onCancel,
   onSaved,
 }: InlineEntryEditorProps) {
   const me = useMe();
   const queryClient = useQueryClient();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const initialStop = entry.stopped_at ?? new Date().toISOString();
   const initialDurationSeconds = Math.max(
     1,
@@ -79,6 +87,9 @@ export function InlineEntryEditor({
       ? ""
       : String(minorToMajor(entry.rate_minor, entry.rate_currency ?? me.workspace.currency)),
   );
+  const [openField, setOpenField] = useState<InlineEditorField | null>(
+    initialField === "description" ? null : initialField,
+  );
 
   const availableProjects = useMemo(() => {
     const merged = new Map<string, ProjectChoice>(projects.map((project) => [project.id, project]));
@@ -101,9 +112,10 @@ export function InlineEntryEditor({
   const updateStopFromDuration = (seconds: number, startValue = startedAt) => {
     if (!Number.isFinite(seconds) || seconds < 1 || !startValue) return;
     const start = fromZonedTime(startValue, me.member.timezone);
-    setStoppedAt(
-      localValueWithSeconds(addSeconds(start, seconds).toISOString(), me.member.timezone),
-    );
+    if (!Number.isFinite(start.getTime())) return;
+    const stop = addSeconds(start, seconds);
+    if (!Number.isFinite(stop.getTime())) return;
+    setStoppedAt(localValueWithSeconds(stop.toISOString(), me.member.timezone));
   };
   const updateDurationFromTimes = (startValue: string, stopValue: string) => {
     if (!startValue || !stopValue) return;
@@ -118,8 +130,12 @@ export function InlineEntryEditor({
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!entry.running && !parseClockDuration(durationDraft))
+        throw new Error("Enter a duration in h:mm:ss, up to 168 hours.");
       const start = fromZonedTime(startedAt, me.member.timezone);
       const stop = entry.running ? null : fromZonedTime(stoppedAt, me.member.timezone);
+      if (!Number.isFinite(start.getTime()) || (stop && !Number.isFinite(stop.getTime())))
+        throw new Error("Choose valid start and stop dates and times.");
       if (stop && stop <= start) throw new Error("Stop must be after start.");
 
       const input = {
@@ -127,13 +143,30 @@ export function InlineEntryEditor({
         description,
         project_id: projectId || null,
         tag_ids: tagIds,
-        started_at: start.toISOString(),
-        ...(stop ? { stopped_at: stop.toISOString() } : {}),
-        billable,
-        ...(me.permissions.financial && billable && rateMajor
+        started_at:
+          startedAt === localValueWithSeconds(entry.started_at, me.member.timezone)
+            ? entry.started_at
+            : start.toISOString(),
+        ...(stop
           ? {
-              rate_minor: majorToMinor(rateMajor, me.workspace.currency),
-              rate_currency: me.workspace.currency,
+              stopped_at:
+                entry.stopped_at &&
+                stoppedAt === localValueWithSeconds(entry.stopped_at, me.member.timezone)
+                  ? entry.stopped_at
+                  : stop.toISOString(),
+            }
+          : {}),
+        billable,
+        ...(me.permissions.financial &&
+        billable &&
+        rateMajor &&
+        rateMajor !==
+          (entry.rate_minor == null
+            ? ""
+            : String(minorToMajor(entry.rate_minor, entry.rate_currency ?? me.workspace.currency)))
+          ? {
+              rate_minor: majorToMinor(rateMajor, entry.rate_currency ?? me.workspace.currency),
+              rate_currency: entry.rate_currency ?? me.workspace.currency,
             }
           : {}),
       };
@@ -165,7 +198,7 @@ export function InlineEntryEditor({
         queryClient.invalidateQueries({ queryKey: ["reports"] }),
         queryClient.invalidateQueries({ queryKey: ["timer"] }),
       ]);
-      onSaved();
+      if (mounted.current) onSaved();
     },
     onError: (error) => {
       if (error instanceof ApiClientError && error.code === "entry_conflict") {
@@ -176,114 +209,127 @@ export function InlineEntryEditor({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    mutation.mutate();
+    if (!mutation.isPending) mutation.mutate();
   };
 
   return (
     <form
-      className="border-frosted-mint-700/40 border-b border-l-2 bg-white/[0.055] px-4 py-2 md:px-5"
+      className="border-b border-l-2 border-[#3b3b3b] border-l-[#f59e0b]/50 bg-white/[0.04] px-4 py-2 md:px-5"
       aria-label={`Edit ${entry.description || "time entry"}`}
       onSubmit={submit}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || openField) return;
+        event.preventDefault();
+        onCancel();
+      }}
     >
-      <div className="grid min-h-12 items-center gap-2 md:grid-cols-[auto_minmax(280px,1fr)_minmax(120px,0.55fr)_auto_auto]">
-        <span className="h-4 w-4" aria-hidden="true" />
+      <fieldset disabled={mutation.isPending} className="min-w-0 border-0 p-0">
+        <div className="grid min-h-12 min-w-0 items-center gap-2 xl:grid-cols-[auto_minmax(280px,1fr)_minmax(120px,0.55fr)_auto_auto]">
+          <span className="h-4 w-4" aria-hidden="true" />
 
-        <div className="flex min-w-0 items-center gap-3">
-          <input
-            autoFocus
-            className="h-9 min-w-[120px] flex-[1_1_52%] rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-slate-100 outline-none placeholder:text-slate-500 hover:bg-black/10 focus:border-white/12 focus:bg-[#111710]"
-            value={description}
-            maxLength={500}
-            placeholder="Add description"
-            aria-label="Entry description"
-            onChange={(event) => setDescription(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") onCancel();
-            }}
-          />
-          <ProjectPicker
-            projects={availableProjects}
-            value={projectId}
-            archivedProjectId={
-              entry.project && !projects.some((project) => project.id === entry.project?.id)
-                ? entry.project.id
-                : null
-            }
-            onChange={setProjectId}
-          />
-        </div>
-
-        <TagPicker tags={availableTags} value={tagIds} onChange={setTagIds} />
-
-        <div className="flex items-center justify-end gap-1">
-          {me.workspace.members_can_set_billable || me.member.role !== "member" ? (
-            <button
-              type="button"
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition ${
-                billable
-                  ? "bg-frosted-mint-900 text-light-green-400"
-                  : "text-slate-600 hover:bg-white/7 hover:text-slate-300"
-              }`}
-              aria-label={billable ? "Mark entry non-billable" : "Mark entry billable"}
-              aria-pressed={billable}
-              onClick={() => setBillable((value) => !value)}
-            >
-              <CircleDollarSign size={16} />
-            </button>
-          ) : null}
-          <TimePicker
-            timezone={me.member.timezone}
-            running={entry.running}
-            startedAt={startedAt}
-            stoppedAt={stoppedAt}
-            durationSeconds={durationSeconds}
-            durationDraft={durationDraft}
-            billable={billable}
-            financial={me.permissions.financial}
-            currency={me.workspace.currency}
-            rateMajor={rateMajor}
-            onRateChange={setRateMajor}
-            onStartChange={(nextStart) => {
-              setStartedAt(nextStart);
-              if (!entry.running) updateStopFromDuration(durationSeconds, nextStart);
-            }}
-            onStopChange={(nextStop) => {
-              setStoppedAt(nextStop);
-              updateDurationFromTimes(startedAt, nextStop);
-            }}
-            onDurationChange={(value) => {
-              setDurationDraft(value);
-              const seconds = parseClockDuration(value);
-              if (seconds) {
-                setDurationSeconds(seconds);
-                updateStopFromDuration(seconds);
+          <div className="flex min-w-0 items-center gap-3">
+            <input
+              autoFocus={initialField === "description"}
+              className="h-9 min-w-[120px] flex-[1_1_52%] rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-[#fafafa] outline-none placeholder:text-[#a4a4a4] hover:bg-black/10 focus:border-[#3b3b3b] focus:bg-[#1b1b1b]"
+              value={description}
+              maxLength={500}
+              placeholder="Add description"
+              aria-label="Entry description"
+              onChange={(event) => setDescription(event.target.value)}
+            />
+            <ProjectPicker
+              projects={availableProjects}
+              value={projectId}
+              archivedProjectId={
+                entry.project && !projects.some((project) => project.id === entry.project?.id)
+                  ? entry.project.id
+                  : null
               }
-            }}
+              open={openField === "project"}
+              onOpenChange={(next) => setOpenField(next ? "project" : null)}
+              onChange={setProjectId}
+            />
+          </div>
+
+          <TagPicker
+            tags={availableTags}
+            value={tagIds}
+            open={openField === "tags"}
+            onOpenChange={(next) => setOpenField(next ? "tags" : null)}
+            onChange={setTagIds}
           />
-        </div>
 
-        <div className="flex justify-end gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-8 min-h-8 w-8 rounded-md p-0"
-            aria-label="Cancel editing"
-            onClick={onCancel}
-          >
-            <X size={16} />
-          </Button>
-          <Button
-            type="submit"
-            variant="accent"
-            className="h-8 min-h-8 w-8 rounded-md p-0"
-            aria-label="Save time entry"
-            disabled={mutation.isPending}
-          >
-            <Check size={17} />
-          </Button>
-        </div>
-      </div>
+          <div className="flex items-center justify-end gap-1">
+            {me.workspace.members_can_set_billable || me.member.role !== "member" ? (
+              <button
+                type="button"
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition ${
+                  billable
+                    ? "bg-[#382b16] text-[#fbbf24]"
+                    : "text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]"
+                }`}
+                aria-label={billable ? "Mark entry non-billable" : "Mark entry billable"}
+                aria-pressed={billable}
+                onClick={() => setBillable((value) => !value)}
+              >
+                <CircleDollarSign size={16} />
+              </button>
+            ) : null}
+            <TimePicker
+              timezone={me.member.timezone}
+              running={entry.running}
+              startedAt={startedAt}
+              stoppedAt={stoppedAt}
+              durationSeconds={durationSeconds}
+              durationDraft={durationDraft}
+              billable={billable}
+              financial={me.permissions.financial}
+              currency={entry.rate_currency ?? me.workspace.currency}
+              rateMajor={rateMajor}
+              open={openField === "time"}
+              onOpenChange={(next) => setOpenField(next ? "time" : null)}
+              onRateChange={setRateMajor}
+              onStartChange={(nextStart) => {
+                setStartedAt(nextStart);
+                if (!entry.running) updateStopFromDuration(durationSeconds, nextStart);
+              }}
+              onStopChange={(nextStop) => {
+                setStoppedAt(nextStop);
+                updateDurationFromTimes(startedAt, nextStop);
+              }}
+              onDurationChange={(value) => {
+                setDurationDraft(value);
+                const seconds = parseClockDuration(value);
+                if (seconds) {
+                  setDurationSeconds(seconds);
+                  updateStopFromDuration(seconds);
+                }
+              }}
+            />
+          </div>
 
+          <div className="flex justify-end gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 min-h-8 w-8 rounded-md p-0 text-[#a4a4a4] hover:text-[#fafafa]"
+              aria-label="Cancel editing"
+              onClick={onCancel}
+            >
+              <X size={16} />
+            </Button>
+            <Button
+              type="submit"
+              variant="ghost"
+              className="h-8 min-h-8 w-8 rounded-md bg-[#f59e0b] p-0 text-[#18181b] hover:bg-[#fbbf24] hover:text-[#18181b]"
+              aria-label="Save time entry"
+              disabled={mutation.isPending}
+            >
+              <Check size={17} />
+            </Button>
+          </div>
+        </div>
+      </fieldset>
       {mutation.error ? (
         <p className="mt-1 pl-7 text-xs text-red-300" role="alert">
           {mutation.error instanceof ApiClientError && mutation.error.code === "entry_conflict"
@@ -299,24 +345,45 @@ function ProjectPicker({
   projects,
   value,
   archivedProjectId,
+  open,
+  onOpenChange,
   onChange,
 }: {
   projects: ProjectChoice[];
   value: string;
   archivedProjectId: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onChange: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const root = useRef<HTMLDivElement>(null);
-  useDismissPopover(root, () => setOpen(false));
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [restoreFocus, setRestoreFocus] = useState(false);
+  const requestClose = (shouldRestore: boolean) => {
+    setRestoreFocus(shouldRestore);
+    onOpenChange(false);
+  };
+  useDismissPopover(root, () => requestClose(false), undefined, open);
+  useEscapeToClose(open, () => requestClose(true));
+  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
+  useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
   const selected = projects.find((project) => project.id === value);
+  const selectedLabel = selected ? projectVisibleLabel(selected) : null;
+  const selectedVisible = Boolean(
+    selected &&
+    (!search ||
+      `${selected.name} ${selected.client_name}`.toLowerCase().includes(search.toLowerCase())),
+  );
   const grouped = useMemo(() => {
     const result = new Map<string, ProjectChoice[]>();
     for (const project of projects) {
       if (
-        search &&
-        !`${project.name} ${project.client_name}`.toLowerCase().includes(search.toLowerCase())
+        project.id === value ||
+        (search &&
+          !`${project.name} ${project.client_name}`.toLowerCase().includes(search.toLowerCase()))
       ) {
         continue;
       }
@@ -324,34 +391,42 @@ function ProjectPicker({
       result.set(client, [...(result.get(client) ?? []), project]);
     }
     return [...result.entries()];
-  }, [projects, search]);
+  }, [projects, search, value]);
 
   return (
     <div ref={root} className="relative min-w-0 flex-[1_1_42%]">
       <button
+        ref={trigger}
         type="button"
-        className={`flex h-9 max-w-full items-center gap-2 rounded-md px-2 text-left text-sm transition hover:bg-black/10 ${
-          selected ? "text-frosted-mint-300" : "text-slate-500"
-        }`}
-        aria-label={selected ? `Project: ${selected.name}` : "Choose entry project"}
+        className="flex h-9 max-w-full items-center gap-2 rounded-md px-2 text-left text-sm transition hover:bg-black/10"
+        aria-label={selected ? `Project: ${selectedLabel}` : "Choose entry project"}
+        title={selectedLabel ?? "Add project"}
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="listbox"
+        onClick={() => onOpenChange(!open)}
       >
         <span
-          className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
+          className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
           style={selected?.color ? { backgroundColor: selected.color } : undefined}
         />
-        <span className="truncate">{selected?.name ?? "Add project"}</span>
+        <span className="min-w-0 truncate">
+          <span style={selected?.color ? { color: selected.color } : undefined}>
+            {selected?.name ?? "Add project"}
+          </span>
+          {selected && selected.client_name && selected.client_name !== "No client" ? (
+            <span className="text-[#a4a4a4]"> • {selected.client_name}</span>
+          ) : null}
+        </span>
       </button>
       {open ? (
-        <div className="timer-popover absolute top-10 left-0 z-50 w-[min(88vw,360px)]">
-          <div className="relative border-b border-white/10 p-2">
-            <Search className="absolute top-4 left-4 text-slate-500" size={15} />
+        <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto xl:absolute xl:top-10 xl:left-0 xl:max-h-none xl:translate-x-0 xl:translate-y-0">
+          <div className="relative border-b border-[#3b3b3b] p-2">
+            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-white/15 bg-[#0d120c] pr-3 pl-9 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Search projects or clients"
               aria-label="Search entry projects"
             />
@@ -362,28 +437,45 @@ function ProjectPicker({
               active={!value}
               onClick={() => {
                 onChange("");
-                setOpen(false);
+                requestClose(true);
               }}
             />
-            {grouped.map(([client, clientProjects]) => (
-              <div key={client} className="mt-2 first:mt-1">
-                <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                  {client}
+            {selected && selectedVisible ? (
+              <div className="mt-2">
+                <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+                  Selected project
                 </p>
-                {clientProjects.map((project) => (
-                  <PickerOption
-                    key={project.id}
-                    label={`${project.name}${project.id === archivedProjectId ? " · archived" : ""}`}
-                    active={project.id === value}
-                    color={project.color}
-                    onClick={() => {
-                      onChange(project.id);
-                      setOpen(false);
-                    }}
-                  />
-                ))}
+                <PickerOption
+                  label={`${selected.name}${selected.id === archivedProjectId ? " · archived" : ""}`}
+                  detail={selected.client_name || "No client"}
+                  active
+                  color={selected.color}
+                  onClick={() => requestClose(true)}
+                />
               </div>
-            ))}
+            ) : null}
+            {grouped.length ? (
+              grouped.map(([client, clientProjects]) => (
+                <div key={client} className="mt-2 first:mt-1">
+                  <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+                    {client}
+                  </p>
+                  {clientProjects.map((project) => (
+                    <PickerOption
+                      key={project.id}
+                      label={`${project.name}${project.id === archivedProjectId ? " · archived" : ""}`}
+                      color={project.color}
+                      onClick={() => {
+                        onChange(project.id);
+                        requestClose(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              ))
+            ) : selectedVisible ? null : (
+              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching projects</p>
+            )}
           </div>
         </div>
       ) : null}
@@ -394,25 +486,40 @@ function ProjectPicker({
 function TagPicker({
   tags,
   value,
+  open,
+  onOpenChange,
   onChange,
 }: {
   tags: Tag[];
   value: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onChange: (value: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const root = useRef<HTMLDivElement>(null);
-  useDismissPopover(root, () => setOpen(false));
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [restoreFocus, setRestoreFocus] = useState(false);
+  const requestClose = (shouldRestore: boolean) => {
+    setRestoreFocus(shouldRestore);
+    onOpenChange(false);
+  };
+  useDismissPopover(root, () => requestClose(false), undefined, open);
+  useEscapeToClose(open, () => requestClose(true));
+  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
+  useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
   const selectedTags = tags.filter((tag) => value.includes(tag.id));
   const visible = tags.filter((tag) => tag.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div ref={root} className="relative min-w-0">
       <button
+        ref={trigger}
         type="button"
         className={`flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs transition hover:bg-black/10 ${
-          selectedTags.length ? "text-slate-400" : "text-slate-600"
+          selectedTags.length ? "text-[#a4a4a4]" : "text-[#a4a4a4]/60"
         }`}
         aria-label={
           selectedTags.length
@@ -420,7 +527,8 @@ function TagPicker({
             : "Choose entry tags"
         }
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="listbox"
+        onClick={() => onOpenChange(!open)}
       >
         <Tags className="shrink-0" size={15} />
         <span className="truncate">
@@ -428,14 +536,14 @@ function TagPicker({
         </span>
       </button>
       {open ? (
-        <div className="timer-popover absolute top-10 right-0 z-50 w-[min(82vw,280px)]">
-          <div className="relative border-b border-white/10 p-2">
-            <Search className="absolute top-4 left-4 text-slate-500" size={15} />
+        <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,280px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto xl:absolute xl:top-10 xl:right-0 xl:left-auto xl:max-h-none xl:translate-x-0 xl:translate-y-0">
+          <div className="relative border-b border-[#3b3b3b] p-2">
+            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-white/15 bg-[#0d120c] pr-3 pl-9 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Filter tags"
               aria-label="Search entry tags"
             />
@@ -448,7 +556,7 @@ function TagPicker({
                   <button
                     type="button"
                     key={tag.id}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-slate-300 hover:bg-white/8 hover:text-white"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-[#fafafa] hover:bg-white/8"
                     onClick={() =>
                       onChange(
                         active ? value.filter((tagId) => tagId !== tag.id) : [...value, tag.id],
@@ -469,7 +577,7 @@ function TagPicker({
                 );
               })
             ) : (
-              <p className="p-4 text-center text-sm text-slate-500">No matching tags</p>
+              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching tags</p>
             )}
           </div>
         </div>
@@ -489,6 +597,8 @@ function TimePicker({
   financial,
   currency,
   rateMajor,
+  open,
+  onOpenChange,
   onRateChange,
   onStartChange,
   onStopChange,
@@ -504,43 +614,55 @@ function TimePicker({
   financial: boolean;
   currency: string;
   rateMajor: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onRateChange: (value: string) => void;
   onStartChange: (value: string) => void;
   onStopChange: (value: string) => void;
   onDurationChange: (value: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  useDismissPopover(root, () => setOpen(false));
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [restoreFocus, setRestoreFocus] = useState(false);
+  const requestClose = (shouldRestore: boolean) => {
+    setRestoreFocus(shouldRestore);
+    onOpenChange(false);
+  };
+  useDismissPopover(root, () => requestClose(false), undefined, open);
+  useEscapeToClose(open, () => requestClose(true));
+  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
 
   const displayTime = (value: string) => {
     if (!value) return "—";
-    return formatInTimeZone(fromZonedTime(value, timezone), timezone, "h:mm a");
+    const instant = fromZonedTime(value, timezone);
+    return Number.isFinite(instant.getTime()) ? formatInTimeZone(instant, timezone, "h:mm a") : "—";
   };
 
   return (
     <div ref={root} className="relative">
       <button
+        ref={trigger}
         type="button"
-        className="flex h-9 items-center gap-3 rounded-md px-2 font-mono text-xs text-slate-400 transition hover:bg-black/10 hover:text-slate-200"
+        className="flex h-9 items-center gap-3 rounded-md px-2 font-mono text-xs text-[#a4a4a4] transition hover:bg-black/10 hover:text-[#fafafa]"
         aria-label="Edit entry date, time, and duration"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(!open)}
       >
         <span className="whitespace-nowrap">
           {displayTime(startedAt)} – {running ? "running" : displayTime(stoppedAt)}
         </span>
-        <strong className="text-sm whitespace-nowrap text-slate-100">
+        <strong className="text-sm whitespace-nowrap text-[#fafafa]">
           {formatClockDuration(durationSeconds * 1000)}
         </strong>
       </button>
       {open ? (
-        <div className="timer-popover absolute top-10 right-0 z-50 w-[min(94vw,410px)] p-3">
-          <div className="mb-3 flex items-center gap-2 border-b border-white/10 pb-3">
-            <CalendarClock size={17} className="text-frosted-mint-400" />
+        <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,410px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto p-3 xl:absolute xl:top-10 xl:right-0 xl:left-auto xl:max-h-none xl:translate-x-0 xl:translate-y-0">
+          <div className="mb-3 flex items-center gap-2 border-b border-[#3b3b3b] pb-3">
+            <CalendarClock size={17} className="text-[#fbbf24]" />
             <div>
-              <p className="text-sm font-semibold text-slate-100">Date and time</p>
-              <p className="text-[11px] text-slate-500">{timezone}</p>
+              <p className="text-sm font-semibold text-[#fafafa]">Date and time</p>
+              <p className="text-[11px] text-[#a4a4a4]">{timezone}</p>
             </div>
           </div>
 
@@ -559,13 +681,13 @@ function TimePicker({
             />
           </div>
 
-          <div className="mt-3 grid items-end gap-3 border-t border-white/10 pt-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+          <div className="mt-3 grid items-end gap-3 border-t border-[#3b3b3b] pt-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
               Duration (h:mm:ss)
               <input
-                className={`h-9 min-w-0 rounded-md border bg-[#0d120c] px-2.5 font-mono text-sm text-slate-100 outline-none ${
+                className={`h-9 min-w-0 rounded-md border bg-[#1b1b1b] px-2.5 font-mono text-sm text-[#fafafa] outline-none ${
                   parseClockDuration(durationDraft)
-                    ? "focus:border-frosted-mint-700 border-white/15"
+                    ? "border-[#3b3b3b] focus:border-[#f59e0b]"
                     : "border-red-500/70"
                 }`}
                 value={durationDraft}
@@ -576,10 +698,10 @@ function TimePicker({
               />
             </label>
             {financial && billable ? (
-              <label className="grid gap-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+              <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
                 Rate ({currency})
                 <input
-                  className="focus:border-frosted-mint-700 h-9 min-w-0 rounded-md border border-white/15 bg-[#0d120c] px-2.5 text-right text-sm text-slate-100 outline-none"
+                  className="h-9 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2.5 text-right text-sm text-[#fafafa] outline-none focus:border-[#f59e0b]"
                   type="number"
                   min="0"
                   step="0.01"
@@ -591,8 +713,8 @@ function TimePicker({
             ) : (
               <button
                 type="button"
-                className="h-9 rounded-md border border-white/10 text-xs font-semibold text-slate-400 hover:bg-white/7 hover:text-slate-100"
-                onClick={() => setOpen(false)}
+                className="h-9 rounded-md border border-[#3b3b3b] text-xs font-semibold text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]"
+                onClick={() => requestClose(true)}
               >
                 Done
               </button>
@@ -616,13 +738,13 @@ function DateTimeFields({
   onChange: (value: string) => void;
 }) {
   return (
-    <fieldset className="min-w-0 rounded-lg border border-white/10 bg-black/10 p-2.5 disabled:opacity-50">
-      <legend className="px-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+    <fieldset className="min-w-0 rounded-lg border border-[#3b3b3b] bg-black/10 p-2.5 disabled:opacity-50">
+      <legend className="px-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
         {label}
       </legend>
       <div className="grid min-w-0 gap-2">
         <input
-          className="focus:border-frosted-mint-700 h-8 min-w-0 rounded-md border border-white/12 bg-[#0d120c] px-2 text-xs text-slate-200 outline-none"
+          className="h-8 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
           type="date"
           value={value.slice(0, 10)}
           disabled={disabled}
@@ -630,7 +752,7 @@ function DateTimeFields({
           onChange={(event) => onChange(replaceDate(value, event.target.value))}
         />
         <input
-          className="focus:border-frosted-mint-700 h-8 min-w-0 rounded-md border border-white/12 bg-[#0d120c] px-2 font-mono text-xs text-slate-200 outline-none"
+          className="h-8 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 font-mono text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
           type="time"
           step={1}
           value={value.slice(11)}
@@ -645,41 +767,37 @@ function DateTimeFields({
 
 function PickerOption({
   label,
+  detail,
   active,
   color,
   onClick,
 }: {
   label: string;
-  active: boolean;
+  detail?: string;
+  active?: boolean;
   color?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      aria-label={label.replace(" · archived", "")}
       className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm ${
-        active
-          ? "bg-frosted-mint-900 text-frosted-mint-200"
-          : "text-slate-300 hover:bg-white/8 hover:text-white"
+        active ? "bg-[#382b16] text-[#fbbf24]" : "text-[#fafafa] hover:bg-white/8"
       }`}
       onClick={onClick}
     >
       <span
-        className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
+        className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
         style={color ? { backgroundColor: color } : undefined}
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{label}</span>
+        {detail ? (
+          <span className="block truncate text-[11px] text-[#a4a4a4]">{detail}</span>
+        ) : null}
+      </span>
       {active ? <Check size={14} /> : null}
     </button>
   );
-}
-
-function useDismissPopover(root: RefObject<HTMLDivElement | null>, dismiss: () => void) {
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      if (root.current && !root.current.contains(event.target as Node)) dismiss();
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [dismiss, root]);
 }

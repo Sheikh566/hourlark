@@ -38,10 +38,10 @@ export function MeProvider({ children }: { children: ReactNode }) {
 
   if (me.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f150e]">
+      <div className="flex min-h-screen items-center justify-center bg-[#212121]">
         <div className="text-center">
-          <div className="bg-light-green-500 mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl" />
-          <p className="text-frosted-mint-200 text-sm font-medium">Loading Hourlark…</p>
+          <div className="mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl bg-[#f59e0b]" />
+          <p className="text-sm font-medium text-[#fafafa]">Loading Hourlark…</p>
         </div>
       </div>
     );
@@ -50,13 +50,13 @@ export function MeProvider({ children }: { children: ReactNode }) {
     const message = me.error instanceof Error ? me.error.message : "Unable to load your workspace.";
     const developmentIdentity = getDevelopmentIdentity();
     return (
-      <div className="app-shell flex min-h-screen items-center justify-center bg-[#0f150e] p-6">
+      <div className="app-shell flex min-h-screen items-center justify-center bg-[#212121] p-6">
         <div className="panel w-full max-w-lg p-8 text-center">
           <h1 className="text-xl font-bold text-slate-900">Unable to open Hourlark</h1>
           <p className="mt-2 text-sm text-slate-600">{message}</p>
           <div className="mt-5 flex justify-center">
             <button
-              className="bg-willow-green-800 hover:bg-willow-green-900 rounded-lg px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-[#18181b] hover:bg-[#fbbf24]"
               onClick={() => void me.refetch()}
             >
               Try again
@@ -74,7 +74,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
               </p>
               <button
                 type="button"
-                className="bg-light-green-500 text-light-green-950 hover:bg-light-green-400 mt-3 w-full rounded-lg px-3 py-2 text-sm font-bold"
+                className="mt-3 w-full rounded-lg bg-[#f59e0b] px-3 py-2 text-sm font-bold text-[#18181b] hover:bg-[#fbbf24]"
                 onClick={clearDevelopmentIdentity}
               >
                 Use default development account

@@ -1,21 +1,25 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, History, Plus, RotateCcw, Save, ShieldCheck, Tags } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { useMe } from "@/web/app/context";
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import {
   Badge,
   Button,
   EmptyState,
+  ErrorState,
+  Loading,
   Field,
   Input,
   Modal,
   PageHeader,
   Select,
 } from "@/web/components/ui";
+import { FormErrors } from "@/web/components/form-errors";
 import { apiRequest } from "@/web/lib/api";
 import type { Tag } from "@/web/types";
 
@@ -57,16 +61,29 @@ interface AuditEvent {
 }
 
 const settingsSchema = z.object({
-  app_name: z.string().min(1),
-  company_name: z.string().min(1),
-  company_domain: z.string().min(1),
-  timezone: z.string().min(1),
-  currency: z.string().length(3),
+  app_name: z.string().trim().min(1, "This field is required."),
+  company_name: z.string().trim().min(1, "This field is required."),
+  company_domain: z.string().trim().min(1, "This field is required."),
+  timezone: z.string().trim().min(1, "This field is required."),
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "Enter a three-letter currency code."),
   week_start: z.enum(["monday", "sunday"]),
-  allowed_email_domains: z.string().min(1),
-  default_rate_major: z.string(),
+  allowed_email_domains: z.string().trim().min(1, "This field is required."),
+  default_rate_major: z
+    .string()
+    .refine(
+      (value) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0),
+      "Enter a non-negative number.",
+    ),
   members_can_set_billable: z.boolean(),
-  lock_entries_after_days: z.string(),
+  lock_entries_after_days: z
+    .string()
+    .refine(
+      (value) => !value || (Number.isInteger(Number(value)) && Number(value) >= 0),
+      "Enter a whole number of days, zero or greater.",
+    ),
   rounding_increment_minutes: z.enum(["0", "1", "5", "6", "10", "15", "30", "60"]),
   rounding_method: z.enum(["nearest", "up", "down"]),
   report_show_descriptions: z.boolean(),
@@ -78,14 +95,17 @@ type SettingsForm = z.infer<typeof settingsSchema>;
 type Tab = "workspace" | "tags" | "audit";
 
 export function AdministrationPage() {
+  const me = useMe();
   const [tab, setTab] = useState<Tab>("workspace");
+  if (!me.permissions.manage_members)
+    return <ErrorState message="Only administrators can access workspace administration." />;
   return (
     <>
       <PageHeader
         title="Administration"
         description="Workspace policies, tags, security posture, and immutable audit history."
       />
-      <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
+      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1">
         {(
           [
             ["workspace", ShieldCheck, "Workspace & security"],
@@ -200,104 +220,173 @@ function WorkspaceSettings() {
     },
   });
   const access = settings.data?.settings.access;
+  if (settings.isPending) return <Loading label="Loading workspace settings…" />;
+  if (settings.error)
+    return <ErrorState message={settings.error.message} onRetry={() => void settings.refetch()} />;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
       <form
+        noValidate
         className="panel grid gap-4 p-5 sm:grid-cols-2"
         onSubmit={form.handleSubmit((value) => mutation.mutate(value))}
       >
-        <div className="sm:col-span-2">
-          <h2 className="font-bold text-slate-900">Company workspace</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            These defaults drive entry behavior, report calculations, and exports.
-          </p>
-        </div>
-        <Field label="Application name">
-          <Input {...form.register("app_name")} />
-        </Field>
-        <Field label="Company name">
-          <Input {...form.register("company_name")} />
-        </Field>
-        <Field label="Company domain">
-          <Input {...form.register("company_domain")} />
-        </Field>
-        <Field label="Workspace timezone">
-          <Input {...form.register("timezone")} />
-        </Field>
-        <Field label="Default currency">
-          <Input maxLength={3} {...form.register("currency")} />
-        </Field>
-        <Field label="Week starts">
-          <Select {...form.register("week_start")}>
-            <option value="monday">Monday</option>
-            <option value="sunday">Sunday</option>
-          </Select>
-        </Field>
-        <div className="sm:col-span-2">
-          <Field
-            label="Allowed email domains"
-            hint="Comma-separated; enforced when provisioning members."
-          >
-            <Input {...form.register("allowed_email_domains")} />
+        <fieldset disabled={mutation.isPending} className="contents">
+          <FormErrors errors={form.formState.errors} />
+          <div className="sm:col-span-2">
+            <h2 className="font-bold text-slate-900">Company workspace</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              These defaults drive entry behavior, report calculations, and exports.
+            </p>
+          </div>
+          <Field label="Application name">
+            <Input
+              aria-invalid={Boolean(form.formState.errors.app_name)}
+              {...form.register("app_name")}
+            />
           </Field>
-        </div>
-        <Field label="Workspace hourly rate">
-          <Input type="number" min="0" step="0.01" {...form.register("default_rate_major")} />
-        </Field>
-        <Field label="Lock entries after days" hint="Leave blank to disable locking.">
-          <Input type="number" min="0" {...form.register("lock_entries_after_days")} />
-        </Field>
-        <Field label="Report rounding">
-          <Select {...form.register("rounding_increment_minutes")}>
-            <option value="0">No rounding</option>
-            <option value="1">1 minute</option>
-            <option value="5">5 minutes</option>
-            <option value="6">6 minutes</option>
-            <option value="10">10 minutes</option>
-            <option value="15">15 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="60">60 minutes</option>
-          </Select>
-        </Field>
-        <Field label="Rounding direction">
-          <Select {...form.register("rounding_method")}>
-            <option value="nearest">Nearest</option>
-            <option value="up">Up</option>
-            <option value="down">Down</option>
-          </Select>
-        </Field>
-        <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
-          <legend className="px-1 text-sm font-semibold">Policies and report defaults</legend>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register("members_can_set_billable")} />
-            Members may set billable status
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register("report_show_descriptions")} />
-            Include descriptions by default
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register("report_show_tags")} />
-            Include tags by default
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register("report_show_members")} />
-            Include member names by default
-          </label>
+          <Field label="Company name">
+            <Input
+              aria-invalid={Boolean(form.formState.errors.company_name)}
+              {...form.register("company_name")}
+            />
+          </Field>
+          <Field label="Company domain">
+            <Input
+              aria-invalid={Boolean(form.formState.errors.company_domain)}
+              {...form.register("company_domain")}
+            />
+          </Field>
+          <Field label="Workspace timezone">
+            <Input
+              aria-invalid={Boolean(form.formState.errors.timezone)}
+              {...form.register("timezone")}
+            />
+          </Field>
+          <Field label="Default currency">
+            <Input
+              maxLength={3}
+              aria-invalid={Boolean(form.formState.errors.currency)}
+              {...form.register("currency")}
+            />
+          </Field>
+          <Field label="Week starts">
+            <Select
+              aria-invalid={Boolean(form.formState.errors.week_start)}
+              {...form.register("week_start")}
+            >
+              <option value="monday">Monday</option>
+              <option value="sunday">Sunday</option>
+            </Select>
+          </Field>
+          <div className="sm:col-span-2">
+            <Field
+              label="Allowed email domains"
+              hint="Comma-separated; enforced when provisioning members."
+            >
+              <Input
+                aria-invalid={Boolean(form.formState.errors.allowed_email_domains)}
+                {...form.register("allowed_email_domains")}
+              />
+            </Field>
+          </div>
+          <Field label="Workspace hourly rate">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              aria-invalid={Boolean(form.formState.errors.default_rate_major)}
+              {...form.register("default_rate_major")}
+            />
+          </Field>
+          <Field label="Lock entries after days" hint="Leave blank to disable locking.">
+            <Input
+              type="number"
+              min="0"
+              aria-invalid={Boolean(form.formState.errors.lock_entries_after_days)}
+              {...form.register("lock_entries_after_days")}
+            />
+          </Field>
+          <Field label="Report rounding">
+            <Select
+              aria-invalid={Boolean(form.formState.errors.rounding_increment_minutes)}
+              {...form.register("rounding_increment_minutes")}
+            >
+              <option value="0">No rounding</option>
+              <option value="1">1 minute</option>
+              <option value="5">5 minutes</option>
+              <option value="6">6 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">60 minutes</option>
+            </Select>
+          </Field>
+          <Field label="Rounding direction">
+            <Select
+              aria-invalid={Boolean(form.formState.errors.rounding_method)}
+              {...form.register("rounding_method")}
+            >
+              <option value="nearest">Nearest</option>
+              <option value="up">Up</option>
+              <option value="down">Down</option>
+            </Select>
+          </Field>
+          <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
+            <legend className="px-1 text-sm font-semibold">Policies and report defaults</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-invalid={Boolean(form.formState.errors.members_can_set_billable)}
+                {...form.register("members_can_set_billable")}
+              />
+              Members may set billable status
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-invalid={Boolean(form.formState.errors.report_show_descriptions)}
+                {...form.register("report_show_descriptions")}
+              />
+              Include descriptions by default
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-invalid={Boolean(form.formState.errors.report_show_tags)}
+                {...form.register("report_show_tags")}
+              />
+              Include tags by default
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                aria-invalid={Boolean(form.formState.errors.report_show_members)}
+                {...form.register("report_show_members")}
+              />
+              Include member names by default
+            </label>
+          </fieldset>
+          {mutation.error ? (
+            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
+              {mutation.error.message}
+            </p>
+          ) : null}
+          {mutation.isSuccess ? (
+            <p role="status" className="text-sm text-[#fbbf24] sm:col-span-2">
+              Workspace settings saved.
+            </p>
+          ) : null}
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={mutation.isPending}>
+              <Save size={15} /> {mutation.isPending ? "Saving…" : "Save settings"}
+            </Button>
+          </div>
         </fieldset>
-        {mutation.error ? (
-          <p className="text-sm text-red-600 sm:col-span-2">{mutation.error.message}</p>
-        ) : null}
-        <div className="sm:col-span-2">
-          <Button type="submit" disabled={mutation.isPending}>
-            <Save size={15} /> Save settings
-          </Button>
-        </div>
       </form>
       <aside className="panel h-fit p-5">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="text-frosted-mint-700" />
+          <ShieldCheck className="text-[#fbbf24]" />
           <h2 className="font-bold">Cloudflare Access</h2>
         </div>
         <p className="mt-2 text-sm text-slate-500">
@@ -347,19 +436,21 @@ export function TagSettings() {
   const statusMutation = useMutation({
     mutationFn: ({ tag, action }: { tag: Tag; action: "archive" | "reactivate" }) =>
       apiRequest(`/tags/${tag.id}/${action}`, { method: "POST", body: "{}" }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["tags"] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
   });
   return (
     <>
       <section className="panel overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
           <div>
             <h2 className="font-bold">Tags</h2>
             <p className="text-sm text-slate-500">
               Reusable labels remain attached to historical entries.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Select
               className="w-32"
               value={status}
@@ -373,13 +464,33 @@ export function TagSettings() {
             </Button>
           </div>
         </div>
-        {(tags.data?.tags ?? []).length === 0 ? (
+        {statusMutation.isPending ? (
+          <p role="status" className="p-4 text-sm text-slate-500">
+            Updating tag status…
+          </p>
+        ) : null}
+        {statusMutation.error ? (
+          <p role="alert" className="p-4 text-sm text-red-300">
+            {statusMutation.error.message}
+          </p>
+        ) : null}
+        {tags.isPending ? (
+          <Loading label="Loading tags…" />
+        ) : tags.error ? (
+          <ErrorState message={tags.error.message} onRetry={() => void tags.refetch()} />
+        ) : tags.data.tags.length === 0 ? (
           <EmptyState title="No tags found" description="Create a tag to classify time entries." />
         ) : (
           <div className="divide-y divide-slate-100">
-            {(tags.data?.tags ?? []).map((tag) => (
-              <div key={tag.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <button className="flex items-center gap-3" onClick={() => setEditing(tag)}>
+            {tags.data.tags.map((tag) => (
+              <div
+                key={tag.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              >
+                <button
+                  className="flex min-w-0 flex-wrap items-center gap-3 text-left break-words"
+                  onClick={() => setEditing(tag)}
+                >
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
                   <span className="font-medium">{tag.name}</span>
                   <Badge>{tag.status}</Badge>
@@ -387,6 +498,7 @@ export function TagSettings() {
                 {tag.status === "active" ? (
                   <Button
                     variant="ghost"
+                    disabled={statusMutation.isPending}
                     onClick={() => statusMutation.mutate({ tag, action: "archive" })}
                   >
                     <Archive size={14} /> Archive
@@ -394,6 +506,7 @@ export function TagSettings() {
                 ) : (
                   <Button
                     variant="ghost"
+                    disabled={statusMutation.isPending}
                     onClick={() => statusMutation.mutate({ tag, action: "reactivate" })}
                   >
                     <RotateCcw size={14} /> Reactivate
@@ -405,6 +518,7 @@ export function TagSettings() {
         )}
       </section>
       <TagEditor
+        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         open={editing !== null}
         tag={editing === "new" ? null : editing}
         onOpenChange={(open) => !open && setEditing(null)}
@@ -423,65 +537,115 @@ function TagEditor({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const formId = useId();
+  const nameErrorId = useId();
   const [name, setName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
   const [color, setColor] = useState("#14852B");
   useEffect(() => {
     setName(tag?.name ?? "");
+    setNameError(null);
     setColor(tag?.color ?? "#14852B");
   }, [open, tag]);
   const mutation = useMutation({
     mutationFn: () =>
       apiRequest(tag ? `/tags/${tag.id}` : "/tags", {
         method: tag ? "PATCH" : "POST",
-        body: JSON.stringify({ name, color, ...(tag ? { version: tag.version } : {}) }),
+        body: JSON.stringify({
+          name: name.trim(),
+          color,
+          ...(tag ? { version: tag.version } : {}),
+        }),
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["tags"] });
+      await queryClient.invalidateQueries();
       onOpenChange(false);
     },
   });
   return (
     <Modal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        if (!mutation.isPending) onOpenChange(next);
+      }}
       title={tag ? "Edit tag" : "New tag"}
       footer={
         <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="secondary"
+            disabled={mutation.isPending}
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
-          <Button disabled={!name.trim()} onClick={() => mutation.mutate()}>
-            Save tag
+          <Button type="submit" form={formId} disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save tag"}
           </Button>
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-[1fr_100px]">
-        <Field label="Tag name">
-          <Input value={name} onChange={(event) => setName(event.target.value)} />
-        </Field>
-        <Field label="Color">
-          <Input
-            type="color"
-            className="p-1"
-            value={color}
-            onChange={(event) => setColor(event.target.value)}
-          />
-        </Field>
-        {mutation.error ? (
-          <p className="text-sm text-red-600 sm:col-span-2">{mutation.error.message}</p>
-        ) : null}
-      </div>
+      <form
+        id={formId}
+        noValidate
+        className="grid gap-4 sm:grid-cols-[1fr_100px]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (mutation.isPending) return;
+          if (!name.trim()) {
+            setNameError("Enter a tag name.");
+            return;
+          }
+          setNameError(null);
+          mutation.mutate();
+        }}
+      >
+        <button type="submit" hidden />
+        <fieldset disabled={mutation.isPending} className="contents">
+          <div>
+            <Field label="Tag name">
+              <Input
+                aria-invalid={Boolean(nameError)}
+                aria-describedby={nameError ? nameErrorId : undefined}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </Field>
+            {nameError ? (
+              <span id={nameErrorId} role="alert" className="text-xs text-red-300">
+                {nameError}
+              </span>
+            ) : null}
+          </div>
+          <Field label="Color">
+            <Input
+              type="color"
+              className="p-1"
+              value={color}
+              onChange={(event) => setColor(event.target.value)}
+            />
+          </Field>
+          {mutation.error ? (
+            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
+              {mutation.error.message}
+            </p>
+          ) : null}
+        </fieldset>
+      </form>
     </Modal>
   );
 }
 
 function AuditLog() {
-  const audit = useQuery({
+  const audit = useInfiniteQuery({
     queryKey: ["audit-log"],
-    queryFn: () =>
-      apiRequest<{ events: AuditEvent[]; next_before: number | null }>("/audit-log?limit=200"),
+    initialPageParam: null as number | null,
+    queryFn: ({ pageParam }) =>
+      apiRequest<{ events: AuditEvent[]; next_before: number | null }>(
+        `/audit-log?limit=200${pageParam === null ? "" : `&before=${pageParam}`}`,
+      ),
+    getNextPageParam: (page) => page.next_before ?? undefined,
   });
+  const events = audit.data?.pages.flatMap((page) => page.events) ?? [];
   return (
     <section className="panel overflow-hidden">
       <div className="border-b border-slate-200 p-4">
@@ -490,7 +654,11 @@ function AuditLog() {
           Administrative changes and team time corrections include actor and request identifiers.
         </p>
       </div>
-      {(audit.data?.events ?? []).length === 0 ? (
+      {audit.isPending ? (
+        <Loading label="Loading audit history…" />
+      ) : audit.error && events.length === 0 ? (
+        <ErrorState message={audit.error.message} onRetry={() => void audit.refetch()} />
+      ) : events.length === 0 ? (
         <EmptyState
           title="No audit events yet"
           description="Security-sensitive changes will appear here."
@@ -509,7 +677,7 @@ function AuditLog() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {(audit.data?.events ?? []).map((event) => (
+              {events.map((event) => (
                 <tr key={event.id}>
                   <td className="px-4 py-3 whitespace-nowrap text-slate-500">
                     {new Intl.DateTimeFormat(undefined, {
@@ -540,6 +708,22 @@ function AuditLog() {
           </table>
         </div>
       )}
+      {audit.isFetchNextPageError ? (
+        <p role="alert" className="p-4 text-sm text-red-300">
+          {audit.error.message}
+        </p>
+      ) : null}
+      {audit.hasNextPage ? (
+        <div className="p-4">
+          <Button
+            variant="secondary"
+            disabled={audit.isFetchingNextPage}
+            onClick={() => void audit.fetchNextPage()}
+          >
+            {audit.isFetchingNextPage ? "Loading…" : "Load older events"}
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }
