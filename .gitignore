@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wrangler/
+wrangler.deploy.json
 .vite/
 coverage/
 playwright-report/

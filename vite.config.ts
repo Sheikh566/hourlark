@@ -5,7 +5,12 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [cloudflare(), react(), tailwindcss()],
+  // Deployments build from the generated wrangler.deploy.json; see scripts/configure-deploy.mjs.
+  plugins: [
+    cloudflare({ configPath: process.env.HOURLARK_WRANGLER_CONFIG || undefined }),
+    react(),
+    tailwindcss(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

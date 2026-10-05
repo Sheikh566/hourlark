@@ -2,7 +2,7 @@
 
 This guide takes a new installation from an empty Cloudflare account to a working
 company workspace. You deploy one Worker containing the website and API, one D1
-database, and a Cloudflare Access application for sign-in. No server, Docker,
+database, and Google or Cloudflare Access sign-in. No server, Docker,
 Cloudflare Tunnel, or separate frontend hosting is required.
 
 Reviewed against the repository and Cloudflare documentation on 2026-10-04.
@@ -47,63 +47,82 @@ If your existing pnpm cannot activate version 12.9.1, the [README](../README.md#
 includes an installation fallback. Keep the checked-in dependency versions and
 lockfile for a reproducible deployment.
 
-## 2. Sign in to the correct Cloudflare account
+## 2. Choose your deployment settings
 
-Wrangler is already installed as a project dependency:
+You never edit `wrangler.jsonc` to deploy. It holds shared defaults: Worker
+`hourlark`, D1 database `hourlark`, and placeholder IDs. `pnpm deploy:configure`
+(`scripts/configure-deploy.mjs`) reads the settings below from environment
+variables and writes a gitignored `wrangler.deploy.json`. Builds, migrations, and
+deploys use that file. If no D1 database with the chosen name exists, the script
+creates it.
+
+| Variable                                                                 | Required | What to enter                                                                                                             |
+| ------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID`                                                  | Yes      | The account to deploy to, from `pnpm exec wrangler whoami` or the dashboard.                                              |
+| `COMPANY_NAME`, `COMPANY_DOMAIN`                                         | Yes      | Your company name and email domain, without `@`.                                                                          |
+| `BOOTSTRAP_ADMIN_EMAILS`                                                 | Yes      | Your first administrator's exact sign-in email.                                                                           |
+| `HOURLARK_WORKER_NAME`                                                   | No       | Worker name. Defaults to `hourlark`. Keep it stable after the first deploy.                                               |
+| `HOURLARK_D1_DATABASE_NAME`                                              | No       | D1 database name. Defaults to the Worker name.                                                                            |
+| `HOURLARK_DOMAIN`                                                        | No       | A hostname such as `time.example.com`. Without it, the Worker uses `workers.dev`.                                         |
+| `AUTH_MODE`                                                              | No       | `google` (default) or `access`.                                                                                           |
+| `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`                                       | Access   | Your Zero Trust team domain and this application's AUD tag; see step 4.                                                   |
+| `APP_NAME`, `DEFAULT_TIMEZONE`, `DEFAULT_CURRENCY`, `DEFAULT_WEEK_START` | No       | Override the defaults in `wrangler.jsonc`: an IANA timezone, a three-letter uppercase currency, and `monday` or `sunday`. |
+
+`ENVIRONMENT` is always `production` and cannot be overridden. A Custom Domain
+uses the hostname without `https://`, a path, or `/*`; the zone must be active in
+the same account. Cloudflare creates the DNS record and certificate during
+deployment. See [Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
+
+The Worker also needs these secrets:
+
+| Secret                                     | Required       | Notes                                                                                               |
+| ------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------- |
+| `CSRF_SECRET`                              | Yes            | A random value of at least 24 characters. Generate one as shown below.                              |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in | From a Google OAuth client whose redirect URI is `https://<your host>/api/v1/auth/google/callback`. |
 
 ```bash
-pnpm exec wrangler login
-pnpm exec wrangler whoami
+node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log(randomBytes(32).toString("hex"));'
 ```
 
-The first command opens a browser to authorize Wrangler. Confirm the account
-listed by `whoami` is the one that owns your domain.
+Do not leave the original `sheikh.abdullah@iomechs.com` bootstrap address in your
+installation. One deployment supports one company workspace. The migration
+initializes the workspace with IOMechs defaults; these runtime variables do not
+overwrite stored workspace settings. Step 9 explains how to change them.
 
-The committed `wrangler.jsonc` targets this repository's own deployment: account
-`3a985c75…`, Worker and D1 database `hourlark-preview`, and the
-`hourlark.sabdullah.com` Custom Domain. For your own installation, replace those
-values with yours. Start by setting `name` to `hourlark` and the top-level
-`account_id` to your account ID:
+## 3. Deploy with GitHub Actions (recommended)
 
-```jsonc
-"name": "hourlark",
-"account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
-```
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) deploys every
+push to `main` in any repository that sets the `CLOUDFLARE_ACCOUNT_ID` variable.
+Repositories without it, including unconfigured forks, skip the job.
 
-This matters if your Cloudflare login belongs to multiple accounts. Keep the
-Worker's `name` stable after the first deploy. The build removes any `.dev.vars`
-file copied under `dist/`. These steps assume `hourlark` is unused in your account.
-If it already exists, confirm it is the installation you intend to update before
-proceeding; use the update procedure below for that installation.
+1. Fork the repository. In your fork's **Actions** tab, enable workflows; GitHub
+   disables them in new forks.
+2. Create a Cloudflare API token from the **Edit Cloudflare Workers** template, and
+   add **Account → D1 → Edit**. Limit it to your account and, if you use a custom
+   domain, its zone.
+3. In the fork, open **Settings → Secrets and variables → Actions**:
+   - Under **Secrets**, add `CLOUDFLARE_API_TOKEN` and the Worker secrets from step 2.
+   - Under **Variables**, add `CLOUDFLARE_ACCOUNT_ID` and the other variables
+     from step 2 that you need.
+4. Run **Deploy to Cloudflare** from the Actions tab, or push to `main`.
 
-## 3. Create the production D1 database
+Each run validates the code (format, lint, types, tests, build), generates the
+deployment configuration, records a D1 Time Travel bookmark in the job summary,
+applies remote migrations, and deploys. Worker secrets set in the repository are
+uploaded with the deploy and added to the Worker's existing secrets. Secrets you
+delete from the repository stay on the Worker. If a migration or deploy goes
+wrong, run the `wrangler d1 time-travel restore` command printed in the job
+summary.
 
-```bash
-pnpm exec wrangler d1 create hourlark
-```
+This repository's own deployment uses these settings: Worker and D1 database
+`hourlark-preview`, published at `https://hourlark.sabdullah.com`.
 
-If Wrangler offers to update your configuration, review its result rather than
-adding a second binding. The final `d1_databases` entry must contain the returned
-UUID and retain the binding name `DB`:
-
-```jsonc
-"d1_databases": [
-  {
-    "binding": "DB",
-    "database_name": "hourlark",
-    "database_id": "YOUR_D1_DATABASE_UUID",
-    "migrations_dir": "migrations",
-  },
-],
-```
-
-For an existing database, deliberately select its ID instead of creating another
-one. Local `.wrangler/state` data is separate; it is not uploaded by deployment.
-See the [D1 CLI reference](https://developers.cloudflare.com/workers/wrangler/commands/d1/).
+To deploy from your own machine instead, follow steps 4 to 8. With Google
+sign-in, skip step 4.
 
 ## 4. Protect the hostname with Cloudflare Access
 
-Configure Access before publishing Hourlark on the hostname.
+Only for `AUTH_MODE=access`. Configure Access before publishing Hourlark on the hostname.
 
 1. Open the Cloudflare dashboard and enter **Zero Trust**. Complete organization
    setup if this is your first application.
@@ -120,9 +139,10 @@ Configure Access before publishing Hourlark on the hostname.
    restrict allowed email addresses/domains; choosing a login method alone is
    not a restriction on who may enter.
 6. Enable the intended login method for this application and save it.
-7. Copy the application's **Audience (AUD) tag** from its details/configuration.
-   Copy the Zero Trust **team domain**, such as `your-team.cloudflareaccess.com`,
-   from the organization settings. The team domain is different from the app's
+7. Copy the application's **Audience (AUD) tag** from its details/configuration
+   into `ACCESS_AUD`. Copy the Zero Trust **team domain**, such as
+   `your-team.cloudflareaccess.com`, from the organization settings into
+   `ACCESS_TEAM_DOMAIN`. The team domain is different from the app's
    `time.example.com` hostname; the AUD is different from the application ID.
 
 Dashboard labels can change. Use Cloudflare's
@@ -131,74 +151,34 @@ Dashboard labels can change. Use Cloudflare's
 and [team-domain explanation](https://developers.cloudflare.com/cloudflare-one/faq/getting-started-faq/)
 as the reference if your dashboard differs.
 
-## 5. Finish the production configuration
+## 5. Sign in to the correct Cloudflare account
 
-Edit `wrangler.jsonc`, preserving its existing entry point, compatibility flags,
-assets, bindings, and observability settings. Add the hostname at the top level:
-
-```jsonc
-"routes": [
-  { "pattern": "time.example.com", "custom_domain": true },
-],
-"workers_dev": false,
-"preview_urls": false,
-```
-
-A Custom Domain uses the hostname without `https://`, a path, or `/*`. Cloudflare
-creates the associated DNS record and manages the certificate during deployment.
-Keep the alternate Worker and preview URLs disabled so the published application
-uses the hostname you protected with Access. See
-[Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
-
-Replace the existing `vars` block with your organization's values:
-
-```jsonc
-"vars": {
-  "ENVIRONMENT": "production",
-  "AUTH_MODE": "access",
-  "APP_NAME": "Hourlark",
-  "COMPANY_NAME": "Example Company",
-  "COMPANY_DOMAIN": "example.com",
-  "DEFAULT_TIMEZONE": "Europe/London",
-  "DEFAULT_CURRENCY": "GBP",
-  "DEFAULT_WEEK_START": "monday",
-  "ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
-  "ACCESS_AUD": "YOUR_ACCESS_APPLICATION_AUD_TAG",
-  "BOOTSTRAP_ADMIN_EMAILS": "admin@example.com",
-},
-```
-
-| Setting                          | What to enter                                                          |
-| -------------------------------- | ---------------------------------------------------------------------- |
-| `ENVIRONMENT`, `AUTH_MODE`       | Keep `production` and `access`.                                        |
-| `COMPANY_NAME`, `COMPANY_DOMAIN` | Your company name and email domain, without `@`.                       |
-| `DEFAULT_TIMEZONE`               | An IANA timezone, for example `Europe/London` or `Asia/Karachi`.       |
-| `DEFAULT_CURRENCY`               | A three-letter uppercase currency code.                                |
-| `DEFAULT_WEEK_START`             | `monday` or `sunday`.                                                  |
-| `ACCESS_TEAM_DOMAIN`             | Your Zero Trust team domain, without `/cdn-cgi/access` or other paths. |
-| `ACCESS_AUD`                     | The AUD tag for this exact Access application.                         |
-| `BOOTSTRAP_ADMIN_EMAILS`         | Your first administrator's exact sign-in email.                        |
-
-Do not leave the original `sheikh.abdullah@iomechs.com` bootstrap address in your
-installation. The administrator must both pass your Access policy and match this
-bootstrap address. One deployment supports one company workspace.
-
-The migration currently initializes the workspace with IOMechs defaults. These
-runtime variables do not overwrite stored workspace settings. Step 9 explains how
-to change the stored company, timezone, currency, and permitted email domains.
-
-## 6. Validate the application and configuration
+Wrangler is already installed as a project dependency:
 
 ```bash
-pnpm exec prettier --write wrangler.jsonc
+pnpm exec wrangler login
+pnpm exec wrangler whoami
+```
+
+The first command opens a browser to authorize Wrangler. Confirm the account
+listed by `whoami` is the one that owns your domain, and use its ID as
+`CLOUDFLARE_ACCOUNT_ID`.
+
+## 6. Generate and validate the deployment configuration
+
+Export the variables from step 2 in your terminal, then:
+
+```bash
 pnpm validate
+pnpm deploy:configure
 pnpm check:production
 ```
 
 `validate` checks formatting, lint, types, tests, and the production build.
-`check:production` rejects the repository's original D1/Access placeholders and
-checks the production auth mode. It does not verify that your domain, policy,
-secret, or IDs are correct in your Cloudflare account; perform the checks below.
+`deploy:configure` finds or creates the D1 database and writes
+`wrangler.deploy.json`. `check:production` checks that file for placeholder IDs, the
+production environment, and the auth mode. It does not verify that your domain,
+policy, secret, or IDs are correct in your Cloudflare account; perform the checks below.
 
 For browser validation before deployment, use the local setup in the README and
 run `pnpm test:e2e`. That suite creates a disposable local D1 database. Local
@@ -211,15 +191,14 @@ Confirm the account and target database before making changes:
 
 ```bash
 pnpm exec wrangler whoami
-pnpm exec wrangler d1 info hourlark
-pnpm exec wrangler d1 migrations list DB --remote
+pnpm exec wrangler d1 migrations list DB --remote --config wrangler.deploy.json
 ```
 
 On a new, empty database, apply the checked-in migrations:
 
 ```bash
 pnpm db:migrate:remote
-pnpm exec wrangler d1 migrations list DB --remote
+pnpm exec wrangler d1 migrations list DB --remote --config wrangler.deploy.json
 ```
 
 Confirm no migrations remain unapplied. This includes `0003_member_update_guards.sql`,
@@ -228,30 +207,29 @@ which protects concurrent member updates and the last active administrator.
 Do not run `pnpm db:setup` as a production setup step, and never apply
 `seeds/development.sql` with `--remote`. Production starts with the workspace row
 and no demo members; the first administrator is provisioned through verified
-Access sign-in. See the [migration reference](https://developers.cloudflare.com/d1/reference/migrations/).
+sign-in. See the [migration reference](https://developers.cloudflare.com/d1/reference/migrations/).
 
 If this database already contains company data, export a backup before applying
 new migrations; use the update procedure below instead of treating it as empty.
 
-## 8. Create the production secret and deploy
+## 8. Create the production secrets and deploy
 
-Hourlark requires a random `CSRF_SECRET` of at least 24 characters. For the first
-deployment, create a temporary file outside the repository and upload the secret
-alongside the Worker. `mktemp` creates a file accessible only to your user.
+For the first deployment, put the Worker secrets from step 2 in a temporary file
+outside the repository and upload them alongside the Worker. `mktemp` creates a
+file accessible only to your user.
 
 ```bash
 HOURLARK_SECRETS_FILE="$(mktemp)"
 node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log("CSRF_SECRET=" + randomBytes(32).toString("hex"));' > "$HOURLARK_SECRETS_FILE"
+# With Google sign-in, also append GOOGLE_CLIENT_ID=... and GOOGLE_CLIENT_SECRET=... lines.
 
-pnpm check:production
-pnpm build
+HOURLARK_WRANGLER_CONFIG=wrangler.deploy.json pnpm build
 pnpm exec wrangler deploy --secrets-file "$HOURLARK_SECRETS_FILE"
 ```
 
-Run these in the same terminal so the file-path variable remains available. Do
-not display the file in logs, commit it, or use the development example secret.
-This is the project's normal checked build/deploy sequence with an explicit
-first-deployment secret. `pnpm build` also removes the copied `.dev.vars` artifact.
+Run these in the same terminal so the variables remain available. Do not display
+the file in logs, commit it, or use the development example secret. `pnpm build`
+also removes the copied `.dev.vars` artifact.
 
 After deployment succeeds, delete the temporary file:
 
@@ -260,23 +238,11 @@ rm -- "$HOURLARK_SECRETS_FILE"
 unset HOURLARK_SECRETS_FILE
 ```
 
-Wrangler should report the `hourlark` Worker and `https://time.example.com` Custom
-Domain. Wait for DNS/certificate activation if necessary. The saved secret is
-retained for future deployments; recreating it every deploy is unnecessary.
-Cloudflare documents this initial upload in
+Wrangler should report your Worker and its Custom Domain or `workers.dev` URL.
+Wait for DNS/certificate activation if necessary. The saved secrets are retained
+for future deployments; recreating them every deploy is unnecessary. Cloudflare
+documents this initial upload in
 [secrets alongside code](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code).
-
-Pushes to `main` deploy the Worker in `wrangler.jsonc` through
-[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). Add a repository
-secret named `CLOUDFLARE_API_TOKEN` with permission to edit this account's Workers
-and D1. The workflow installs dependencies, runs `pnpm check:production` and
-`pnpm validate`, records a D1 Time Travel bookmark in the job summary, applies remote
-D1 migrations, and runs `wrangler deploy`. If a migration or deploy goes wrong,
-restore the database with the `wrangler d1 time-travel restore` command printed in
-that summary. It does not create or print `CSRF_SECRET` or the Google OAuth secrets;
-those remain on the Worker. The job runs only for `main` in `Sheikh566/hourlark`; in a
-fork, change the repository in its `if:` condition.
-This repository publishes Worker `hourlark-preview` to `https://hourlark.sabdullah.com`.
 
 ## 9. Sign in, configure the company, and add members
 
@@ -295,18 +261,9 @@ This repository publishes Worker `hourlark-preview` to `https://hourlark.sabdull
 5. Confirm each colleague is also admitted by the Cloudflare Access policy.
    Access admission and Hourlark membership are separate requirements.
 
-Once the administrator can sign in, change the production variable to:
-
-```jsonc
-"BOOTSTRAP_ADMIN_EMAILS": "",
-```
-
-Keep the field with an empty string; the runtime schema requires it. Redeploy:
-
-```bash
-pnpm check:production
-pnpm deploy
-```
+Bootstrap completes on the first administrator's sign-in, so leaving
+`BOOTSTRAP_ADMIN_EMAILS` set afterwards grants nothing further. The deployment
+configuration requires it to be non-empty.
 
 Bootstrap completion is persisted in D1. This variable is not an ongoing login
 allowlist or an automatic administrator recovery mechanism. See
@@ -329,10 +286,10 @@ Use a private browser window and actual provisioned test accounts:
   and timezone against the entry you created.
 - Visit `/reports` directly and refresh to check SPA routing.
 
-For logs, use **Workers & Pages → hourlark → Observability**, or run:
+For logs, use **Workers & Pages → your Worker → Observability**, or run:
 
 ```bash
-pnpm exec wrangler tail hourlark
+pnpm exec wrangler tail --config wrangler.deploy.json
 ```
 
 Deployment is complete only after these checks pass on the real hostname. Local
@@ -340,22 +297,24 @@ checks and a successful upload alone do not establish that Access and DNS work.
 
 ## Updating an existing installation
 
-Check out your intended release and preserve your account-specific configuration.
-Install the frozen dependencies and validate before changing production:
+With GitHub Actions, merge or push the release to `main`; the workflow records a
+restore point before it migrates. For a manual update, check out your intended
+release, export the variables from step 2, and validate before changing production:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm validate
+pnpm deploy:configure
 pnpm check:production
 pnpm exec wrangler whoami
-pnpm exec wrangler d1 migrations list DB --remote
+pnpm exec wrangler d1 migrations list DB --remote --config wrangler.deploy.json
 ```
 
 If migrations are pending, export the exact production database first. Choose a
 private backup destination outside Git; this example uses your home directory:
 
 ```bash
-(umask 077; pnpm exec wrangler d1 export DB --remote --output "$HOME/hourlark-backup-$(date -u +%Y%m%dT%H%M%SZ).sql")
+(umask 077; pnpm exec wrangler d1 export DB --remote --config wrangler.deploy.json --output "$HOME/hourlark-backup-$(date -u +%Y%m%dT%H%M%SZ).sql")
 pnpm db:migrate:remote
 ```
 
@@ -380,8 +339,9 @@ production bindings.
 
 | Symptom                                             | Check                                                                                                                                        |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Production configuration is incomplete              | Replace all original D1/Access placeholders in `wrangler.jsonc`; keep production auth mode.                                                  |
-| Wrangler chooses the wrong account                  | Check `whoami` and top-level `account_id`; the domain and D1 must belong to the intended account.                                            |
+| Production configuration is incomplete              | Run `pnpm deploy:configure` first, and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` for Access mode.                                            |
+| Wrangler chooses the wrong account                  | Check `CLOUDFLARE_ACCOUNT_ID` and `whoami`; the domain and D1 must belong to the intended account.                                           |
+| The deploy workflow is skipped                      | Set the `CLOUDFLARE_ACCOUNT_ID` repository variable, enable Actions in the fork, and run it from `main`.                                     |
 | Hostname does not resolve or has no certificate     | Check the zone is active, the Custom Domain is attached to the Worker, and the hostname is not owned by another service.                     |
 | Access denies the first administrator               | Check the email/group policy and enabled login provider; the bootstrap variable does not grant Access admission.                             |
 | `access_token_invalid`                              | Check the team domain and this application's AUD; make sure Access protects this exact hostname.                                             |
@@ -391,7 +351,7 @@ production bindings.
 | `email_domain_forbidden` when adding a member       | Change Administration's stored Allowed email domains; changing only the Worker variable does not update them.                                |
 | Writes fail with a CSRF error                       | Reload after login or secret rotation and use the same protected hostname for the app and API.                                               |
 | SQL reports a missing table                         | Check the deployed `DB` binding's UUID and remote migration state, rather than the local database.                                           |
-| Deploy succeeds but there is no app URL             | Add a Custom Domain route; `workers_dev` and preview URLs are deliberately disabled.                                                         |
+| Deploy succeeds but there is no app URL             | Check `HOURLARK_DOMAIN`, or use the `workers.dev` URL Wrangler printed when no domain is set.                                                |
 
 ## Recovery
 

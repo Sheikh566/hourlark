@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 
-const config = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
+// Checks the generated deployment configuration by default; pass a path to check another file.
+const path = process.argv[2] ?? "wrangler.deploy.json";
+const config = await readFile(new URL(`../${path}`, import.meta.url), "utf8").catch(() => {
+  console.error(`${path} was not found. Run pnpm deploy:configure first.`);
+  process.exit(1);
+});
 
 if (config.includes('"database_id": "00000000-0000-0000-0000-000000000000"')) {
   console.error(
