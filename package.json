@@ -1,6 +1,6 @@
 {
   "name": "hourlark",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.9.1",
@@ -11,8 +11,9 @@
     "dev": "vite",
     "build": "vite build && node scripts/sanitize-build.mjs",
     "preview": "vite preview",
-    "deploy": "pnpm run deploy:configure && pnpm run check:production && HOURLARK_WRANGLER_CONFIG=wrangler.deploy.json pnpm run build && pnpm run db:migrate:remote && wrangler deploy",
+    "deploy": "node scripts/deploy.mjs",
     "deploy:configure": "node scripts/configure-deploy.mjs",
+    "release": "node scripts/release.mjs",
     "cf-typegen": "wrangler types",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config wrangler.deploy.json",

@@ -81,8 +81,11 @@ of settings, first secrets, administrator setup, and verification. For a manual 
 the same variables exported and an existing secret, run:
 
 ```bash
-pnpm deploy
+pnpm run deploy
 ```
+
+Deploy from a release tag so the live Worker version is traceable; see
+[versioning and releases](docs/releasing.md).
 
 Never commit `.dev.vars`. The deployment guide covers the initial `CSRF_SECRET` upload; rotate it
 on an existing Worker with `pnpm exec wrangler secret put CSRF_SECRET`. Cloudflare Access must cover
@@ -94,6 +97,7 @@ the entire production hostname, not only `/api`.
 - [Architecture decisions](docs/architecture-decisions.md)
 - [Security model](docs/security.md)
 - [Deploy to your Cloudflare account](docs/deployment.md)
+- [Versioning and releases](docs/releasing.md)
 - [Operations and recovery](docs/operations.md)
 - [API conventions and export contracts](docs/api-and-exports.md)
 - [Testing](docs/testing.md)

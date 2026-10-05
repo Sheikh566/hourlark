@@ -299,7 +299,8 @@ checks and a successful upload alone do not establish that Access and DNS work.
 
 With GitHub Actions, merge or push the release to `main`; the workflow records a
 restore point before it migrates. For a manual update, check out your intended
-release, export the variables from step 2, and validate before changing production:
+release tag (for example `git checkout v0.2.0`; see [releasing](releasing.md)),
+export the variables from step 2, and validate before changing production:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -321,7 +322,7 @@ pnpm db:migrate:remote
 Then deploy and repeat the production verification:
 
 ```bash
-pnpm deploy
+pnpm run deploy
 ```
 
 For later secret rotation, use the interactive prompt:
