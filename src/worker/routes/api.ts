@@ -32,7 +32,9 @@ import { createAuditStatement, type AuditMeta } from "@/worker/audit";
 import { ApiError } from "@/worker/errors";
 import { detailedCsv, summaryCsv } from "@/worker/exports/csv";
 import { createTimeReportPdf } from "@/worker/exports/pdf";
+import { parseRuntimeConfig } from "@/worker/env";
 import { createCsrfToken } from "@/worker/middleware/csrf";
+import { googleAuth } from "@/worker/routes/google-auth";
 import {
   clientInputSchema,
   entryCreateSchema,
@@ -155,6 +157,8 @@ function safeWorkspace(workspace: WorkspaceRow) {
   };
 }
 
+api.route("/auth", googleAuth);
+
 api.get("/health", async (c) => {
   const database = await c.env.DB.prepare("SELECT 1 AS healthy").first<{ healthy: number }>();
   return c.json({
@@ -184,6 +188,7 @@ api.get("/me", async (c) => {
     },
     active_timer: activeTimer ? serializeEntry(activeTimer, member) : null,
     csrf_token: csrfToken,
+    auth_mode: parseRuntimeConfig(c.env).AUTH_MODE,
     server_now: new Date().toISOString(),
   });
 });

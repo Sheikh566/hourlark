@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, type ReactNode } from "react";
 
+import { LoginScreen } from "@/web/routes/login";
 import {
+  ApiClientError,
   apiRequest,
   clearDevelopmentIdentity,
   DEVELOPMENT_IDENTITIES,
@@ -20,6 +22,8 @@ export function MeProvider({ children }: { children: ReactNode }) {
     queryFn: () => apiRequest<MeResponse>("/me"),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiClientError && error.status === 401) && failureCount < 1,
   });
 
   useEffect(() => {
@@ -45,6 +49,12 @@ export function MeProvider({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
+  }
+  if (
+    me.error instanceof ApiClientError &&
+    (me.error.code === "session_missing" || me.error.code === "session_invalid")
+  ) {
+    return <LoginScreen />;
   }
   if (me.error || !me.data) {
     const message = me.error instanceof Error ? me.error.message : "Unable to load your workspace.";

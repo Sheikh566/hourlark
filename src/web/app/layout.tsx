@@ -4,6 +4,7 @@ import {
   Building2,
   ChevronDown,
   Clock3,
+  LogOut,
   Menu,
   Settings,
   Tags,
@@ -14,10 +15,11 @@ import { useState, type ComponentType } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { twMerge } from "tailwind-merge";
 
+import { AuthMode } from "@/domain/auth";
 import { useMe } from "@/web/app/context";
 import { Button } from "@/web/components/ui";
 import { GlobalTimerBar } from "@/web/features/timer/global-timer";
-import { DEVELOPMENT_IDENTITIES, setDevelopmentIdentity } from "@/web/lib/api";
+import { DEVELOPMENT_IDENTITIES, setDevelopmentIdentity, signOut } from "@/web/lib/api";
 
 interface NavigationItem {
   to: string;
@@ -102,6 +104,16 @@ export function AppLayout() {
                     </button>
                   ))}
                 </div>
+              ) : null}
+              {me.auth_mode === AuthMode.Google ? (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-[#fafafa] hover:bg-white/8"
+                  onClick={() => void signOut()}
+                >
+                  <LogOut size={14} aria-hidden="true" />
+                  Sign out
+                </button>
               ) : null}
             </div>
           ) : null}

@@ -10,4 +10,6 @@ ACCESS_TEAM_DOMAIN=None
 ACCESS_AUD=development
 BOOTSTRAP_ADMIN_EMAILS=sheikh.abdullah@iomechs.com
 DEV_DEFAULT_USER_EMAIL=sheikh.abdullah@iomechs.com
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 CSRF_SECRET=replace-with-a-long-random-development-only-value
