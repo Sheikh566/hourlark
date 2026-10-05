@@ -34,7 +34,7 @@ import { useNow } from "@/web/hooks/use-now";
 import { ApiClientError, apiRequest, idempotencyKey } from "@/web/lib/api";
 import { formatClockDuration } from "@/web/lib/format";
 import { broadcastTimerChange } from "@/web/lib/timer";
-import type { Member, Project, Tag, TimeEntry } from "@/web/types";
+import type { Project, Tag, TimeEntry } from "@/web/types";
 
 function parseView(value: string | null): TimerView {
   if (value === "calendar" || value === "timesheet" || value === "list") return value;
@@ -294,7 +294,7 @@ export function TimePage() {
   const view = parseView(searchParams.get("view"));
   const localToday = () => parseISO(formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd"));
   const [anchor, setAnchor] = useState(localToday);
-  const [memberId, setMemberId] = useState(me.member.id);
+  const memberId = me.member.id;
   const [editingTarget, setEditingTarget] = useState<{
     id: string;
     field: InlineEditorField;
@@ -353,11 +353,6 @@ export function TimePage() {
   const tags = useQuery({
     queryKey: ["tags", "active"],
     queryFn: () => apiRequest<{ tags: Tag[] }>("/tags?status=active"),
-  });
-  const members = useQuery({
-    queryKey: ["members"],
-    queryFn: () => apiRequest<{ members: Member[] }>("/members"),
-    enabled: me.permissions.view_team,
   });
   const entries = useQuery({
     queryKey: ["time-entries", "timer-list", listRange, memberId],
@@ -639,20 +634,6 @@ export function TimePage() {
               >
                 <option value="week">Week view</option>
                 <option value="day">Day view</option>
-              </Select>
-            ) : null}
-            {me.permissions.view_team ? (
-              <Select
-                className="h-7 min-h-7 w-auto max-w-[10rem] min-w-0 text-xs"
-                value={memberId}
-                onChange={(event) => setMemberId(event.target.value)}
-                aria-label="Timer member"
-              >
-                {(members.data?.members ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.display_name}
-                  </option>
-                ))}
               </Select>
             ) : null}
           </>

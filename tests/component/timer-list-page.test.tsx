@@ -44,7 +44,7 @@ vi.mock("@/web/app/context", () => ({
       members_can_set_billable: true,
     },
     permissions: {
-      view_team: false,
+      view_team: true,
       financial: true,
     },
   }),
@@ -258,6 +258,7 @@ describe("timer actions", () => {
   it("navigates by days in calendar day view and by weeks in week view", async () => {
     const user = userEvent.setup();
     renderPage("/time?view=calendar");
+    expect(screen.queryByRole("combobox", { name: "Timer member" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "Calendar density" }), "day");
     const before = Date.parse(screen.getByTestId("calendar-date").textContent);
     await user.click(screen.getByRole("button", { name: "Select following period" }));
