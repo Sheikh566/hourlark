@@ -1,12 +1,20 @@
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
+import {
+  addCalendarDays,
+  localCalendarDate,
+  startOfWeekDate,
+  weekdaySunday0,
+  type WeekStartsOn,
+} from "@/domain/dates/calendar";
+
+export { addCalendarDays, localCalendarDate, startOfWeekDate, weekdaySunday0, type WeekStartsOn };
+
 export const TIME_ENTRY_LIST_LIMIT = 5000;
 export const EPOCH_START_ISO = "1970-01-01T00:00:00.000Z";
 
 export type ListDatePreset =
   "today" | "yesterday" | "this_week" | "last_week" | "last_30_days" | "all" | "custom";
-
-export type WeekStartsOn = 0 | 1;
 
 export interface ListDateSelection {
   preset: ListDatePreset;
@@ -69,28 +77,6 @@ const SHORT_MONTHS = [
 
 export function zonedToday(now: Date, timezone: string): string {
   return formatInTimeZone(now, timezone, "yyyy-MM-dd");
-}
-
-function parseDateParts(dateStr: string): { year: number; month: number; day: number } {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!match) throw new Error(`Invalid calendar date: ${dateStr}`);
-  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
-}
-
-export function addCalendarDays(dateStr: string, days: number): string {
-  const { year, month, day } = parseDateParts(dateStr);
-  const next = new Date(Date.UTC(year, month - 1, day + days));
-  return next.toISOString().slice(0, 10);
-}
-
-export function weekdaySunday0(dateStr: string): number {
-  const { year, month, day } = parseDateParts(dateStr);
-  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-}
-
-export function startOfWeekDate(dateStr: string, weekStartsOn: WeekStartsOn): string {
-  const delta = (weekdaySunday0(dateStr) - weekStartsOn + 7) % 7;
-  return addCalendarDays(dateStr, -delta);
 }
 
 export function inclusiveDayCount(startDate: string, endDate: string): number {

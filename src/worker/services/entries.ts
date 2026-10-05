@@ -17,6 +17,7 @@ import {
 } from "@/db/repositories/time-entries";
 import { ApiError } from "@/worker/errors";
 import type { entryCreateSchema, entryUpdateSchema, timerInputSchema } from "@/worker/schemas";
+import { isOptimisticVersionMismatch, optimisticVersionGuard } from "@/worker/version-guard";
 import type { z } from "zod";
 
 type TimerInput = z.infer<typeof timerInputSchema>;
@@ -118,16 +119,35 @@ async function billableSnapshot(
   return resolveRate(db, actor.workspaceId, project);
 }
 
-async function assertBillablePolicy(
+async function membersCanSetBillable(db: D1Database, actor: AuthenticatedMember): Promise<boolean> {
+  if (actor.role !== "member") return true;
+  const workspace = await getWorkspace(db, actor.workspaceId);
+  return workspace.members_can_set_billable === 1;
+}
+
+async function assertBillableTransition(
   db: D1Database,
   actor: AuthenticatedMember,
   requestedBillable: boolean,
+  previouslyBillable: boolean,
 ): Promise<void> {
-  if (actor.role !== "member" || !requestedBillable) return;
-  const workspace = await getWorkspace(db, actor.workspaceId);
-  if (workspace.members_can_set_billable !== 1) {
-    throw new ApiError(403, "billable_change_forbidden", "Members cannot mark entries billable.");
+  if (!requestedBillable || previouslyBillable || (await membersCanSetBillable(db, actor))) return;
+  throw new ApiError(403, "billable_change_forbidden", "Members cannot mark entries billable.");
+}
+
+async function billableForCreate(
+  db: D1Database,
+  actor: AuthenticatedMember,
+  requested: boolean | undefined,
+  project: ProjectRow | null,
+): Promise<boolean> {
+  if (requested === true) {
+    await assertBillableTransition(db, actor, true, false);
+    return true;
   }
+  if (requested === false) return false;
+  if (!(await membersCanSetBillable(db, actor))) return false;
+  return project?.billable_default === 1;
 }
 
 async function assertEntryUnlocked(
@@ -181,8 +201,7 @@ export async function createManualEntry(
   }
   const project = input.project_id ? await getProjectForMember(db, actor, input.project_id) : null;
   if (project) await assertProjectAvailabilityForTarget(db, project, targetMember);
-  const billable = input.billable ?? project?.billable_default === 1;
-  await assertBillablePolicy(db, actor, billable);
+  const billable = await billableForCreate(db, actor, input.billable, project);
   const rate = await billableSnapshot(
     db,
     actor,
@@ -319,8 +338,7 @@ export async function startTimer(
 
   const project = input.project_id ? await getProjectForMember(db, actor, input.project_id) : null;
   const tags = await validateActiveTags(db, actor.workspaceId, input.tag_ids);
-  const billable = input.billable ?? project?.billable_default === 1;
-  await assertBillablePolicy(db, actor, billable);
+  const billable = await billableForCreate(db, actor, input.billable, project);
   const rate = await billableSnapshot(db, actor, billable, project);
   const now = Date.now();
   const id = crypto.randomUUID();
@@ -533,7 +551,7 @@ export async function updateEntry(
   if (project) await assertProjectAvailabilityForTarget(db, project, targetMember);
 
   const billable = input.billable ?? existing.billable === 1;
-  await assertBillablePolicy(db, actor, billable);
+  await assertBillableTransition(db, actor, billable, existing.billable === 1);
   let rate: { rateMinor: number | null; currency: string | null; source: string } = {
     rateMinor: existing.rate_minor,
     currency: existing.rate_currency,
@@ -543,7 +561,7 @@ export async function updateEntry(
     rate = { rateMinor: null, currency: null, source: "none" };
   } else if (input.rate_minor !== undefined) {
     rate = await billableSnapshot(db, actor, true, project, input.rate_minor, input.rate_currency);
-  } else if (existing.billable !== 1 || input.recalculate_rate) {
+  } else if (projectChanged || existing.billable !== 1 || input.recalculate_rate) {
     rate = await billableSnapshot(db, actor, true, project);
   }
 
@@ -682,36 +700,41 @@ export async function setEntryDeleted(
   }
   const overrideReason = await assertEntryUnlocked(db, actor, existing, requestedOverrideReason);
   const now = Date.now();
-  const result = await db.batch([
-    db
-      .prepare(
-        `UPDATE time_entries
-         SET deleted_at = ?, deleted_by = ?, updated_by = ?, updated_at = ?, version = version + 1
-         WHERE id = ? AND version = ?`,
-      )
-      .bind(
-        deleted ? now : null,
-        deleted ? actor.id : null,
-        actor.id,
-        now,
+  try {
+    await db.batch([
+      db
+        .prepare(
+          `UPDATE time_entries
+           SET deleted_at = ?, deleted_by = ?, updated_by = ?, updated_at = ?, version = version + 1
+           WHERE id = ? AND version = ?`,
+        )
+        .bind(
+          deleted ? now : null,
+          deleted ? actor.id : null,
+          actor.id,
+          now,
+          entryId,
+          existing.version,
+        ),
+      ...optimisticVersionGuard(db),
+      auditStatement(
+        db,
+        actor,
+        deleted ? "time_entry.deleted" : "time_entry.restored",
+        "time_entry",
         entryId,
-        existing.version,
+        serializeEntry(existing, actor, now),
+        { deleted_at: deleted ? new Date(now).toISOString() : null },
+        overrideReason,
+        meta,
+        now,
       ),
-    auditStatement(
-      db,
-      actor,
-      deleted ? "time_entry.deleted" : "time_entry.restored",
-      "time_entry",
-      entryId,
-      serializeEntry(existing, actor, now),
-      { deleted_at: deleted ? new Date(now).toISOString() : null },
-      overrideReason,
-      meta,
-      now,
-    ),
-  ]);
-  if (result[0]?.meta.changes === 0) {
-    throw new ApiError(409, "entry_conflict", "The entry changed elsewhere.");
+    ]);
+  } catch (error) {
+    if (isOptimisticVersionMismatch(error)) {
+      throw new ApiError(409, "entry_conflict", "The entry changed elsewhere.");
+    }
+    throw error;
   }
   const updated = await loadEntry(db, entryId);
   return {

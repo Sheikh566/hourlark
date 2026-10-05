@@ -1,10 +1,10 @@
-import { startOfWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { amountMinorForDuration, overlapDuration, roundDuration } from "@/domain/dates/time";
 import { hasFinancialAccess } from "@/domain/permissions/policy";
 import type { AuthenticatedMember, WorkspaceRow } from "@/domain/types";
 import { parseTags, type EntryJoinedRow } from "@/db/repositories/time-entries";
+import { startOfWeekDate } from "@/domain/dates/calendar";
 
 export type GroupDimension =
   "client" | "project" | "member" | "day" | "week" | "month" | "description";
@@ -125,11 +125,8 @@ function groupValue(
         label: formatInTimeZone(row.clippedStart, timezone, "MMMM yyyy"),
       };
     case "week": {
-      const localDate = new Date(
-        `${formatInTimeZone(row.clippedStart, timezone, "yyyy-MM-dd")}T00:00:00`,
-      );
-      const weekStart = startOfWeek(localDate, { weekStartsOn });
-      const key = weekStart.toISOString().slice(0, 10);
+      const day = formatInTimeZone(row.clippedStart, timezone, "yyyy-MM-dd");
+      const key = startOfWeekDate(day, weekStartsOn);
       return { key, label: `Week of ${key}` };
     }
   }

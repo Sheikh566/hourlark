@@ -24,7 +24,7 @@ vi.mock("@/web/features/time/entry-editor", () => ({
     ) : null,
 }));
 
-const weekStart = new Date(2026, 8, 28);
+const weekStart = "2026-09-28";
 const project = {
   id: "project-1",
   name: "Research",
@@ -138,7 +138,7 @@ describe("Timesheet workflows", () => {
     );
     rerender(
       <QueryClientProvider client={client}>
-        <TimesheetView weekStart={new Date(2026, 9, 5)} memberId="member-1" />
+        <TimesheetView weekStart="2026-10-05" memberId="member-1" />
       </QueryClientProvider>,
     );
     await screen.findByRole("button", { name: /Add row/ });
@@ -302,11 +302,7 @@ describe("Timesheet workflows", () => {
     clients.push(client);
     const { container } = render(
       <QueryClientProvider client={client}>
-        <TimesheetView
-          weekStart={new Date(2026, 9, 26)}
-          memberId="member-1"
-          timezone="America/New_York"
-        />
+        <TimesheetView weekStart="2026-10-26" memberId="member-1" timezone="America/New_York" />
       </QueryClientProvider>,
     );
     expect(

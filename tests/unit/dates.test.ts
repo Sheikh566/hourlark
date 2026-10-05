@@ -1,5 +1,6 @@
 import {
   amountMinorForDuration,
+  formatInclusivePeriod,
   localDateTimeToEpoch,
   overlapDuration,
   roundDuration,
@@ -21,6 +22,23 @@ describe("time calculations", () => {
 
   it("calculates minor-unit amounts without floating stored duration", () => {
     expect(amountMinorForDuration(90 * 60_000, 10_000)).toBe(15_000);
+  });
+
+  it("formats an inclusive PDF period in the member zone", () => {
+    const previous = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      expect(
+        formatInclusivePeriod(
+          "2026-10-04T19:00:00.000Z",
+          "2026-10-11T19:00:00.000Z",
+          "Asia/Karachi",
+        ),
+      ).toBe("2026-10-05 to 2026-10-11");
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
   });
 
   it("converts IANA local wall time across daylight-saving changes", () => {

@@ -22,6 +22,14 @@ export function formatLocal(
   return formatInTimeZone(epochMs, timeZone, pattern);
 }
 
+/** Inclusive calendar dates for a half-open [start, end) instant range. */
+export function formatInclusivePeriod(startIso: string, endIso: string, timeZone: string): string {
+  assertValidTimeZone(timeZone);
+  const startDate = formatInTimeZone(startIso, timeZone, "yyyy-MM-dd");
+  const endDate = formatInTimeZone(Date.parse(endIso) - 1, timeZone, "yyyy-MM-dd");
+  return `${startDate} to ${endDate}`;
+}
+
 export function overlapDuration(
   entryStart: number,
   entryStop: number,
