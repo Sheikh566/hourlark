@@ -1,4 +1,15 @@
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 
-const localVariablesArtifact = new URL("../dist/hourlark/.dev.vars", import.meta.url);
-await rm(localVariablesArtifact, { force: true });
+const dist = new URL("../dist/", import.meta.url);
+let entries = [];
+try {
+  entries = await readdir(dist, { withFileTypes: true });
+} catch {
+  entries = [];
+}
+
+await Promise.all(
+  entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => rm(new URL(`${entry.name}/.dev.vars`, dist), { force: true })),
+);

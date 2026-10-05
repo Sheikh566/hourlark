@@ -66,8 +66,8 @@ Copy its account ID and add a top-level `account_id` field to `wrangler.jsonc`:
 ```
 
 This matters if your Cloudflare login belongs to multiple accounts. Keep the
-Worker's `name` as `hourlark` for this guide: the current build sanitization script
-also assumes that name. These steps assume `hourlark` is unused in your account.
+Worker's `name` stable after the first deploy. The build removes any `.dev.vars`
+file copied under `dist/`. These steps assume `hourlark` is unused in your account.
 If it already exists, confirm it is the installation you intend to update before
 proceeding; use the update procedure below for that installation.
 
@@ -260,6 +260,14 @@ Domain. Wait for DNS/certificate activation if necessary. The saved secret is
 retained for future deployments; recreating it every deploy is unnecessary.
 Cloudflare documents this initial upload in
 [secrets alongside code](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code).
+
+Pushes to `main` deploy the Worker in `wrangler.jsonc` through
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). Add a repository
+secret named `CLOUDFLARE_API_TOKEN` with permission to edit this account's Workers
+and D1. The workflow installs dependencies, runs `pnpm check:production`, builds,
+applies remote D1 migrations, and runs `wrangler deploy`. It does not create or
+print `CSRF_SECRET` or the Google OAuth secrets; those remain on the Worker.
+This repository publishes Worker `hourlark-preview` to `https://hourlark.sabdullah.com`.
 
 ## 9. Sign in, configure the company, and add members
 

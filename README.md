@@ -73,10 +73,10 @@ storage.
 
 ## Production deployment
 
-Production deployment is intentionally blocked while the D1 ID and Access values are placeholders.
-Follow the [step-by-step Cloudflare deployment guide](docs/deployment.md) for a new account,
-including Access, the first production secret, administrator setup, and verification.
-For subsequent deployments with a configured account and an existing secret, run:
+Pushes to `main` deploy the configured Worker when the `CLOUDFLARE_API_TOKEN`
+repository secret is set. Follow the [step-by-step Cloudflare deployment guide](docs/deployment.md)
+for a new account, including the first production secret, administrator setup, and verification.
+For a manual deployment with a configured account and an existing secret, run:
 
 ```bash
 pnpm check:production

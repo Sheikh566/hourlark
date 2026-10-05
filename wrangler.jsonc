@@ -1,11 +1,18 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "hourlark",
+  "name": "hourlark-preview",
+  "account_id": "3a985c75b283f537ddc8e728f27464af",
   "main": "./src/worker/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "hourlark.sabdullah.com",
+      "custom_domain": true,
+    },
+  ],
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],
@@ -13,14 +20,14 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "hourlark",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_name": "hourlark-preview",
+      "database_id": "c1d68437-a2f0-4fae-b1a9-03393066d204",
       "migrations_dir": "migrations",
     },
   ],
   "vars": {
     "ENVIRONMENT": "production",
-    "AUTH_MODE": "access",
+    "AUTH_MODE": "google",
     "APP_NAME": "Hourlark",
     "COMPANY_NAME": "IOMechs",
     "COMPANY_DOMAIN": "iomechs.com",
