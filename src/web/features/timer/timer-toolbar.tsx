@@ -57,7 +57,7 @@ export function TimerToolbar({
             <div className="timer-date-control min-w-0">
               <button
                 type="button"
-                className="grid h-9 w-9 shrink-0 place-items-center text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa] disabled:opacity-30"
+                className="grid h-full w-9 shrink-0 place-items-center text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa] disabled:opacity-30"
                 onClick={onPrevious}
                 disabled={previousDisabled}
                 aria-label="Select previous period"
@@ -67,7 +67,7 @@ export function TimerToolbar({
               <button
                 ref={periodButtonRef}
                 type="button"
-                className="inline-flex h-9 min-w-0 flex-1 items-center justify-center gap-2 px-2 text-sm font-semibold text-[#fafafa] hover:bg-white/6 2xl:w-[248px] 2xl:flex-none"
+                className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-2 px-2 text-sm font-semibold text-[#fafafa] hover:bg-white/6 2xl:w-[248px] 2xl:flex-none"
                 onClick={onPeriodClick}
                 title={periodTitle ?? "Jump to current period"}
                 aria-expanded={periodPopover ? Boolean(periodExpanded) : undefined}
@@ -79,7 +79,7 @@ export function TimerToolbar({
               </button>
               <button
                 type="button"
-                className="grid h-9 w-9 shrink-0 place-items-center text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa] disabled:opacity-30"
+                className="grid h-full w-9 shrink-0 place-items-center text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa] disabled:opacity-30"
                 onClick={onNext}
                 disabled={nextDisabled}
                 aria-label="Select following period"
@@ -136,10 +136,10 @@ export function TimerToolbar({
                   role="radio"
                   aria-checked={active}
                   className={twMerge(
-                    "inline-flex h-7 items-center px-2 text-xs font-semibold whitespace-nowrap transition sm:px-3 sm:text-sm md:px-5",
+                    "border-hourlark-control-border inline-flex h-full items-center border-l px-2 text-xs font-semibold whitespace-nowrap transition first:border-l-0 sm:px-3 sm:text-sm md:px-5",
                     active
                       ? "bg-[#382b16] text-[#fbbf24]"
-                      : "border-l border-[#3b3b3b] text-[#a4a4a4] first:border-l-0 hover:bg-white/6 hover:text-[#fafafa]",
+                      : "text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa]",
                   )}
                   onClick={() => onViewChange(id)}
                 >

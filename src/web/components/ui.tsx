@@ -9,7 +9,7 @@ import type {
 import { twMerge } from "tailwind-merge";
 
 const controlClassName =
-  "min-h-10 min-w-0 w-full max-w-full rounded-lg border border-[#3b3b3b] bg-[#1b1b1b] px-3 py-2 text-sm text-[#fafafa] placeholder:text-[#a4a4a4] outline-none focus:border-[#f59e0b]";
+  "min-h-10 min-w-0 w-full max-w-full rounded-lg border border-hourlark-control-border bg-[#1b1b1b] px-3 py-2 text-sm text-[#fafafa] placeholder:text-[#a4a4a4] outline-none focus:border-[#f59e0b]";
 
 export function Button({
   variant = "primary",
@@ -22,7 +22,7 @@ export function Button({
   const variants = {
     primary: "bg-[#f59e0b] text-[#18181b] hover:bg-[#fbbf24] hover:text-[#18181b]",
     secondary:
-      "border border-[#3b3b3b] bg-[#1b1b1b] text-[#fafafa] hover:border-[#f59e0b] hover:bg-white/8",
+      "border border-hourlark-control-border bg-[#1b1b1b] text-[#fafafa] hover:border-[#f59e0b] hover:bg-white/8",
     danger: "bg-red-600 text-white hover:bg-red-700",
     ghost: "text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]",
     accent: "bg-[#f59e0b] text-[#18181b] hover:bg-[#fbbf24] hover:text-[#18181b]",
