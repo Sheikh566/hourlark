@@ -74,7 +74,9 @@ storage.
 ## Production deployment
 
 Production deployment is intentionally blocked while the D1 ID and Access values are placeholders.
-Follow [docs/deployment.md](docs/deployment.md), then run:
+Follow the [step-by-step Cloudflare deployment guide](docs/deployment.md) for a new account,
+including Access, the first production secret, administrator setup, and verification.
+For subsequent deployments with a configured account and an existing secret, run:
 
 ```bash
 pnpm check:production
@@ -82,15 +84,16 @@ pnpm db:migrate:remote
 pnpm deploy
 ```
 
-Never commit `.dev.vars`. Set `CSRF_SECRET` with `wrangler secret put CSRF_SECRET`. Cloudflare Access
-must cover the entire production hostname, not only `/api`.
+Never commit `.dev.vars`. The deployment guide covers the initial `CSRF_SECRET` upload; rotate it
+on an existing Worker with `pnpm exec wrangler secret put CSRF_SECRET`. Cloudflare Access must cover
+the entire production hostname, not only `/api`.
 
 ## Documentation
 
 - [Assumptions](docs/assumptions.md)
 - [Architecture decisions](docs/architecture-decisions.md)
 - [Security model](docs/security.md)
-- [Deployment runbook](docs/deployment.md)
+- [Deploy to your Cloudflare account](docs/deployment.md)
 - [Operations and recovery](docs/operations.md)
 - [API conventions and export contracts](docs/api-and-exports.md)
 - [Testing](docs/testing.md)

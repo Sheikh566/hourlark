@@ -44,25 +44,25 @@ Deliberate compatibility holds:
 - **TypeScript 6:** the upgraded `typescript-eslint` requires TypeScript
   `>=4.8.4 <6.1.0`. TypeScript 7 is outside the supported range. See
   [typescript-eslint support](https://typescript-eslint.io/users/dependency-versions/).
-- **FullCalendar 6:** all four existing packages stay on their matching v6
-  release. v7 moves plugins into framework entry points, adds a Temporal peer,
-  changes rendering hooks, and replaces the CSS/theme model. Hourlark uses custom
-  `fc-*` selectors and browser tests targeting the v6 DOM. Migrate the calendar as
-  one separate UI change with drag/resize and visual verification. See the
-  [v7 migration](https://fullcalendar.io/docs/upgrading-from-v6).
-- **pnpm 12.9.1:** the project's package manager, matching npm latest. The earlier
-  library upgrade retained 10.33.2; this follow-up upgrades only the package
-  manager. Non-auth settings live in `pnpm-workspace.yaml`, and builds remain
-  allowed only for esbuild and workerd. Five exact versions already present in
-  the committed lockfile have release-age exceptions for this migration;
-  other versions retain pnpm's default 24-hour release-age gate. Application
-  dependency versions and the application section of the lockfile are unchanged.
+
+Subsequent dependency refreshes:
+
+- FullCalendar migrated to React 7.1.0 with the Temporal 1.0.5 peer and explicit
+  classic theme CSS. The custom v6 timezone provider and eight unnecessary direct
+  dependency declarations were removed. jsdom moved to 30.1.2. See
+  [dependency-audit.md](dependency-audit.md) for the current audit.
+- pnpm is 12.9.1. Non-auth settings live in `pnpm-workspace.yaml`, with builds
+  allowed only for esbuild and workerd. Five previously reviewed exact-version
+  release-age exceptions remain, including transitive Workers types. The requested
+  jsdom 30.1.2 patch and its required data-urls 8.0.0 dependency add two
+  exact-version exceptions because they were published on the audit date. Other
+  versions keep the default 24-hour age gate.
 
 The deployment script now invokes `pnpm run build`, including the existing
 `.dev.vars` artifact sanitization. Previously it invoked `vite build` directly
 and bypassed that step.
 
-## Validation of the upgrade
+## Historical validation of the initial upgrade
 
 - `pnpm validate` passes formatting, lint, strict TypeScript, 27 Worker tests,
   six component tests, and the production build.
@@ -74,8 +74,9 @@ and bypassed that step.
   refresh, and `git diff --check` passes.
 - The sanitized build leaves no `dist/hourlark/.dev.vars` artifact.
 
-FullCalendar 6 emits React `flushSync` lifecycle warnings in development during
-the passing browser checks. This and the large frontend chunk remain limitations;
+At that initial validation, FullCalendar 6 emitted React `flushSync` lifecycle
+warnings during passing development browser checks. The current calendar refresh
+no longer emits that warning; the large frontend chunk remains a limitation;
 the tests establish the covered flows, not full visual or production acceptance.
 Restart any dev server that was already running before replacing dependencies.
 No production resources, remote migrations, commits, or deployments were made.

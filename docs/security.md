@@ -16,8 +16,9 @@ An unprovisioned verified identity is denied. A bootstrap address is admitted on
 address presents a valid Access JWT and only while no active Admin exists. Bootstrap completion is
 persisted and does not continually rewrite roles.
 
-After initial setup, remove `BOOTSTRAP_ADMIN_EMAILS` or restrict it to an intentionally retained
-break-glass identity.
+After initial setup, set `BOOTSTRAP_ADMIN_EMAILS` to an empty string and redeploy. Keep the field:
+the runtime schema requires it. Bootstrap completion is persisted; this setting is not an ongoing
+administrator recovery mechanism.
 
 ## Authorization
 

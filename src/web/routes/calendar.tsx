@@ -1,13 +1,15 @@
-import FullCalendar from "@fullcalendar/react";
-import interactionPlugin, { type EventResizeDoneArg } from "@fullcalendar/interaction";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import type {
-  DateSelectArg,
-  DatesSetArg,
-  EventClickArg,
-  EventContentArg,
-  EventDropArg,
-} from "@fullcalendar/core";
+import FullCalendar, {
+  type CalendarRef,
+  type DateSelectInfo,
+  type DatesSetInfo,
+  type EventClickInfo,
+  type EventDisplayInfo,
+  type EventDropInfo,
+  type EventResizeDoneInfo,
+} from "@fullcalendar/react";
+import interactionPlugin from "@fullcalendar/react/interaction";
+import timeGridPlugin from "@fullcalendar/react/timegrid";
+import themePlugin from "@fullcalendar/react/themes/classic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
 import { overlapDuration } from "@/domain/dates/time";
@@ -19,18 +21,31 @@ import {
   zonedDayStartIso,
   zonedToday,
 } from "@/web/features/timer/list-date-range";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
 import { ErrorState } from "@/web/components/ui";
 import { CalendarQuickEntry } from "@/web/features/time/calendar-quick-entry";
 import { EntryEditor } from "@/web/features/time/entry-editor";
-import { calendarTimezonePlugin } from "@/web/features/time/calendar-timezone";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest } from "@/web/lib/api";
 import { formatClockDuration, formatDuration } from "@/web/lib/format";
 import type { Project, Tag, TimeEntry } from "@/web/types";
 import { format } from "date-fns";
+
+import "@fullcalendar/react/skeleton.css";
+import "@fullcalendar/react/themes/classic/theme.css";
+import "@fullcalendar/react/themes/classic/palette.css";
+
+const CALENDAR_PLUGINS = [themePlugin, timeGridPlugin, interactionPlugin];
+
+function calendarEventClass(info: EventDisplayInfo): string {
+  return info.isMirror ? "fc-event fc-event-mirror" : "fc-event";
+}
+
+function calendarEventAfterClass(info: EventDisplayInfo): string {
+  return info.isEndResizable ? "fc-event-resizer-end" : "";
+}
 
 function calendarTextColor(background: string): string {
   const hex = background.replace("#", "");
@@ -54,7 +69,7 @@ export function CalendarView({
   const me = useMe();
   const now = useNow(30_000);
   const queryClient = useQueryClient();
-  const calendarRef = useRef<FullCalendar>(null);
+  const calendarRef = useRef<CalendarRef>(null);
   const dateKey = format(weekStart, "yyyy-MM-dd");
   const inclusiveDays = calendarMode === "day" ? 0 : 6;
   const [range, setRange] = useState({
@@ -173,27 +188,115 @@ export function CalendarView({
     return totals;
   }, [entries, me.member.timezone, now, range.start, range.end]);
 
-  const moveEntry = (entryId: string, start: Date | null, end: Date | null, revert: () => void) => {
-    const entry = entries.find((item) => item.id === entryId);
-    if (!entry || entry.running || updateMutation.isPending || !start || !end) {
-      revert();
-      return;
-    }
-    updateMutation.mutate(
-      { entry, start, end },
-      {
-        onError: (error) => {
-          revert();
-          setMutationError(error.message);
-          void queryClient.invalidateQueries({ queryKey: ["calendar"] });
+  const events = useMemo(
+    () =>
+      entries.map((entry) => {
+        const color = entry.project?.color ?? "#48361b";
+        return {
+          id: entry.id,
+          title: entry.description || entry.project?.name || "No description",
+          start: entry.started_at,
+          end: entry.stopped_at ?? new Date(now).toISOString(),
+          color,
+          contrastColor: calendarTextColor(color),
+          className: overlaps.has(entry.id) ? "hourlark-cal-overlap" : "",
+          editable: !entry.running,
+          extendedProps: { entry },
+        };
+      }),
+    [entries, now, overlaps],
+  );
+
+  const moveEntry = useCallback(
+    (entryId: string, start: Date | null, end: Date | null, revert: () => void) => {
+      const entry = entries.find((item) => item.id === entryId);
+      if (!entry || entry.running || updateMutation.isPending || !start || !end) {
+        revert();
+        return;
+      }
+      updateMutation.mutate(
+        { entry, start, end },
+        {
+          onError: (error) => {
+            revert();
+            setMutationError(error.message);
+            void queryClient.invalidateQueries({ queryKey: ["calendar"] });
+          },
         },
-      },
-    );
-  };
-  const closeSelection = () => {
+      );
+    },
+    [entries, queryClient, updateMutation],
+  );
+  const closeSelection = useCallback(() => {
     calendarRef.current?.getApi().unselect();
     setSelection(null);
-  };
+  }, []);
+  const handleDatesSet = useCallback((info: DatesSetInfo) => {
+    setRange({ start: info.start.toISOString(), end: info.end.toISOString() });
+  }, []);
+  const handleSelect = useCallback((info: DateSelectInfo) => {
+    setEditing(null);
+    setSelection({ start: info.start, end: info.end });
+  }, []);
+  const handleEventClick = useCallback(
+    (info: EventClickInfo) => {
+      closeSelection();
+      setEditing(info.event.extendedProps.entry as TimeEntry);
+    },
+    [closeSelection],
+  );
+  const handleEventDrop = useCallback(
+    (info: EventDropInfo) =>
+      moveEntry(info.event.id, info.event.start, info.event.end, info.revert),
+    [moveEntry],
+  );
+  const handleEventResize = useCallback(
+    (info: EventResizeDoneInfo) =>
+      moveEntry(info.event.id, info.event.start, info.event.end, info.revert),
+    [moveEntry],
+  );
+  const renderDayHeader = useCallback(
+    (info: { date: Date }) => {
+      const key = formatInTimeZone(info.date, me.member.timezone, "yyyy-MM-dd");
+      const isToday = key === formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd");
+      return (
+        <div className="py-1 text-center">
+          <div className="flex items-center justify-center gap-1.5">
+            <span
+              className={
+                isToday
+                  ? "grid h-6 w-6 place-items-center rounded-full bg-[#f59e0b] text-xs font-bold text-[#18181b]"
+                  : "text-sm font-semibold text-slate-200"
+              }
+            >
+              {formatInTimeZone(info.date, me.member.timezone, "d")}
+            </span>
+            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+              {formatInTimeZone(info.date, me.member.timezone, "EEE")}
+            </span>
+          </div>
+          <div className="mt-1 font-mono text-[10px] text-slate-400">
+            {formatClockDuration(totalsByDay.get(key) ?? 0)}
+          </div>
+        </div>
+      );
+    },
+    [me.member.timezone, totalsByDay],
+  );
+  const renderEventContent = useCallback(
+    (info: EventDisplayInfo) => (
+      <div className="min-w-0 overflow-hidden">
+        <div className="truncate text-xs font-semibold">{info.event.title}</div>
+        <div className="truncate text-[10px] font-medium">
+          {formatDuration(
+            (info.event.end?.getTime() ?? now) - (info.event.start?.getTime() ?? now),
+          )}
+          {overlaps.has(info.event.id) ? " · overlap" : ""}
+        </div>
+      </div>
+    ),
+    [now, overlaps],
+  );
 
   return (
     <>
@@ -210,7 +313,8 @@ export function CalendarView({
         <section className="overflow-hidden bg-[#212121] p-3">
           <FullCalendar
             ref={calendarRef}
-            plugins={[timeGridPlugin, interactionPlugin, calendarTimezonePlugin]}
+            className="hourlark-calendar"
+            plugins={CALENDAR_PLUGINS}
             initialView={calendarMode === "day" ? "timeGridDay" : "timeGridWeek"}
             initialDate={dateKey}
             firstDay={me.workspace.week_start === "monday" ? 1 : 0}
@@ -228,74 +332,21 @@ export function CalendarView({
             slotDuration="00:30:00"
             scrollTime="08:00:00"
             headerToolbar={false}
-            events={entries.map((entry) => {
-              const backgroundColor = entry.project?.color ?? "#48361b";
-              return {
-                id: entry.id,
-                title: entry.description || entry.project?.name || "No description",
-                start: entry.started_at,
-                end: entry.stopped_at ?? new Date(now).toISOString(),
-                backgroundColor,
-                textColor: calendarTextColor(backgroundColor),
-                borderColor: overlaps.has(entry.id) ? "#f59e0b" : backgroundColor,
-                editable: !entry.running,
-                extendedProps: { entry },
-              };
-            })}
-            datesSet={(info: DatesSetArg) =>
-              setRange({ start: info.start.toISOString(), end: info.end.toISOString() })
-            }
-            select={(info: DateSelectArg) => {
-              setEditing(null);
-              setSelection({ start: info.start, end: info.end });
-            }}
-            eventClick={(info: EventClickArg) => {
-              closeSelection();
-              setEditing(info.event.extendedProps.entry as TimeEntry);
-            }}
-            eventDrop={(info: EventDropArg) =>
-              moveEntry(info.event.id, info.event.start, info.event.end, info.revert)
-            }
-            eventResize={(info: EventResizeDoneArg) =>
-              moveEntry(info.event.id, info.event.start, info.event.end, info.revert)
-            }
-            dayHeaderContent={(info) => {
-              const key = formatInTimeZone(info.date, me.member.timezone, "yyyy-MM-dd");
-              const isToday =
-                key === formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd");
-              return (
-                <div className="py-1 text-center">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span
-                      className={
-                        isToday
-                          ? "grid h-6 w-6 place-items-center rounded-full bg-[#f59e0b] text-xs font-bold text-[#18181b]"
-                          : "text-sm font-semibold text-slate-200"
-                      }
-                    >
-                      {formatInTimeZone(info.date, me.member.timezone, "d")}
-                    </span>
-                    <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                      {formatInTimeZone(info.date, me.member.timezone, "EEE")}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[10px] text-slate-400 tabular-nums">
-                    {formatClockDuration(totalsByDay.get(key) ?? 0)}
-                  </div>
-                </div>
-              );
-            }}
-            eventContent={(info: EventContentArg) => (
-              <div className="min-w-0 overflow-hidden">
-                <div className="truncate text-xs font-semibold">{info.event.title}</div>
-                <div className="truncate text-[10px] font-medium">
-                  {formatDuration(
-                    (info.event.end?.getTime() ?? now) - (info.event.start?.getTime() ?? now),
-                  )}
-                  {overlaps.has(info.event.id) ? " · overlap" : ""}
-                </div>
-              </div>
-            )}
+            events={events}
+            eventClass={calendarEventClass}
+            columnEventAfterClass={calendarEventAfterClass}
+            dayLaneClass="fc-timegrid-col"
+            slotLaneClass="fc-timegrid-slot"
+            slotHeaderClass="fc-timegrid-slot"
+            nowIndicatorLineClass="fc-timegrid-now-indicator-line"
+            nowIndicatorHeaderClass="fc-timegrid-now-indicator-arrow"
+            datesSet={handleDatesSet}
+            select={handleSelect}
+            eventClick={handleEventClick}
+            eventDrop={handleEventDrop}
+            eventResize={handleEventResize}
+            dayHeaderContent={renderDayHeader}
+            eventContent={renderEventContent}
           />
         </section>
       )}
