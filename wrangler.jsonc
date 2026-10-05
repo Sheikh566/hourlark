@@ -20,7 +20,7 @@
   ],
   "vars": {
     "ENVIRONMENT": "production",
-    "AUTH_MODE": "access",
+    "AUTH_MODE": "google",
     "APP_NAME": "Hourlark",
     "COMPANY_NAME": "IOMechs",
     "COMPANY_DOMAIN": "iomechs.com",
