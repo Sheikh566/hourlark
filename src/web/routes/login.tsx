@@ -48,11 +48,15 @@ export function LoginScreen() {
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10">
       <section className="w-full max-w-[420px] rounded-xl border border-[#3b3b3b] bg-[#1c1c1c] px-8 py-10 shadow-[0_24px_80px_rgb(0_0_0/45%)]">
         <div className="text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-[#f59e0b] text-lg font-black text-[#18181b]">
-            H
-          </span>
-          <h1 className="mt-4 text-[28px] font-bold tracking-tight text-[#fafafa]">Hourlark</h1>
-          <p className="mt-1 text-sm text-[#a4a4a4]">Log in and get tracking</p>
+          <img
+            src="/brand/hourlark-original/logo-dark.png"
+            alt=""
+            width={144}
+            height={138}
+            className="mx-auto h-auto w-36"
+          />
+          <h1 className="sr-only">Hourlark</h1>
+          <p className="mt-4 text-sm text-[#a4a4a4]">Log in and get tracking</p>
         </div>
 
         {error ? (

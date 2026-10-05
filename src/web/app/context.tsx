@@ -44,7 +44,13 @@ export function MeProvider({ children }: { children: ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#212121]">
         <div className="text-center">
-          <div className="mx-auto mb-3 h-10 w-10 animate-pulse rounded-xl bg-[#f59e0b]" />
+          <img
+            src="/brand/hourlark-original/logo-dark.png"
+            alt="Hourlark"
+            width={144}
+            height={138}
+            className="mx-auto mb-5 h-auto w-36"
+          />
           <p className="text-sm font-medium text-[#fafafa]">Loading Hourlark…</p>
         </div>
       </div>
@@ -62,8 +68,15 @@ export function MeProvider({ children }: { children: ReactNode }) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center bg-[#212121] p-6">
         <div className="panel w-full max-w-lg p-8 text-center">
-          <h1 className="text-xl font-bold text-slate-900">Unable to open Hourlark</h1>
-          <p className="mt-2 text-sm text-slate-600">{message}</p>
+          <img
+            src="/brand/hourlark-original/logo-dark.png"
+            alt="Hourlark"
+            width={144}
+            height={138}
+            className="mx-auto mb-5 h-auto w-36"
+          />
+          <h1 className="text-xl font-bold text-[#fafafa]">Unable to open Hourlark</h1>
+          <p className="mt-2 text-sm text-[#a4a4a4]">{message}</p>
           <div className="mt-5 flex justify-center">
             <button
               className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-[#18181b] hover:bg-[#fbbf24]"

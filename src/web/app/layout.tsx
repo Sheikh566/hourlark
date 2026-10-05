@@ -50,15 +50,24 @@ export function AppLayout() {
   const sidebar = (
     <aside className="flex h-full w-[226px] text-[#fafafa]">
       <div className="flex w-[47px] shrink-0 flex-col items-center border-r border-[#3b3b3b] bg-black py-3">
-        <span
-          className="grid h-8 w-8 place-items-center rounded-lg bg-[#f59e0b] text-xs font-black text-[#18181b]"
-          title="Hourlark"
+        <NavLink
+          to="/time"
+          aria-label="Hourlark home"
+          className="rounded-md"
+          onClick={() => setMobileOpen(false)}
         >
-          H
-        </span>
+          <img src="/brand/hourlark-original/icon-48.png" alt="" width={32} height={32} />
+        </NavLink>
       </div>
       <div className="flex min-w-0 flex-1 flex-col bg-[#151515]">
         <div className="relative border-b border-[#3b3b3b] p-3">
+          <img
+            src="/brand/hourlark-original/wordmark-dark.png"
+            alt="Hourlark"
+            width={120}
+            height={24}
+            className="mb-3 h-auto w-[120px]"
+          />
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-white/6"
@@ -83,7 +92,7 @@ export function AppLayout() {
             <ChevronDown size={14} className="text-[#a4a4a4]" />
           </button>
           {userOpen ? (
-            <div className="timer-popover absolute top-14 left-3 z-50 w-64 p-2">
+            <div className="timer-popover absolute top-full left-3 z-50 mt-1 w-64 p-2">
               <div className="border-b border-[#3b3b3b] p-2">
                 <p className="truncate text-sm font-medium text-[#fafafa]">{me.member.email}</p>
                 <p className="mt-0.5 text-xs text-[#a4a4a4]">{me.member.timezone}</p>
