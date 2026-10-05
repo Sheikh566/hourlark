@@ -72,7 +72,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   }
   const response = await fetch(`/api/v1${path}`, { ...init, headers });
   if (!response.ok) return parseError(response);
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export async function signOut(): Promise<void> {
+  await apiRequest<undefined>("/auth/logout", { method: "POST" });
+  window.location.assign("/login");
 }
 
 export async function apiDownload(

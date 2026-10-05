@@ -1,3 +1,5 @@
+import type { AuthMode } from "@/domain/auth";
+
 export type Role = "member" | "manager" | "admin";
 
 export interface MeResponse {
@@ -37,6 +39,7 @@ export interface MeResponse {
   };
   active_timer: TimeEntry | null;
   csrf_token: string;
+  auth_mode: AuthMode;
   server_now: string;
 }
 

@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { createMiddleware } from "hono/factory";
 
+import { AuthMode } from "@/domain/auth";
 import { normalizeEmail } from "@/domain/normalization";
 import {
   WORKSPACE_ID,
@@ -9,6 +10,7 @@ import {
   type WorkspaceRow,
   toAuthenticatedMember,
 } from "@/domain/types";
+import { readCookie, SESSION_COOKIE, open, type SessionClaims } from "@/worker/auth/session";
 import { parseRuntimeConfig, type RuntimeConfig } from "@/worker/env";
 import { ApiError } from "@/worker/errors";
 
@@ -217,11 +219,38 @@ async function resolveAccessMember(
   return bound;
 }
 
+const publicAuthPaths = new Set(["/api/v1/auth/google", "/api/v1/auth/google/callback"]);
+
+export async function authenticateExternalIdentity(
+  db: D1Database,
+  config: RuntimeConfig,
+  identity: { subject: string; email: string },
+): Promise<MemberRow> {
+  await bootstrapAdmin(db, config, identity);
+  const row = await resolveAccessMember(db, identity);
+  if (row.status !== "active") {
+    throw new ApiError(403, "member_inactive", "This member account is not active.");
+  }
+  return row;
+}
+
+async function findMemberById(db: D1Database, id: string): Promise<MemberRow | null> {
+  return db
+    .prepare("SELECT * FROM members WHERE workspace_id = ? AND id = ?")
+    .bind(WORKSPACE_ID, id)
+    .first<MemberRow>();
+}
+
 export const authenticationMiddleware = createMiddleware<AppContext>(async (c, next) => {
+  if (publicAuthPaths.has(c.req.path)) {
+    await next();
+    return;
+  }
+
   const config = parseRuntimeConfig(c.env);
   let row: MemberRow | null;
 
-  if (config.AUTH_MODE === "dev") {
+  if (config.AUTH_MODE === AuthMode.Dev) {
     const email = normalizeEmail(
       c.req.header("X-Dev-User-Email") || config.DEV_DEFAULT_USER_EMAIL || "",
     );
@@ -236,10 +265,19 @@ export const authenticationMiddleware = createMiddleware<AppContext>(async (c, n
         "Run the local development seed before signing in.",
       );
     }
+  } else if (config.AUTH_MODE === AuthMode.Google) {
+    const token = readCookie(c.req.header("Cookie"), SESSION_COOKIE);
+    const claims = token ? await open<SessionClaims>(config.CSRF_SECRET, token) : null;
+    if (!claims?.memberId || !claims.email || !claims.subject) {
+      throw new ApiError(401, "session_missing", "Sign in to continue.");
+    }
+    row = await findMemberById(c.env.DB, claims.memberId);
+    if (!row || row.email_normalized !== claims.email || row.access_subject !== claims.subject) {
+      throw new ApiError(401, "session_invalid", "Sign in again.");
+    }
   } else {
     const identity = await verifyAccessIdentity(c.req.raw, config);
-    await bootstrapAdmin(c.env.DB, config, identity);
-    row = await resolveAccessMember(c.env.DB, identity);
+    row = await authenticateExternalIdentity(c.env.DB, config, identity);
   }
 
   if (row.status !== "active") {

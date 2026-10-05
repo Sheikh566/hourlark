@@ -1,3 +1,4 @@
+import { AuthMode } from "@/domain/auth";
 import { parseRuntimeConfig } from "@/worker/env";
 import type { ApiError } from "@/worker/errors";
 import { detailedCsv } from "@/worker/exports/csv";
@@ -26,6 +27,17 @@ describe("production security gates", () => {
     ).toThrowError(
       expect.objectContaining<Partial<ApiError>>({ code: "development_auth_forbidden" }),
     );
+  });
+
+  it("allows Google sign-in in production without Access placeholders", () => {
+    expect(
+      parseRuntimeConfig({
+        ...baseEnvironment,
+        AUTH_MODE: AuthMode.Google,
+        ACCESS_TEAM_DOMAIN: "None",
+        ACCESS_AUD: "[Access application audience]",
+      } as unknown as Env).AUTH_MODE,
+    ).toBe(AuthMode.Google);
   });
 
   it("fails closed when Cloudflare Access contains placeholders", () => {
