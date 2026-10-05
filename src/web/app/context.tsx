@@ -75,7 +75,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
             height={138}
             className="mx-auto mb-5 h-auto w-36"
           />
-          <h1 className="text-xl font-bold text-[#fafafa]">Unable to open Hourlark</h1>
+          <h1 className="font-display text-xl font-bold text-[#fafafa]">Unable to open Hourlark</h1>
           <p className="mt-2 text-sm text-[#a4a4a4]">{message}</p>
           <div className="mt-5 flex justify-center">
             <button

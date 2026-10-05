@@ -85,6 +85,23 @@
   --color-hourlark-nav: #48361b;
 
   --font-sans: Inter, Helvetica, sans-serif;
+  --font-display: Lexend, Inter, Helvetica, sans-serif;
+}
+
+/* Lexend (SIL Open Font License, see public/fonts/lexend/OFL.txt), Latin subset. */
+@font-face {
+  font-family: Lexend;
+  src: url("/fonts/lexend/lexend-latin-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  /* Lexend runs wider than Toggl's display face; utilities can still override this. */
+  .font-display {
+    letter-spacing: -0.02em;
+  }
 }
 
 :root {

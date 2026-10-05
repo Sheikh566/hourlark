@@ -101,7 +101,9 @@ export function Modal({
         <Dialog.Content className="dark-surface fixed top-1/2 left-1/2 z-50 flex max-h-[min(92vh,100dvh)] w-[min(94vw,620px)] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-[#3b3b3b] bg-[#212121] text-[#fafafa] shadow-2xl">
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#3b3b3b] px-5 py-4">
             <div className="min-w-0 flex-1">
-              <Dialog.Title className="text-lg font-bold text-[#fafafa]">{title}</Dialog.Title>
+              <Dialog.Title className="font-display text-lg font-bold text-[#fafafa]">
+                {title}
+              </Dialog.Title>
               {description ? (
                 <Dialog.Description className="mt-1 text-sm text-[#a4a4a4]">
                   {description}
@@ -160,7 +162,7 @@ export function EmptyState({
   return (
     <div className="flex min-h-52 flex-col items-center justify-center gap-2 p-8 text-center">
       <CheckCircle2 className="text-[#fbbf24]" size={28} />
-      <h3 className="font-semibold text-[#fafafa]">{title}</h3>
+      <h3 className="font-display font-semibold text-[#fafafa]">{title}</h3>
       <p className="max-w-md text-sm text-[#a4a4a4]">{description}</p>
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
@@ -198,7 +200,7 @@ export function PageHeader({
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#fafafa]">{title}</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-[#fafafa]">{title}</h1>
         {description ? <p className="mt-1 text-sm text-[#a4a4a4]">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
