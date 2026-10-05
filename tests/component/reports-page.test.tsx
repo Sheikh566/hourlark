@@ -8,6 +8,7 @@ import { buildSummary } from "@/domain/reports/reporting";
 import type { ReportRow } from "@/domain/reports/reporting";
 import type { AuthenticatedMember, WorkspaceRow } from "@/domain/types";
 import { ReportsPage } from "@/web/routes/reports";
+import { chooseOption } from "./select-helpers";
 
 const { apiRequestMock, apiDownloadMock, identity } = vi.hoisted(() => ({
   apiRequestMock: vi.fn<(path: string) => Promise<unknown>>(),
@@ -369,8 +370,8 @@ describe("report date and filter workflow", () => {
       await user.click(screen.getByRole("button", { name: "Time Report PDF" }));
       const pdf = screen.getByRole("dialog", { name: "Client-ready Time Report" });
       expect(within(pdf).getByRole("button", { name: "Generate PDF" })).toBeDisabled();
-      await user.selectOptions(within(pdf).getByRole("combobox", { name: /^Client/ }), "c1");
-      await user.selectOptions(within(pdf).getByLabelText(/^Projects/), ["p1"]);
+      await chooseOption(user, within(pdf).getByRole("combobox", { name: /^Client/ }), "IOMechs");
+      await user.click(within(pdf).getByRole("checkbox", { name: "Training" }));
       await user.click(within(pdf).getByRole("button", { name: "Generate PDF" }));
       expect(apiDownloadMock).toHaveBeenLastCalledWith(
         "/exports/pdf",

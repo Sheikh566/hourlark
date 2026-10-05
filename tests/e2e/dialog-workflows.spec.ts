@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
+import { chooseOption } from "./select-helpers";
+
 test.use({ timezoneId: "America/Los_Angeles" });
 
 async function createEntry(page: Page, description: string, running = false) {
@@ -59,7 +61,7 @@ test("calendar edit fits desktop, tablet and mobile and preserves timestamps", a
   const name = `Calendar dialog ${crypto.randomUUID().slice(0, 8)}`;
   const fixture = await createEntry(page, name);
   await page.getByRole("radio", { name: "Calendar", exact: true }).click();
-  await page.getByRole("combobox", { name: "Calendar density" }).selectOption("day");
+  await chooseOption(page.getByRole("combobox", { name: "Calendar density" }), "Day view");
   const event = page.locator(".fc-event").filter({ hasText: name });
   await expect(event).toBeVisible();
   // Browser timezone differs from the member timezone. Calendar must still show 09:00.
@@ -96,9 +98,7 @@ test("calendar edit fits desktop, tablet and mobile and preserves timestamps", a
 
 test("calendar range creation validates times and supports nested Escape", async ({ page }) => {
   await page.goto("/time?view=calendar");
-  await page
-    .getByRole("combobox", { name: "Timer member" })
-    .selectOption({ label: "IOMechs Manager" });
+  await chooseOption(page.getByRole("combobox", { name: "Timer member" }), "IOMechs Manager");
   const me = (await (await page.request.get("/api/v1/me")).json()) as {
     member: { timezone: string };
   };
@@ -179,7 +179,7 @@ test("calendar drag and resize persist member-local times and roll back failures
   });
   expect(updated.ok()).toBe(true);
   await page.getByRole("radio", { name: "Calendar", exact: true }).click();
-  await page.getByRole("combobox", { name: "Calendar density" }).selectOption("day");
+  await chooseOption(page.getByRole("combobox", { name: "Calendar density" }), "Day view");
   const event = page.locator(".fc-event").filter({ hasText: name });
   await expect(event).toBeVisible();
   await page.locator('.fc-timegrid-slot[data-time="14:00:00"]').last().scrollIntoViewIfNeeded();

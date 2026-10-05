@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimesheetView } from "@/web/features/timer/timesheet-view";
 import { apiRequest } from "@/web/lib/api";
 import type { Project, TimeEntry } from "@/web/types";
+import { chooseOption } from "./select-helpers";
 
 vi.mock("@/web/lib/api", () => ({ apiRequest: vi.fn() }));
 vi.mock("@/web/app/context", () => ({
@@ -101,14 +102,12 @@ describe("Timesheet workflows", () => {
     await screen.findByRole("button", { name: /Add row/ });
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("/projects?status=active"));
     await user.click(screen.getByRole("button", { name: /Add row/ }));
-    await screen.findByRole("option", { name: "Research" });
+    await user.click(screen.getByRole("combobox", { name: "Draft row project" }));
+    const research = await screen.findByRole("option", { name: "Research" });
     expect(
       screen.queryByRole("option", { name: "Archived client project" }),
     ).not.toBeInTheDocument();
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Draft row project" }),
-      project.id,
-    );
+    await user.click(research);
     const cell = screen.getByRole("textbox", { name: "Research Mon" });
     await user.type(cell, "1:30{Enter}");
     await waitFor(() =>
@@ -126,9 +125,10 @@ describe("Timesheet workflows", () => {
     const descriptions = screen.getAllByRole("textbox", { name: "Draft row description" });
     await user.type(itemAt(descriptions, 0), "First draft");
     await user.type(itemAt(descriptions, 1), "Second draft");
-    await user.selectOptions(
+    await chooseOption(
+      user,
       itemAt(screen.getAllByRole("combobox", { name: "Draft row project" }), 0),
-      "",
+      "Without project",
     );
     expect(descriptions[0]).toHaveValue("First draft");
     expect(descriptions[1]).toHaveValue("Second draft");

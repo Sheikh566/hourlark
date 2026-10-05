@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TimeEntry } from "@/web/types";
 import { TimePage } from "@/web/routes/time";
+import { chooseOption } from "./select-helpers";
 
 const apiRequestMock = vi.hoisted(() => vi.fn());
 
@@ -258,13 +259,21 @@ describe("timer actions", () => {
   it("navigates by days in calendar day view and by weeks in week view", async () => {
     const user = userEvent.setup();
     renderPage("/time?view=calendar");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Calendar density" }), "day");
+    await chooseOption(
+      user,
+      screen.getByRole("combobox", { name: "Calendar density" }),
+      "Day view",
+    );
     const before = Date.parse(screen.getByTestId("calendar-date").textContent);
     await user.click(screen.getByRole("button", { name: "Select following period" }));
     expect(Date.parse(screen.getByTestId("calendar-date").textContent) - before).toBe(86400000);
     await user.click(screen.getByRole("button", { name: "Select previous period" }));
     expect(Date.parse(screen.getByTestId("calendar-date").textContent)).toBe(before);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Calendar density" }), "week");
+    await chooseOption(
+      user,
+      screen.getByRole("combobox", { name: "Calendar density" }),
+      "Week view",
+    );
     const week = Date.parse(screen.getByTestId("calendar-date").textContent);
     await user.click(screen.getByRole("button", { name: "Select following period" }));
     expect(Date.parse(screen.getByTestId("calendar-date").textContent) - week).toBe(7 * 86400000);

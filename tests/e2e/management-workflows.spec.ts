@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { chooseOption } from "./select-helpers";
+
 test("workspace settings validate, persist report defaults, and load audit history", async ({
   page,
 }) => {
@@ -64,7 +66,7 @@ test("client and project creation, editing, search and archive recovery", async 
   await card.getByRole("button", { name: "View projects", exact: true }).click();
   await expect(page).toHaveURL(/client_id=/);
   await page.getByRole("button", { name: "New project", exact: true }).click();
-  await page.getByRole("combobox", { name: "Client", exact: true }).selectOption({ label: client });
+  await chooseOption(page.getByRole("combobox", { name: "Client", exact: true }), client);
   await page.getByRole("button", { name: "Save project", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("This field is required");
   await page.getByRole("textbox", { name: "Project name", exact: true }).fill(project);
@@ -85,7 +87,7 @@ test("client and project creation, editing, search and archive recovery", async 
   await expect(projectCard).toBeVisible();
   await projectCard.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(projectCard).toBeHidden();
-  await page.getByRole("combobox", { name: "Filter projects by status" }).selectOption("archived");
+  await chooseOption(page.getByRole("combobox", { name: "Filter projects by status" }), "Archived");
   await expect(projectCard).toBeVisible();
   await projectCard.getByRole("button", { name: "Reactivate", exact: true }).click();
   await expect(projectCard).toBeHidden();
@@ -94,7 +96,10 @@ test("client and project creation, editing, search and archive recovery", async 
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(card).toBeHidden();
-  await page.locator("main select").selectOption("archived");
+  await chooseOption(
+    page.getByRole("combobox", { name: /^Filter (clients|tags) by status$/ }),
+    "Archived",
+  );
   await expect(card).toBeVisible();
   // Existing project metadata remains editable while the client stays archived.
   await card.getByRole("button", { name: "View projects", exact: true }).click();
@@ -125,7 +130,10 @@ test("tags and members have working validation, editing and status controls", as
   const tagRow = page.locator("section .divide-y > div").filter({ hasText: `${tag} edited` });
   await tagRow.getByRole("button", { name: "Archive", exact: true }).click();
   await expect(tagRow).toBeHidden();
-  await page.locator("main select").selectOption("archived");
+  await chooseOption(
+    page.getByRole("combobox", { name: /^Filter (clients|tags) by status$/ }),
+    "Archived",
+  );
   await expect(tagRow).toBeVisible();
   await tagRow.getByRole("button", { name: "Reactivate", exact: true }).click();
   await expect(tagRow).toBeHidden();
@@ -148,9 +156,10 @@ test("tags and members have working validation, editing and status controls", as
   await expect(page.getByRole("dialog")).toBeHidden();
   await page.getByRole("button", { name: `Edit ${name} edited`, exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page
-    .getByRole("combobox", { name: "Account status", exact: true })
-    .selectOption("inactive");
+  await chooseOption(
+    page.getByRole("combobox", { name: "Account status", exact: true }),
+    "Inactive",
+  );
   await page.getByRole("button", { name: "Save member", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.locator("tr").filter({ hasText: `${name} edited` })).toContainText("inactive");

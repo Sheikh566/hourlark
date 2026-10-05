@@ -1,11 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertCircle, CheckCircle2, LoaderCircle, X } from "lucide-react";
-import type {
-  ButtonHTMLAttributes,
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-} from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
 const controlClassName =
@@ -71,13 +66,7 @@ export function Field({
   );
 }
 
-export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select className={twMerge(controlClassName, className)} {...props}>
-      {children}
-    </select>
-  );
-}
+export { Select, type SelectOption } from "@/web/components/select";
 
 export function Modal({
   open,

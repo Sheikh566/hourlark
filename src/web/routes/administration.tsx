@@ -20,6 +20,7 @@ import {
   Select,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
+import { FormSelect } from "@/web/components/form-select";
 import { apiRequest } from "@/web/lib/api";
 import type { Tag } from "@/web/types";
 
@@ -271,13 +272,14 @@ function WorkspaceSettings() {
             />
           </Field>
           <Field label="Week starts">
-            <Select
-              aria-invalid={Boolean(form.formState.errors.week_start)}
-              {...form.register("week_start")}
-            >
-              <option value="monday">Monday</option>
-              <option value="sunday">Sunday</option>
-            </Select>
+            <FormSelect
+              control={form.control}
+              name="week_start"
+              options={[
+                { value: "monday", label: "Monday" },
+                { value: "sunday", label: "Sunday" },
+              ]}
+            />
           </Field>
           <div className="sm:col-span-2">
             <Field
@@ -308,29 +310,29 @@ function WorkspaceSettings() {
             />
           </Field>
           <Field label="Report rounding">
-            <Select
-              aria-invalid={Boolean(form.formState.errors.rounding_increment_minutes)}
-              {...form.register("rounding_increment_minutes")}
-            >
-              <option value="0">No rounding</option>
-              <option value="1">1 minute</option>
-              <option value="5">5 minutes</option>
-              <option value="6">6 minutes</option>
-              <option value="10">10 minutes</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="60">60 minutes</option>
-            </Select>
+            <FormSelect
+              control={form.control}
+              name="rounding_increment_minutes"
+              options={[
+                { value: "0", label: "No rounding" },
+                { value: "1", label: "1 minute" },
+                ...["5", "6", "10", "15", "30", "60"].map((value) => ({
+                  value,
+                  label: `${value} minutes`,
+                })),
+              ]}
+            />
           </Field>
           <Field label="Rounding direction">
-            <Select
-              aria-invalid={Boolean(form.formState.errors.rounding_method)}
-              {...form.register("rounding_method")}
-            >
-              <option value="nearest">Nearest</option>
-              <option value="up">Up</option>
-              <option value="down">Down</option>
-            </Select>
+            <FormSelect
+              control={form.control}
+              name="rounding_method"
+              options={[
+                { value: "nearest", label: "Nearest" },
+                { value: "up", label: "Up" },
+                { value: "down", label: "Down" },
+              ]}
+            />
           </Field>
           <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
             <legend className="px-1 text-sm font-semibold">Policies and report defaults</legend>
@@ -453,12 +455,14 @@ export function TagSettings() {
           <div className="flex flex-wrap gap-2">
             <Select
               className="w-32"
+              aria-label="Filter tags by status"
               value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
-            >
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </Select>
+              onValueChange={(value) => setStatus(value as typeof status)}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ]}
+            />
             <Button onClick={() => setEditing("new")}>
               <Plus size={15} /> New tag
             </Button>

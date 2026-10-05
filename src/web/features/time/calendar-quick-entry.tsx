@@ -187,31 +187,28 @@ export function CalendarQuickEntry({
         </div>
 
         <div className="mt-2 grid min-w-0 items-center gap-2 border-t border-[#3b3b3b] pt-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-          <label className="relative min-w-0">
-            <BriefcaseBusiness
-              className="pointer-events-none absolute top-2.5 left-2.5 text-[#a4a4a4]"
-              size={15}
-            />
+          <div className="min-w-0">
             <Select
-              className="h-9 min-h-9 pl-8"
+              className="h-9 min-h-9 px-2.5"
+              icon={<BriefcaseBusiness size={15} />}
               value={projectId}
               aria-label="New entry project"
-              onChange={(event) => {
-                const value = event.target.value;
+              onValueChange={(value) => {
                 setProjectId(value);
                 if (!canSetBillable) return;
                 const project = projects.find((item) => item.id === value);
                 setBillable(project?.billable_default === true || project?.billable_default === 1);
               }}
-            >
-              <option value="">No project</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {projectOptionLabel(project)}
-                </option>
-              ))}
-            </Select>
-          </label>
+              options={[
+                { value: "", label: "No project" },
+                ...projects.map((project) => ({
+                  value: project.id,
+                  label: projectOptionLabel(project),
+                  color: project.color,
+                })),
+              ]}
+            />
+          </div>
 
           <div ref={tagRoot} className="relative">
             <button

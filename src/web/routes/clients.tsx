@@ -106,11 +106,12 @@ export function ClientsPage() {
               className="w-40"
               aria-label="Filter clients by status"
               value={status}
-              onChange={(event) => setStatus(event.target.value as typeof status)}
-            >
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </Select>
+              onValueChange={(value) => setStatus(value as typeof status)}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ]}
+            />
           ) : null}
         </div>
         {statusMutation.isPending ? (

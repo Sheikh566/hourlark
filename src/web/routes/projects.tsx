@@ -30,6 +30,7 @@ import {
   Select,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
+import { FormSelect } from "@/web/components/form-select";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
 import type { Client, Member, Project, TimeEntry } from "@/web/types";
@@ -119,25 +120,26 @@ export function ProjectsPage() {
               <Select
                 className="w-44"
                 value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
+                onValueChange={setClientId}
                 aria-label="Filter projects by client"
-              >
-                <option value="">All clients</option>
-                {(clients.data?.clients ?? []).map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  { value: "", label: "All clients" },
+                  ...(clients.data?.clients ?? []).map((client) => ({
+                    value: client.id,
+                    label: client.name,
+                  })),
+                ]}
+              />
               <Select
                 className="w-36"
                 value={status}
-                onChange={(event) => setStatus(event.target.value as typeof status)}
+                onValueChange={(value) => setStatus(value as typeof status)}
                 aria-label="Filter projects by status"
-              >
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </Select>
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "archived", label: "Archived" },
+                ]}
+              />
             </>
           ) : null}
         </div>
@@ -427,22 +429,22 @@ function ProjectEditor({
           ) : null}
           <div className="sm:col-span-2">
             <Field label="Client">
-              <Select
-                aria-invalid={Boolean(form.formState.errors.client_id)}
-                {...form.register("client_id")}
-              >
-                <option value="">Select a client</option>
-                {project &&
-                !clients.isPending &&
-                !clients.data?.clients.some((client) => client.id === project.client_id) ? (
-                  <option value={project.client_id}>{project.client_name} (archived)</option>
-                ) : null}
-                {(clients.data?.clients ?? []).map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </Select>
+              <FormSelect
+                control={form.control}
+                name="client_id"
+                placeholder="Select a client"
+                options={[
+                  ...(project &&
+                  !clients.isPending &&
+                  !clients.data?.clients.some((client) => client.id === project.client_id)
+                    ? [{ value: project.client_id, label: `${project.client_name} (archived)` }]
+                    : []),
+                  ...(clients.data?.clients ?? []).map((client) => ({
+                    value: client.id,
+                    label: client.name,
+                  })),
+                ]}
+              />
             </Field>
           </div>
           <Field label="Project name">
@@ -482,13 +484,14 @@ function ProjectEditor({
             />
           </Field>
           <Field label="Visibility">
-            <Select
-              aria-invalid={Boolean(form.formState.errors.visibility)}
-              {...form.register("visibility")}
-            >
-              <option value="all">All active members</option>
-              <option value="assigned">Assigned members only</option>
-            </Select>
+            <FormSelect
+              control={form.control}
+              name="visibility"
+              options={[
+                { value: "all", label: "All active members" },
+                { value: "assigned", label: "Assigned members only" },
+              ]}
+            />
           </Field>
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-2">
             <input

@@ -16,9 +16,9 @@ import {
   Input,
   Modal,
   PageHeader,
-  Select,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
+import { FormSelect } from "@/web/components/form-select";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
 import type { Member, Project } from "@/web/types";
@@ -338,15 +338,16 @@ function MemberEditor({
             />
           </Field>
           <Field label="Role">
-            <Select
+            <FormSelect
+              control={form.control}
+              name="role"
               disabled={!canManageIdentity}
-              aria-invalid={Boolean(form.formState.errors.role)}
-              {...form.register("role")}
-            >
-              <option value="member">Member</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Administrator</option>
-            </Select>
+              options={[
+                { value: "member", label: "Member" },
+                { value: "manager", label: "Manager" },
+                { value: "admin", label: "Administrator" },
+              ]}
+            />
           </Field>
           <Field label="Timezone">
             <Input
@@ -367,13 +368,14 @@ function MemberEditor({
           </Field>
           {member && canManageIdentity ? (
             <Field label="Account status">
-              <Select
-                aria-invalid={Boolean(form.formState.errors.status)}
-                {...form.register("status")}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </Select>
+              <FormSelect
+                control={form.control}
+                name="status"
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "inactive", label: "Inactive" },
+                ]}
+              />
             </Field>
           ) : null}
           {projects.isPending ? (

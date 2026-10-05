@@ -5,7 +5,7 @@ import { useMemo, useRef, useState } from "react";
 
 import { overlapDuration } from "@/domain/dates/time";
 import { useMe } from "@/web/app/context";
-import { Button, EmptyState, ErrorState, Modal } from "@/web/components/ui";
+import { Button, EmptyState, ErrorState, Modal, Select } from "@/web/components/ui";
 import { EntryEditor } from "@/web/features/time/entry-editor";
 import {
   addCalendarDays,
@@ -316,28 +316,27 @@ function TimesheetWeek({
                   {draftRows.some((draft) => draft.key === row.key) ? (
                     <div className="flex min-w-48 items-start gap-2">
                       <div className="space-y-1">
-                        <select
+                        <Select
                           aria-label="Draft row project"
                           disabled={createMutation.isPending}
-                          className="h-8 w-full rounded border border-white/12 bg-[#1b1b1b] px-2 text-slate-200"
+                          className="h-8 min-h-8 rounded-md px-2 py-0 text-sm"
                           value={row.projectId ?? ""}
-                          onChange={(event) =>
+                          onValueChange={(projectId) =>
                             setDraftRows((current) =>
                               current.map((draft) =>
-                                draft.key === row.key
-                                  ? { ...draft, projectId: event.target.value }
-                                  : draft,
+                                draft.key === row.key ? { ...draft, projectId } : draft,
                               ),
                             )
                           }
-                        >
-                          <option value="">Without project</option>
-                          {(projects.data?.projects ?? []).map((project) => (
-                            <option key={project.id} value={project.id}>
-                              {project.name}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: "", label: "Without project" },
+                            ...(projects.data?.projects ?? []).map((project) => ({
+                              value: project.id,
+                              label: project.name,
+                              color: project.color,
+                            })),
+                          ]}
+                        />
                         <input
                           aria-label="Draft row description"
                           maxLength={500}

@@ -9,7 +9,8 @@ import { z } from "zod";
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import { localDateTimeToEpoch } from "@/domain/dates/time";
 import { useMe } from "@/web/app/context";
-import { Button, Field, Input, Modal, Select } from "@/web/components/ui";
+import { FormSelect } from "@/web/components/form-select";
+import { Button, Field, Input, Modal } from "@/web/components/ui";
 import { ApiClientError, apiRequest } from "@/web/lib/api";
 import { formatClockDuration, parseClockDuration } from "@/web/lib/format";
 import type { Project, Tag, TimeEntry } from "@/web/types";
@@ -421,14 +422,18 @@ export function EntryEditor({
             <Input placeholder="What did you work on?" {...form.register("description")} />
           </Field>
           <Field label="Project">
-            <Select {...form.register("project_id")}>
-              <option value="">No project</option>
-              {availableProjects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {projectOptionLabel(project)}
-                </option>
-              ))}
-            </Select>
+            <FormSelect
+              control={form.control}
+              name="project_id"
+              options={[
+                { value: "", label: "No project" },
+                ...availableProjects.map((project) => ({
+                  value: project.id,
+                  label: projectOptionLabel(project),
+                  color: project.color,
+                })),
+              ]}
+            />
           </Field>
           <div className="grid min-w-0 gap-3 sm:grid-cols-2">
             <DateTimeFields

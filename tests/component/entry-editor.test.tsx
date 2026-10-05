@@ -204,7 +204,7 @@ describe("entry editor", () => {
     const user = userEvent.setup();
     const { queryClient } = renderEditor({ projects: [], tags: [] });
 
-    expect(await screen.findByLabelText("Project")).toHaveDisplayValue("Helix3D • Upwork");
+    expect(await screen.findByLabelText("Project")).toHaveTextContent("Helix3D • Upwork");
     expect(screen.getByLabelText("Legacy")).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Save entry" }));

@@ -74,6 +74,7 @@ interface DetailedRow {
   amount_minor?: number | null;
 }
 
+const GROUP_DIMENSIONS = ["client", "project", "member", "day", "week", "month", "description"];
 const chartColors = ["#f59e0b", "#56b4e9", "#e69f00", "#009e73", "#f0e442", "#cc79a7"];
 export function ReportsPage() {
   const me = useMe();
@@ -111,6 +112,9 @@ export function ReportsPage() {
     queryKey: ["clients", "reports"],
     queryFn: () => apiRequest<{ clients: Client[] }>("/clients"),
   });
+  const pdfClientProjects = (projects.data?.projects ?? []).filter(
+    (project) => project.client_id === clientId,
+  );
   const tags = useQuery({
     queryKey: ["tags", "reports"],
     queryFn: () => apiRequest<{ tags: Tag[] }>("/tags"),
@@ -342,16 +346,17 @@ export function ReportsPage() {
             <Select
               className="w-48"
               value={sort}
-              onChange={(event) => {
-                setSort(event.target.value);
+              onValueChange={(value) => {
+                setSort(value);
                 setCursor("");
               }}
               aria-label="Detailed report sort"
-            >
-              <option value="started_desc">Newest first</option>
-              <option value="started_asc">Oldest first</option>
-              <option value="duration_desc">Longest first</option>
-            </Select>
+              options={[
+                { value: "started_desc", label: "Newest first" },
+                { value: "started_asc", label: "Oldest first" },
+                { value: "duration_desc", label: "Longest first" },
+              ]}
+            />
             <div className="flex gap-2">
               {cursor ? (
                 <Button variant="secondary" onClick={() => setCursor("")}>
@@ -402,11 +407,11 @@ export function ReportsPage() {
           <Field label="Client" hint="PDFs use one client and the current report filters.">
             <Select
               value={clientId}
-              onChange={(event) => {
+              placeholder="Select a client"
+              onValueChange={(id) => {
                 const otherFilters = { ...filters };
                 delete otherFilters.project;
                 delete otherFilters.client;
-                const id = event.target.value;
                 changeFilters(
                   id
                     ? { ...otherFilters, client: { condition: "is", values: [id] } }
@@ -415,35 +420,50 @@ export function ReportsPage() {
                 setClientId(id);
                 setPdfProjectIds([]);
               }}
-            >
-              <option value="">Select a client</option>
-              {(clients.data?.clients ?? []).map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </Select>
+              options={(clients.data?.clients ?? []).map((client) => ({
+                value: client.id,
+                label: client.name,
+              }))}
+            />
           </Field>
-          <Field label="Projects" hint="Leave empty to include every project for the client.">
-            <Select
-              multiple
-              className="min-h-28"
-              value={pdfProjectIds}
-              onChange={(event) =>
-                setPdfProjectIds(
-                  [...event.currentTarget.selectedOptions].map((option) => option.value),
-                )
-              }
-            >
-              {(projects.data?.projects ?? [])
-                .filter((project) => project.client_id === clientId)
-                .map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-            </Select>
-          </Field>
+          <fieldset className="grid min-w-0 gap-1.5 border-0 p-0">
+            <legend className="mb-1.5 text-sm font-medium text-[#a4a4a4]">Projects</legend>
+            <div className="border-hourlark-control-border max-h-40 min-h-10 overflow-y-auto rounded-lg border bg-[#1b1b1b] p-1">
+              {pdfClientProjects.length ? (
+                pdfClientProjects.map((project) => (
+                  <label
+                    key={project.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-[#fafafa] hover:bg-white/7"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={pdfProjectIds.includes(project.id)}
+                      onChange={(event) =>
+                        setPdfProjectIds((current) =>
+                          event.target.checked
+                            ? [...current, project.id]
+                            : current.filter((id) => id !== project.id),
+                        )
+                      }
+                    />
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{project.name}</span>
+                  </label>
+                ))
+              ) : (
+                <p className="px-2.5 py-1.5 text-sm text-[#a4a4a4]">
+                  {clientId ? "This client has no projects." : "Select a client first."}
+                </p>
+              )}
+            </div>
+            <span className="text-xs text-[#a4a4a4]">
+              Leave empty to include every project for the client.
+            </span>
+          </fieldset>
           <Field label="Report title">
             <Input value={pdfTitle} onChange={(event) => setPdfTitle(event.target.value)} />
           </Field>
@@ -460,11 +480,12 @@ export function ReportsPage() {
           <Field label="Group rows by">
             <Select
               value={pdfGrouping}
-              onChange={(event) => setPdfGrouping(event.target.value as typeof pdfGrouping)}
-            >
-              <option value="project">Project</option>
-              <option value="date">Date</option>
-            </Select>
+              onValueChange={(value) => setPdfGrouping(value as typeof pdfGrouping)}
+              options={[
+                { value: "project", label: "Project" },
+                { value: "date", label: "Date" },
+              ]}
+            />
           </Field>
           <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3">
             <legend className="px-1 text-sm font-semibold">Visible detail</legend>
@@ -675,34 +696,28 @@ function SummaryContent({
           </h2>
           <div className="flex flex-wrap gap-2">
             <Select
-              className="h-8 min-h-8 w-auto text-xs"
+              className="h-8 min-h-8 w-auto px-2.5 py-0 text-xs"
               aria-label="Primary group"
               value={groupBy}
-              onChange={(event) => onGroupChange(event.target.value)}
-            >
-              {["client", "project", "member", "day", "week", "month", "description"].map(
-                (value) => (
-                  <option key={value} value={value}>
-                    Breakdown by: {value}
-                  </option>
-                ),
-              )}
-            </Select>
+              onValueChange={onGroupChange}
+              options={GROUP_DIMENSIONS.map((value) => ({
+                value,
+                label: `Breakdown by: ${value}`,
+              }))}
+            />
             <Select
-              className="h-8 min-h-8 w-auto text-xs"
+              className="h-8 min-h-8 w-auto px-2.5 py-0 text-xs"
               aria-label="Secondary group"
               value={secondary}
-              onChange={(event) => onSecondaryChange(event.target.value)}
-            >
-              <option value="">and: None</option>
-              {["client", "project", "member", "day", "week", "month", "description"]
-                .filter((value) => value !== groupBy)
-                .map((value) => (
-                  <option key={value} value={value}>
-                    and: {value}
-                  </option>
-                ))}
-            </Select>
+              onValueChange={onSecondaryChange}
+              options={[
+                { value: "", label: "and: None" },
+                ...GROUP_DIMENSIONS.filter((value) => value !== groupBy).map((value) => ({
+                  value,
+                  label: `and: ${value}`,
+                })),
+              ]}
+            />
           </div>
         </div>
         <div className="overflow-x-auto">

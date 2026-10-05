@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { chooseOption } from "./select-helpers";
+
 test("report filters, CSV and PDF downloads, errors and mobile layout", async ({ page }) => {
   await page.goto("/reports");
   await page.getByRole("button", { name: "Report date range" }).click();
@@ -37,7 +39,7 @@ test("report filters, CSV and PDF downloads, errors and mobile layout", async ({
   await page.getByRole("button", { name: "Time Report PDF", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Client-ready Time Report" });
   await expect(dialog.getByRole("button", { name: "Generate PDF" })).toBeDisabled();
-  await dialog.getByRole("combobox").first().selectOption({ label: "Internal" });
+  await chooseOption(dialog.getByRole("combobox").first(), "Internal");
   await dialog.getByRole("textbox", { name: "Report title", exact: true }).fill("Workflow report");
   await page.route("**/api/v1/exports/pdf", (route) =>
     route.fulfill({

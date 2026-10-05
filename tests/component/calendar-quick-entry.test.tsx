@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CalendarQuickEntry } from "@/web/features/time/calendar-quick-entry";
 import type { MeResponse, Project, Role, Tag } from "@/web/types";
+import { chooseOption } from "./select-helpers";
 
 const { apiRequestMock } = vi.hoisted(() => ({
   apiRequestMock: vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>(),
@@ -162,7 +163,7 @@ describe("calendar quick entry", () => {
     );
     renderQuickEntry();
 
-    await user.selectOptions(await screen.findByLabelText("New entry project"), helixProject.id);
+    await chooseOption(user, await screen.findByLabelText("New entry project"), /^Helix3D/);
     expect(screen.getByRole("button", { name: "Mark non-billable" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -189,7 +190,7 @@ describe("calendar quick entry", () => {
     renderQuickEntry();
 
     expect(screen.queryByRole("button", { name: /billable/i })).not.toBeInTheDocument();
-    await user.selectOptions(await screen.findByLabelText("New entry project"), helixProject.id);
+    await chooseOption(user, await screen.findByLabelText("New entry project"), /^Helix3D/);
     await user.type(screen.getByLabelText("New entry description"), "Member work{Enter}");
 
     await waitFor(() => expect(apiRequestMock).toHaveBeenCalled());

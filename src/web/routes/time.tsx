@@ -644,28 +644,27 @@ export function TimePage() {
           <>
             {view === "calendar" ? (
               <Select
-                className="h-7 min-h-7 w-28 text-xs"
+                className="h-7 min-h-7 w-28 gap-1.5 px-2 py-0 text-xs"
                 value={calendarMode}
-                onChange={(event) => setCalendarMode(event.target.value as "week" | "day")}
+                onValueChange={(value) => setCalendarMode(value as "week" | "day")}
                 aria-label="Calendar density"
-              >
-                <option value="week">Week view</option>
-                <option value="day">Day view</option>
-              </Select>
+                options={[
+                  { value: "week", label: "Week view" },
+                  { value: "day", label: "Day view" },
+                ]}
+              />
             ) : null}
             {me.permissions.view_team ? (
               <Select
-                className="h-7 min-h-7 w-auto max-w-[10rem] min-w-0 text-xs"
+                className="h-7 min-h-7 w-auto max-w-[10rem] min-w-0 gap-1.5 px-2 py-0 text-xs"
                 value={memberId}
-                onChange={(event) => setMemberId(event.target.value)}
+                onValueChange={setMemberId}
                 aria-label="Timer member"
-              >
-                {(members.data?.members ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.display_name}
-                  </option>
-                ))}
-              </Select>
+                options={(members.data?.members ?? []).map((member) => ({
+                  value: member.id,
+                  label: member.display_name,
+                }))}
+              />
             ) : null}
           </>
         }
