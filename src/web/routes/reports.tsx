@@ -1,14 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  FileText,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, FileText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -24,16 +16,13 @@ import {
 
 import { useMe } from "@/web/app/context";
 import { Badge, Button, ErrorState, Field, Input, Modal, Select } from "@/web/components/ui";
-import { useRestoreFocus } from "@/web/features/timer/use-dismiss-popover";
-import { DateRangePopover } from "@/web/features/timer/date-range-popover";
+import { ReportFilterBar, type ReportFilters } from "@/web/features/reports/report-filter-bar";
+import { ReportDateFilter } from "@/web/features/reports/report-date-filter";
 import {
   addCalendarDays,
   exclusiveEndIso,
   inclusiveDayCount,
-  parseYearMonth,
-  shiftYearMonth,
   startOfWeekDate,
-  yearMonthKey,
   zonedDayStartIso,
   zonedToday,
 } from "@/web/features/timer/list-date-range";
@@ -86,39 +75,6 @@ interface DetailedRow {
 }
 
 const chartColors = ["#f59e0b", "#56b4e9", "#e69f00", "#009e73", "#f0e442", "#cc79a7"];
-const SHORT_MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-function reportDayLabel(dateStr: string): string {
-  const month = SHORT_MONTHS[Number(dateStr.slice(5, 7)) - 1] ?? "";
-  return `${Number(dateStr.slice(8, 10))} ${month} ${dateStr.slice(0, 4)}`;
-}
-
-function monthRange(year: number, month: number): { start: string; end: string } {
-  const start = `${yearMonthKey(year, month)}-01`;
-  const next = shiftYearMonth(year, month, 1);
-  return { start, end: addCalendarDays(`${yearMonthKey(next.year, next.month)}-01`, -1) };
-}
-
-function quarterRange(year: number, month: number): { start: string; end: string } {
-  const quarterMonth = Math.floor((month - 1) / 3) * 3 + 1;
-  const start = `${yearMonthKey(year, quarterMonth)}-01`;
-  const next = shiftYearMonth(year, quarterMonth, 3);
-  return { start, end: addCalendarDays(`${yearMonthKey(next.year, next.month)}-01`, -1) };
-}
-
 export function ReportsPage() {
   const me = useMe();
   const weekStartsOn = me.workspace.week_start === "monday" ? 1 : 0;
@@ -127,20 +83,10 @@ export function ReportsPage() {
   const [mode, setMode] = useState<"summary" | "detailed">("summary");
   const [start, setStart] = useState(initialWeek);
   const [end, setEnd] = useState(addCalendarDays(initialWeek, 6));
-  const [datesOpen, setDatesOpen] = useState(false);
-  const dateTrigger = useRef<HTMLButtonElement>(null);
-  const [restoreDateFocus, setRestoreDateFocus] = useState(false);
-  useRestoreFocus(datesOpen, dateTrigger, restoreDateFocus, () => setRestoreDateFocus(false));
-  const moreFilters = useRef<HTMLDetailsElement>(null);
   const [exportError, setExportError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [clientId, setClientId] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [memberId, setMemberId] = useState("");
-  const [tagId, setTagId] = useState("");
-  const [billable, setBillable] = useState("");
-  const [running, setRunning] = useState("");
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<ReportFilters>({});
   const [groupBy, setGroupBy] = useState("project");
   const [secondary, setSecondary] = useState("");
   const [sort, setSort] = useState("started_desc");
@@ -157,26 +103,6 @@ export function ReportsPage() {
   const [pdfShowTags, setPdfShowTags] = useState(me.workspace.report_show_tags ?? true);
   const [pdfShowRates, setPdfShowRates] = useState(true);
   const [pdfGrouping, setPdfGrouping] = useState<"project" | "date">("project");
-  useEffect(() => {
-    const dismiss = (event: PointerEvent) => {
-      if (moreFilters.current && !moreFilters.current.contains(event.target as Node))
-        moreFilters.current.open = false;
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (moreFilters.current?.open) {
-        moreFilters.current.open = false;
-        moreFilters.current.querySelector("summary")?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", dismiss);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", dismiss);
-      document.removeEventListener("keydown", escape);
-    };
-  }, []);
-
   const projects = useQuery({
     queryKey: ["projects", "reports"],
     queryFn: () => apiRequest<{ projects: Project[] }>("/projects"),
@@ -195,36 +121,47 @@ export function ReportsPage() {
     enabled: me.permissions.view_team,
   });
 
-  const common = useMemo(
-    () => ({
+  const changeFilters = (next: ReportFilters) => {
+    if (JSON.stringify(next.client) !== JSON.stringify(filters.client)) {
+      setClientId(
+        next.client?.condition === "is" && next.client.values.length === 1
+          ? (next.client.values[0] ?? "")
+          : "",
+      );
+      setPdfProjectIds([]);
+    }
+    setFilters(next);
+  };
+  const common = useMemo(() => {
+    const query: Record<string, string> = {
       start: zonedDayStartIso(start, me.member.timezone),
       end: exclusiveEndIso(end, me.member.timezone),
       timezone: me.member.timezone,
       group_by: groupBy,
       ...(secondary ? { secondary_group_by: secondary } : {}),
-      ...(clientId ? { client_id: clientId } : {}),
-      ...(projectId ? { project_id: projectId } : {}),
-      ...(memberId ? { member_id: memberId } : {}),
-      ...(tagId ? { tag_id: tagId } : {}),
-      ...(billable ? { billable } : {}),
-      ...(running ? { running } : {}),
-      ...(search ? { search } : {}),
-    }),
-    [
-      billable,
-      clientId,
-      end,
-      groupBy,
-      me.member.timezone,
-      memberId,
-      projectId,
-      running,
-      search,
-      secondary,
-      start,
-      tagId,
-    ],
-  );
+    };
+    for (const [key, parameter] of [
+      ["member", "member_ids"],
+      ["client", "client_ids"],
+      ["project", "filter_project_ids"],
+      ["tag", "tag_ids"],
+    ] as const) {
+      const filter = filters[key];
+      if (!filter) continue;
+      query[`${key}_condition`] = filter.condition;
+      if (filter.condition === "is" && filter.values.length)
+        query[parameter] = filter.values.join(",");
+    }
+    if (filters.description) {
+      query.description_condition = filters.description.condition;
+      if (filters.description.condition !== "is_empty")
+        query.search = filters.description.text ?? "";
+    }
+    for (const key of ["billable", "running"] as const) {
+      if (filters[key]?.values[0]) query[key] = filters[key].values[0];
+    }
+    return query;
+  }, [filters, end, groupBy, me.member.timezone, secondary, start]);
   useEffect(() => setCursor(""), [common]);
   const searchParams = new URLSearchParams(common);
   const summary = useQuery({
@@ -249,7 +186,7 @@ export function ReportsPage() {
     enabled: mode === "detailed",
   });
 
-  const dailyParams = { ...common, group_by: "day" };
+  const dailyParams: Record<string, string> = { ...common, group_by: "day" };
   delete dailyParams.secondary_group_by;
   const daily = useQuery({
     queryKey: ["reports", "summary", dailyParams],
@@ -258,54 +195,6 @@ export function ReportsPage() {
     enabled: mode === "summary",
   });
   const dayCount = Math.max(1, inclusiveDayCount(start, end));
-  const dateLabel = `${reportDayLabel(start)} – ${reportDayLabel(end)}`;
-  const applyRange = (first: string, last: string) => {
-    setStart(first);
-    setEnd(last);
-    setDatesOpen(false);
-    setRestoreDateFocus(datesOpen);
-  };
-  const setPreset = (preset: string) => {
-    const today = zonedToday(new Date(), me.member.timezone);
-    const { year, month } = parseYearMonth(today);
-    const week = startOfWeekDate(today, weekStartsOn);
-    if (preset === "today") applyRange(today, today);
-    else if (preset === "yesterday") {
-      const day = addCalendarDays(today, -1);
-      applyRange(day, day);
-    } else if (preset === "this_week") applyRange(week, addCalendarDays(week, 6));
-    else if (preset === "last_week") {
-      const previous = addCalendarDays(week, -7);
-      applyRange(previous, addCalendarDays(previous, 6));
-    } else if (preset === "this_month") {
-      const range = monthRange(year, month);
-      applyRange(range.start, range.end);
-    } else if (preset === "last_month") {
-      const previous = shiftYearMonth(year, month, -1);
-      const range = monthRange(previous.year, previous.month);
-      applyRange(range.start, range.end);
-    } else if (preset === "this_quarter") {
-      const range = quarterRange(year, month);
-      applyRange(range.start, range.end);
-    } else if (preset === "this_year") applyRange(`${year}-01-01`, `${year}-12-31`);
-  };
-  const movePeriod = (direction: number) =>
-    applyRange(
-      addCalendarDays(start, dayCount * direction),
-      addCalendarDays(end, dayCount * direction),
-    );
-  const resetFilters = () => {
-    setClientId("");
-    setProjectId("");
-    setMemberId("");
-    setTagId("");
-    setBillable("");
-    setRunning("");
-    setSearch("");
-  };
-  const filtersActive = Boolean(
-    clientId || projectId || memberId || tagId || billable || running || search,
-  );
   const exportCsv = () => apiDownload("/exports/csv", { ...common, mode }, `hourlark-${mode}.csv`);
   const downloadCsv = async () => {
     if (exporting) return;
@@ -392,180 +281,35 @@ export function ReportsPage() {
           {exportError}
         </p>
       ) : null}
-      <section
-        aria-label="Report filters"
-        className="mb-5 flex flex-wrap items-center gap-2 border-b border-[#3b3b3b] pb-5"
-      >
-        <div className="relative flex h-9 w-full max-w-[322px] shrink-0 rounded-lg border border-[#3b3b3b]">
-          <button
-            type="button"
-            aria-label="Previous report period"
-            className="px-2 text-[#a4a4a4] hover:text-white"
-            onClick={() => movePeriod(-1)}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            type="button"
-            aria-expanded={datesOpen}
-            ref={dateTrigger}
-            aria-label="Report date range"
-            className="flex min-w-0 flex-1 items-center justify-center gap-2 text-xs font-semibold"
-            onClick={() => {
-              setDatesOpen(!datesOpen);
-            }}
-          >
-            <CalendarDays size={15} />
-            <span className="truncate">{dateLabel}</span>
-          </button>
-          <button
-            type="button"
-            aria-label="Next report period"
-            className="px-2 text-[#a4a4a4] hover:text-white"
-            onClick={() => movePeriod(1)}
-          >
-            <ChevronRight size={16} />
-          </button>
-          <DateRangePopover
-            open={datesOpen}
-            timezone={me.member.timezone}
-            weekStartsOn={me.workspace.week_start === "monday" ? 1 : 0}
-            value={{ preset: "custom", startDate: start, endDate: end }}
-            now={new Date()}
-            triggerRef={dateTrigger}
-            ariaLabel="Choose report dates"
-            onChange={(next) => {
-              if (next.startDate && next.endDate) applyRange(next.startDate, next.endDate);
-            }}
-            onClose={(restore) => {
-              setDatesOpen(false);
-              setRestoreDateFocus(restore);
-            }}
-            reset={{ label: "Reset to This week", onClick: () => setPreset("this_week") }}
-            presets={(
-              [
-                ["today", "Today"],
-                ["yesterday", "Yesterday"],
-                ["this_week", "This week"],
-                ["last_week", "Last week"],
-                ["this_month", "This month"],
-                ["last_month", "Last month"],
-                ["this_quarter", "This quarter"],
-                ["this_year", "This year"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                type="button"
-                key={value}
-                className="rounded-md px-2 py-1.5 text-left text-sm text-[#fafafa] hover:bg-white/8"
-                onClick={() => setPreset(value)}
-              >
-                {label}
-              </button>
-            ))}
-          />
-        </div>
-        {me.permissions.view_team ? (
-          <Select
-            className="h-9 min-h-9 w-auto max-w-[180px] text-xs"
-            aria-label="Member"
-            value={memberId}
-            onChange={(event) => setMemberId(event.target.value)}
-          >
-            <option value="">Member: All</option>
-            {(members.data?.members ?? []).map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.display_name}
-              </option>
-            ))}
-          </Select>
-        ) : null}
-        <Select
-          className="h-9 min-h-9 w-auto max-w-[180px] text-xs"
-          aria-label="Client"
-          value={clientId}
-          onChange={(event) => {
-            setClientId(event.target.value);
-            setProjectId("");
-            setPdfProjectIds([]);
-          }}
-        >
-          <option value="">Client: All</option>
-          {(clients.data?.clients ?? []).map((client) => (
-            <option key={client.id} value={client.id}>
-              {client.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          className="h-9 min-h-9 w-auto max-w-[180px] text-xs"
-          aria-label="Project"
-          value={projectId}
-          onChange={(event) => setProjectId(event.target.value)}
-        >
-          <option value="">Project: All</option>
-          {(projects.data?.projects ?? [])
-            .filter((project) => !clientId || project.client_id === clientId)
-            .map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-        </Select>
-        <Select
-          className="h-9 min-h-9 w-auto max-w-[150px] text-xs"
-          aria-label="Tag"
-          value={tagId}
-          onChange={(event) => setTagId(event.target.value)}
-        >
-          <option value="">Tag: All</option>
-          {(tags.data?.tags ?? []).map((tag) => (
-            <option key={tag.id} value={tag.id}>
-              {tag.name}
-            </option>
-          ))}
-        </Select>
-        <Input
-          className="h-9 min-h-9 w-40 text-xs"
-          aria-label="Description"
-          placeholder="Description"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+      <section className="mb-5 border-b border-[#3b3b3b] pb-3">
+        <ReportFilterBar
+          filters={filters}
+          onChange={changeFilters}
+          members={members.data?.members ?? []}
+          clients={clients.data?.clients ?? []}
+          projects={projects.data?.projects ?? []}
+          tags={tags.data?.tags ?? []}
+          canViewTeam={me.permissions.view_team}
+          currentMemberName={me.member.displayName}
+          loading={
+            clients.isLoading ||
+            projects.isLoading ||
+            tags.isLoading ||
+            (members.isLoading && me.permissions.view_team)
+          }
+          dateControl={
+            <ReportDateFilter
+              start={start}
+              end={end}
+              today={initialToday}
+              weekStartsOn={weekStartsOn}
+              onChange={(range) => {
+                setStart(range.start);
+                setEnd(range.end);
+              }}
+            />
+          }
         />
-        <details ref={moreFilters} className="relative">
-          <summary
-            role="button"
-            aria-label="More filters"
-            className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-[#3b3b3b] px-3 text-xs text-[#a4a4a4]"
-          >
-            <SlidersHorizontal size={14} /> More filters{billable || running ? " •" : ""}
-          </summary>
-          <div className="timer-popover fixed top-1/2 left-1/2 z-20 grid max-h-[80dvh] w-[min(92vw,256px)] -translate-x-1/2 -translate-y-1/2 gap-3 overflow-y-auto p-3 sm:absolute sm:top-11 sm:right-0 sm:left-auto sm:max-h-none sm:translate-x-0 sm:translate-y-0">
-            <Field label="Billing">
-              <Select value={billable} onChange={(event) => setBillable(event.target.value)}>
-                <option value="">All time</option>
-                <option value="true">Billable</option>
-                <option value="false">Non-billable</option>
-              </Select>
-            </Field>
-            <Field label="Entry status">
-              <Select value={running} onChange={(event) => setRunning(event.target.value)}>
-                <option value="">Completed and running</option>
-                <option value="false">Completed</option>
-                <option value="true">Running</option>
-              </Select>
-            </Field>
-          </div>
-        </details>
-        {filtersActive ? (
-          <button
-            type="button"
-            className="flex h-9 items-center gap-1 px-2 text-xs text-[#fbbf24]"
-            onClick={resetFilters}
-          >
-            <X size={14} /> Clear filters
-          </button>
-        ) : null}
       </section>
       {summary.error ? (
         <ErrorState message={summary.error.message} onRetry={() => void summary.refetch()} />
@@ -655,12 +399,20 @@ export function ReportsPage() {
               {exportError}
             </p>
           ) : null}
-          <Field label="Client" hint="Select the client in the report filters before exporting.">
+          <Field label="Client" hint="PDFs use one client and the current report filters.">
             <Select
               value={clientId}
               onChange={(event) => {
-                setClientId(event.target.value);
-                setProjectId("");
+                const otherFilters = { ...filters };
+                delete otherFilters.project;
+                delete otherFilters.client;
+                const id = event.target.value;
+                changeFilters(
+                  id
+                    ? { ...otherFilters, client: { condition: "is", values: [id] } }
+                    : otherFilters,
+                );
+                setClientId(id);
                 setPdfProjectIds([]);
               }}
             >

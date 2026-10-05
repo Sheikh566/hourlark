@@ -116,7 +116,7 @@ test("entry edit targets open directly and reports use inclusive member-local da
     .getByRole("button", { name: "Today", exact: true })
     .click();
   expect((await todayQuery).ok()).toBe(true);
-  const today = formatInTimeZone(new Date(), me.member.timezone, "yyyy-MM-dd");
+  const today = formatInTimeZone(new Date(), me.member.timezone, "dd/MM/yyyy");
   await page.getByRole("button", { name: "Report date range" }).click();
   await expect(page.getByLabel("Range start date")).toHaveValue(today);
   await expect(page.getByLabel("Range end date")).toHaveValue(today);

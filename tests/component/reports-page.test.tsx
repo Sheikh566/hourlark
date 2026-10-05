@@ -12,19 +12,19 @@ import { ReportsPage } from "@/web/routes/reports";
 const { apiRequestMock, apiDownloadMock, identity } = vi.hoisted(() => ({
   apiRequestMock: vi.fn<(path: string) => Promise<unknown>>(),
   apiDownloadMock: vi.fn(),
-  identity: { timezone: "Asia/Karachi", financial: true, reportDetails: true },
+  identity: { timezone: "Asia/Karachi", financial: true, reportDetails: true, team: true },
 }));
 vi.mock("@/web/lib/api", () => ({ apiRequest: apiRequestMock, apiDownload: apiDownloadMock }));
 vi.mock("@/web/app/context", () => ({
   useMe: () => ({
-    member: { timezone: identity.timezone },
+    member: { id: "m1", displayName: "Member", timezone: identity.timezone },
     workspace: {
       week_start: "monday",
       report_show_members: identity.reportDetails,
       report_show_descriptions: identity.reportDetails,
       report_show_tags: identity.reportDetails,
     },
-    permissions: { view_team: true, export: true, financial: identity.financial },
+    permissions: { view_team: identity.team, export: true, financial: identity.financial },
   }),
 }));
 vi.mock("recharts", () => {
@@ -58,6 +58,24 @@ function summaryRequests() {
     .filter((url) => url.pathname === "/reports/summary");
 }
 
+async function selectFilter(label: string, names: Array<string | RegExp>) {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: new RegExp(`^${label}(?::|$)`) }));
+  const dialog = screen.getByRole("dialog", { name: `${label} filter` });
+  for (const name of names) await user.click(await within(dialog).findByRole("checkbox", { name }));
+  await user.click(within(dialog).getByRole("button", { name: /^(Add|Update)$/ }));
+}
+
+function requestFilters(url: URL) {
+  return Object.fromEntries(
+    [...url.searchParams].filter(
+      ([key]) =>
+        ["client_ids", "tag_ids", "filter_project_ids", "search"].includes(key) ||
+        key.endsWith("_condition"),
+    ),
+  );
+}
+
 describe("report date and filter workflow", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -65,6 +83,7 @@ describe("report date and filter workflow", () => {
     identity.timezone = "Asia/Karachi";
     identity.financial = true;
     identity.reportDetails = true;
+    identity.team = true;
     apiDownloadMock.mockReset();
     apiDownloadMock.mockResolvedValue(undefined);
     apiRequestMock.mockReset();
@@ -90,7 +109,13 @@ describe("report date and filter workflow", () => {
             { id: "c2", name: "Another client" },
           ],
         });
-      if (path === "/tags") return Promise.resolve({ tags: [] });
+      if (path === "/tags")
+        return Promise.resolve({
+          tags: [
+            { id: "t1", name: "Review" },
+            { id: "t2", name: "Delivery" },
+          ],
+        });
       if (path === "/members") return Promise.resolve({ members: [] });
       if (path.startsWith("/reports/detailed?"))
         return Promise.resolve({ entries: [], next_cursor: null });
@@ -107,13 +132,15 @@ describe("report date and filter workflow", () => {
     renderPage();
     await screen.findByText("Total Hours");
     expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
-      "5 Oct 2026 – 11 Oct 2026",
+      "This week · W41",
     );
     const request = summaryRequests()[0];
     expect(request?.searchParams.get("start")).toBe("2026-10-04T19:00:00.000Z");
     expect(request?.searchParams.get("end")).toBe("2026-10-11T19:00:00.000Z");
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Report date range" }));
+    expect(screen.getByLabelText("Range start date")).toHaveValue("05/10/2026");
+    expect(screen.getByLabelText("Range end date")).toHaveValue("11/10/2026");
     await user.click(screen.getByRole("button", { name: "Today" }));
     await waitFor(() =>
       expect(
@@ -130,7 +157,7 @@ describe("report date and filter workflow", () => {
       renderPage();
       await screen.findByText("Total Hours");
       expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
-        "5 Oct 2026 – 11 Oct 2026",
+        "This week · W41",
       );
       const request = summaryRequests()[0];
       expect(request?.searchParams.get("start")).toBe("2026-10-04T19:00:00.000Z");
@@ -230,13 +257,11 @@ describe("report date and filter workflow", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Report date range" }));
     await user.clear(screen.getByLabelText("Range start date"));
-    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
-    await user.type(screen.getByLabelText("Range start date"), "2026-11-01");
-    expect(screen.getByLabelText("Range start date")).toHaveValue("2026-11-01");
+    await user.type(screen.getByLabelText("Range start date"), "01/11/2026");
+    expect(screen.getByLabelText("Range start date")).toHaveValue("01/11/2026");
     await user.clear(screen.getByLabelText("Range end date"));
-    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
-    await user.type(screen.getByLabelText("Range end date"), "2026-11-01");
-    await user.click(screen.getByRole("button", { name: "Apply" }));
+    await user.type(screen.getByLabelText("Range end date"), "01/11/2026");
+    await user.keyboard("{Enter}");
     await waitFor(() =>
       expect(
         summaryRequests().some(
@@ -246,14 +271,17 @@ describe("report date and filter workflow", () => {
         ),
       ).toBe(true),
     );
+    expect(screen.getByRole("dialog", { name: "Choose report dates" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Report date range" })).toHaveFocus();
   });
 
   it("uses workspace PDF defaults, shows export errors and allows retry", async () => {
     identity.reportDetails = false;
     renderPage();
     const user = userEvent.setup();
-    await screen.findByRole("option", { name: "IOMechs" });
-    await user.selectOptions(screen.getByRole("combobox", { name: "Client" }), "c1");
+    await screen.findByText("Total Hours");
+    await selectFilter("Client", ["IOMechs"]);
     await user.click(screen.getByRole("button", { name: "Time Report PDF" }));
     const dialog = screen.getByRole("dialog", { name: "Client-ready Time Report" });
     expect(within(dialog).getByRole("checkbox", { name: "Member names" })).not.toBeChecked();
@@ -278,11 +306,100 @@ describe("report date and filter workflow", () => {
     );
   });
 
+  it.each(["contains", "is_empty"])(
+    "shares multiselect and description %s filters across report views and exports",
+    async (condition) => {
+      renderPage();
+      const user = userEvent.setup();
+      await screen.findByText("Total Hours");
+      await selectFilter("Client", ["IOMechs", "Another client"]);
+      if (condition === "contains") {
+        await selectFilter("Tag", ["Review", "Delivery"]);
+      } else {
+        await user.click(screen.getByRole("button", { name: "Tag" }));
+        const tagDialog = screen.getByRole("dialog", { name: "Tag filter" });
+        await user.click(within(tagDialog).getByRole("button", { name: "Condition" }));
+        await user.click(within(tagDialog).getByRole("option", { name: "is empty" }));
+        await user.click(within(tagDialog).getByRole("button", { name: "Add" }));
+      }
+      await user.click(screen.getByRole("button", { name: "Description" }));
+      const descriptionDialog = screen.getByRole("dialog", { name: "Description filter" });
+      await user.click(within(descriptionDialog).getByRole("button", { name: "Condition" }));
+      await user.click(
+        within(descriptionDialog).getByRole("option", {
+          name: condition === "contains" ? "contains" : "is empty",
+        }),
+      );
+      if (condition === "contains")
+        await user.type(
+          within(descriptionDialog).getByRole("textbox", { name: "Match criteria" }),
+          "handoff",
+        );
+      await user.click(within(descriptionDialog).getByRole("button", { name: "Add" }));
+      const expected = {
+        client_ids: "c1,c2",
+        client_condition: "is",
+        tag_condition: condition === "contains" ? "is" : "is_empty",
+        description_condition: condition,
+        ...(condition === "contains" ? { tag_ids: "t1,t2", search: "handoff" } : {}),
+      };
+      for (const groupBy of ["project", "day"]) {
+        await waitFor(() =>
+          expect(
+            summaryRequests()
+              .filter((url) => url.searchParams.get("group_by") === groupBy)
+              .map(requestFilters),
+          ).toContainEqual(expected),
+        );
+      }
+      await user.click(screen.getByRole("tab", { name: "Detailed" }));
+      await waitFor(() => {
+        const detailed = apiRequestMock.mock.calls
+          .map(([path]) => new URL(path, "https://hourlark.test"))
+          .filter((url) => url.pathname === "/reports/detailed")
+          .at(-1);
+        expect(detailed && requestFilters(detailed)).toEqual(expected);
+      });
+      await user.click(screen.getByRole("button", { name: "Export CSV" }));
+      expect(apiDownloadMock).toHaveBeenLastCalledWith(
+        "/exports/csv",
+        expect.objectContaining({ ...expected, mode: "detailed" }),
+        "hourlark-detailed.csv",
+      );
+      await user.click(screen.getByRole("button", { name: "Time Report PDF" }));
+      const pdf = screen.getByRole("dialog", { name: "Client-ready Time Report" });
+      expect(within(pdf).getByRole("button", { name: "Generate PDF" })).toBeDisabled();
+      await user.selectOptions(within(pdf).getByRole("combobox", { name: /^Client/ }), "c1");
+      await user.selectOptions(within(pdf).getByLabelText(/^Projects/), ["p1"]);
+      await user.click(within(pdf).getByRole("button", { name: "Generate PDF" }));
+      expect(apiDownloadMock).toHaveBeenLastCalledWith(
+        "/exports/pdf",
+        expect.objectContaining({
+          ...expected,
+          client_ids: "c1",
+          client_id: "c1",
+          project_ids: ["p1"],
+        }),
+        "time-report.pdf",
+      );
+      await waitFor(() => {
+        const detailed = apiRequestMock.mock.calls
+          .map(([path]) => new URL(path, "https://hourlark.test"))
+          .filter((url) => url.pathname === "/reports/detailed")
+          .at(-1);
+        expect(detailed && requestFilters(detailed)).toEqual({ ...expected, client_ids: "c1" });
+      });
+    },
+  );
+
   it("keeps financial totals hidden from members", async () => {
     identity.financial = false;
+    identity.team = false;
     renderPage();
     const totals = await screen.findByLabelText("Report totals");
     expect(within(totals).queryByText("Amount")).not.toBeInTheDocument();
     expect(within(totals).getByText("Average Daily Hours")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Member" })).not.toBeInTheDocument();
+    expect(screen.getByText("Member is Member")).toBeVisible();
   });
 });

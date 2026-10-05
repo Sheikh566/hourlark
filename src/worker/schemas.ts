@@ -137,9 +137,25 @@ export const settingsUpdateSchema = z.object({
   report_show_members: z.boolean().optional(),
 });
 
+const reportIdsSchema = z
+  .string()
+  .max(8000)
+  .transform((value) => value.split(",").map((id) => id.trim()))
+  .pipe(z.array(idSchema).max(200))
+  .transform((ids) => [...new Set(ids)]);
+
 export const reportQuerySchema = entryListQuerySchema
   .omit({ include_deleted: true, limit: true })
   .extend({
+    member_ids: reportIdsSchema.optional(),
+    client_ids: reportIdsSchema.optional(),
+    filter_project_ids: reportIdsSchema.optional(),
+    tag_ids: reportIdsSchema.optional(),
+    member_condition: z.enum(["is", "is_active", "is_archived"]).optional(),
+    client_condition: z.enum(["is", "is_empty", "is_active", "is_archived"]).optional(),
+    project_condition: z.enum(["is", "is_empty", "is_active", "is_archived"]).optional(),
+    tag_condition: z.enum(["is", "is_empty"]).optional(),
+    description_condition: z.enum(["contains", "is", "is_empty"]).optional(),
     timezone: z.string().trim().min(1),
     group_by: z
       .enum(["client", "project", "member", "day", "week", "month", "description"])

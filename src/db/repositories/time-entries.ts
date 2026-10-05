@@ -163,6 +163,15 @@ export interface EntryListFilters {
   projectId?: string;
   clientId?: string;
   tagId?: string;
+  memberIds?: string[];
+  clientIds?: string[];
+  projectIds?: string[];
+  tagIds?: string[];
+  memberCondition?: "is" | "is_active" | "is_archived";
+  clientCondition?: "is" | "is_empty" | "is_active" | "is_archived";
+  projectCondition?: "is" | "is_empty" | "is_active" | "is_archived";
+  tagCondition?: "is" | "is_empty";
+  descriptionCondition?: "contains" | "is" | "is_empty";
   billable?: boolean;
   running?: boolean;
   search?: string;
@@ -176,7 +185,10 @@ export async function listEntries(
   filters: EntryListFilters,
   generatedAt: number,
 ): Promise<EntryJoinedRow[]> {
-  if (filters.memberId && !canViewMemberTime(viewer, filters.memberId)) {
+  if (
+    (filters.memberId && !canViewMemberTime(viewer, filters.memberId)) ||
+    filters.memberIds?.some((memberId) => !canViewMemberTime(viewer, memberId))
+  ) {
     throw new ApiError(403, "member_time_forbidden", "You cannot view this member's time.");
   }
   const effectiveMemberId = viewer.role === "member" ? viewer.id : filters.memberId;
@@ -206,6 +218,33 @@ export async function listEntries(
     );
     bindings.push(filters.tagId);
   }
+  for (const [entity, ids, condition] of [
+    ["m", filters.memberIds, filters.memberCondition],
+    ["c", filters.clientIds, filters.clientCondition],
+    ["p", filters.projectIds, filters.projectCondition],
+  ] as const) {
+    if (condition === "is_empty") {
+      conditions.push(`${entity}.id IS NULL`);
+    } else if (condition === "is_active" || condition === "is_archived") {
+      conditions.push(`${entity}.status = ?`);
+      bindings.push(
+        condition === "is_active" ? "active" : entity === "m" ? "inactive" : "archived",
+      );
+    } else if (ids?.length) {
+      conditions.push(`${entity}.id IN (SELECT value FROM json_each(?))`);
+      bindings.push(JSON.stringify(ids));
+    }
+  }
+  if (filters.tagCondition === "is_empty") {
+    conditions.push(
+      "NOT EXISTS (SELECT 1 FROM time_entry_tags filter_tag WHERE filter_tag.time_entry_id = e.id)",
+    );
+  } else if (filters.tagIds?.length) {
+    conditions.push(
+      "EXISTS (SELECT 1 FROM time_entry_tags filter_tag WHERE filter_tag.time_entry_id = e.id AND filter_tag.tag_id IN (SELECT value FROM json_each(?)))",
+    );
+    bindings.push(JSON.stringify(filters.tagIds));
+  }
   if (filters.billable !== undefined) {
     conditions.push("e.billable = ?");
     bindings.push(filters.billable ? 1 : 0);
@@ -213,7 +252,15 @@ export async function listEntries(
   if (filters.running !== undefined) {
     conditions.push(filters.running ? "e.stopped_at IS NULL" : "e.stopped_at IS NOT NULL");
   }
-  if (filters.search) {
+  if (filters.descriptionCondition === "is_empty") {
+    conditions.push("trim(COALESCE(e.description, ''), ?) = ''");
+    bindings.push(
+      " \t\n\r\v\f\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
+    );
+  } else if (filters.descriptionCondition === "is") {
+    conditions.push("e.description = ? COLLATE NOCASE");
+    bindings.push(filters.search ?? "");
+  } else if (filters.search) {
     conditions.push("e.description LIKE ? ESCAPE '\\' COLLATE NOCASE");
     bindings.push(`%${escapeLike(filters.search)}%`);
   }
