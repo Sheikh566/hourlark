@@ -643,7 +643,7 @@ function TimePicker({
       <button
         ref={trigger}
         type="button"
-        className="flex h-9 items-center gap-3 rounded-md px-2 font-mono text-xs text-[#a4a4a4] transition hover:bg-black/10 hover:text-[#fafafa]"
+        className="flex h-9 items-center gap-3 rounded-md px-2 text-xs text-[#a4a4a4] tabular-nums transition hover:bg-black/10 hover:text-[#fafafa]"
         aria-label="Edit entry date, time, and duration"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -685,7 +685,7 @@ function TimePicker({
             <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
               Duration (h:mm:ss)
               <input
-                className={`h-9 min-w-0 rounded-md border bg-[#1b1b1b] px-2.5 font-mono text-sm text-[#fafafa] outline-none ${
+                className={`h-9 min-w-0 rounded-md border bg-[#1b1b1b] px-2.5 text-sm text-[#fafafa] tabular-nums outline-none ${
                   parseClockDuration(durationDraft)
                     ? "border-[#3b3b3b] focus:border-[#f59e0b]"
                     : "border-red-500/70"
@@ -752,7 +752,7 @@ function DateTimeFields({
           onChange={(event) => onChange(replaceDate(value, event.target.value))}
         />
         <input
-          className="h-8 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 font-mono text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
+          className="h-8 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] tabular-nums outline-none focus:border-[#f59e0b]"
           type="time"
           step={1}
           value={value.slice(11)}

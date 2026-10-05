@@ -158,7 +158,7 @@ function DateTimeFields({
           <Input
             type="time"
             step={1}
-            className="h-9 min-h-9 px-2 font-mono text-xs"
+            className="h-9 min-h-9 px-2 text-xs tabular-nums"
             value={timeValue}
             aria-label={`${label} time`}
             aria-invalid={Boolean(error)}

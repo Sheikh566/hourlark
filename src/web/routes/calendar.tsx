@@ -279,7 +279,7 @@ export function CalendarView({
                       {formatInTimeZone(info.date, me.member.timezone, "EEE")}
                     </span>
                   </div>
-                  <div className="mt-1 font-mono text-[10px] text-slate-400">
+                  <div className="mt-1 text-[10px] text-slate-400 tabular-nums">
                     {formatClockDuration(totalsByDay.get(key) ?? 0)}
                   </div>
                 </div>
