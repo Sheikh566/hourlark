@@ -111,7 +111,7 @@ function renderSection(version, date, commits) {
   return lines.join("\n");
 }
 
-if (!dryRun && git("status", "--porcelain") !== "") {
+if (!dryRun && git("status", "--porcelain", "--untracked-files=no") !== "") {
   fail("The working tree has uncommitted changes. Commit or stash them before releasing.");
 }
 
