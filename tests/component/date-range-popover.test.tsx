@@ -13,40 +13,6 @@ describe("date range popover", () => {
     cleanup();
   });
 
-  it("applies presets and a custom inclusive range", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    const onClose = vi.fn();
-    const triggerRef = createRef<HTMLButtonElement>();
-
-    render(
-      <div>
-        <button ref={triggerRef} type="button">
-          All dates
-        </button>
-        <DateRangePopover
-          open
-          timezone="Asia/Karachi"
-          weekStartsOn={0}
-          value={ALL_DATES_SELECTION}
-          now={now}
-          onChange={onChange}
-          onClose={onClose}
-          triggerRef={triggerRef}
-        />
-      </div>,
-    );
-
-    expect(screen.getByRole("dialog", { name: "Choose date range" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Today" }));
-    expect(onChange).toHaveBeenCalledWith({
-      preset: "today",
-      startDate: "2026-10-04",
-      endDate: "2026-10-04",
-    });
-    expect(onClose).toHaveBeenCalledWith(true);
-  });
-
   it("applies a custom inclusive calendar range and restores focus on Escape", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

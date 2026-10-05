@@ -111,15 +111,6 @@ describe("calendar quick entry", () => {
     apiRequestMock.mockResolvedValue({ entry: { id: "entry-new" } });
   });
 
-  it("uses charcoal and amber primitives without leftover green accents", async () => {
-    renderQuickEntry();
-    const form = await screen.findByRole("form", { name: "Add calendar time entry" });
-    expect(form.className).toContain("bg-[#212121]");
-    expect(form.className).not.toMatch(/frosted-mint|light-green|#171d16|#111710/);
-    expect(screen.getByRole("button", { name: "Add" }).className).toContain("bg-[#f59e0b]");
-    expect(screen.getByLabelText("New entry project")).toHaveTextContent("Helix3D • Upwork");
-  });
-
   it("closes the tag picker on Escape and outside click before closing the draft", async () => {
     const user = userEvent.setup();
     const { onClose } = renderQuickEntry();

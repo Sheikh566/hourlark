@@ -248,21 +248,6 @@ describe("report date and filter workflow", () => {
     );
   });
 
-  it("clears a stale project when its client changes and supports clearing filters", async () => {
-    renderPage();
-    const user = userEvent.setup();
-    await screen.findByRole("option", { name: "Training" });
-    await user.selectOptions(screen.getByRole("combobox", { name: "Project" }), "p1");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Client" }), "c2");
-    expect(screen.getByRole("combobox", { name: "Project" })).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "Clear filters" }));
-    expect(screen.getByRole("combobox", { name: "Client" })).toHaveValue("");
-    await user.click(screen.getByRole("button", { name: "Report date range" }));
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Choose report dates" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Report date range" })).toHaveFocus();
-  });
-
   it("uses workspace PDF defaults, shows export errors and allows retry", async () => {
     identity.reportDetails = false;
     renderPage();

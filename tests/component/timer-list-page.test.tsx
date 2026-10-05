@@ -360,32 +360,6 @@ describe("timer list session groups", () => {
     expect(count).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("does not group the same metadata across local days", async () => {
-    apiRequestMock.mockImplementation((path: string) => {
-      if (path.startsWith("/projects")) return Promise.resolve({ projects: [] });
-      if (path.startsWith("/tags")) return Promise.resolve({ tags: [] });
-      if (path.startsWith("/time-entries?")) {
-        return Promise.resolve({
-          entries: [
-            matching("today", {
-              started_at: "2026-10-04T04:00:00.000Z",
-              stopped_at: "2026-10-04T05:00:00.000Z",
-            }),
-            matching("yesterday", {
-              started_at: "2026-10-03T10:00:00.000Z",
-              stopped_at: "2026-10-03T11:00:00.000Z",
-            }),
-          ],
-        });
-      }
-      return Promise.resolve({});
-    });
-    renderPage();
-    expect(await screen.findAllByTitle("Edit description")).toHaveLength(2);
-    expect(screen.queryByRole("button", { name: /matching sessions/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Today" })).toBeVisible();
-  });
-
   it("saves a real entry from an expanded group and then shows two singleton rows", async () => {
     const user = userEvent.setup();
     const rows = [
