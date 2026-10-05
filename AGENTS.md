@@ -62,4 +62,4 @@ before destructive remote migrations.
 
 - The default `node` on this image can be older than `package.json` `engines` (`^22.22.2 || ^24.15.0 || >=26`). Use Node 22.22.2 from `~/.local/node-v22.22.2` (the environment links it ahead of `/exec-daemon/node`). `pnpm` must be 12.9.1.
 - `.dev.vars` is gitignored. Copy `.dev.vars.example` when it is missing. Development auth requires `AUTH_MODE=dev` and `ENVIRONMENT=development`. Seeded accounts are listed in the README.
-- `pnpm db:setup` migrates and seeds local D1, then `pnpm dev` serves the app at `http://127.0.0.1:5173`. `pnpm test:e2e` starts its own server on port 5186 and does not reuse that dev server.
+- `pnpm db:setup` migrates and seeds local D1. The Cloud Agent start script serves the app at `http://127.0.0.1:47391`. `pnpm test:e2e` starts its own server on port 5186 and does not reuse that dev server.
