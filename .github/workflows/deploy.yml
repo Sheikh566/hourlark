@@ -14,8 +14,10 @@ permissions:
 
 jobs:
   deploy:
+    # Deploy only main from this repository; manual runs on other branches and forks are skipped.
+    if: github.repository == 'Sheikh566/hourlark' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
@@ -37,11 +39,24 @@ jobs:
       - name: Check production configuration
         run: pnpm check:production
 
-      - name: Build
-        run: pnpm build
+      - name: Validate and build
+        run: pnpm validate
 
       - name: Require Cloudflare API token
         run: test -n "$CLOUDFLARE_API_TOKEN"
+
+      - name: Record D1 restore point
+        run: |
+          bookmark="$(pnpm exec wrangler d1 time-travel info DB --json | jq -er '.bookmark')"
+          {
+            echo "### D1 restore point"
+            echo
+            echo "Bookmark taken before migrations. To roll back the database:"
+            echo
+            echo '```bash'
+            echo "pnpm exec wrangler d1 time-travel restore DB --bookmark=$bookmark"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply remote D1 migrations
         run: pnpm db:migrate:remote

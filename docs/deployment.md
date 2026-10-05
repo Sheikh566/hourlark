@@ -59,9 +59,14 @@ pnpm exec wrangler whoami
 The first command opens a browser to authorize Wrangler. Confirm the account
 listed by `whoami` is the one that owns your domain.
 
-Copy its account ID and add a top-level `account_id` field to `wrangler.jsonc`:
+The committed `wrangler.jsonc` targets this repository's own deployment: account
+`3a985c75…`, Worker and D1 database `hourlark-preview`, and the
+`hourlark.sabdullah.com` Custom Domain. For your own installation, replace those
+values with yours. Start by setting `name` to `hourlark` and the top-level
+`account_id` to your account ID:
 
 ```jsonc
+"name": "hourlark",
 "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
 ```
 
@@ -264,9 +269,13 @@ Cloudflare documents this initial upload in
 Pushes to `main` deploy the Worker in `wrangler.jsonc` through
 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). Add a repository
 secret named `CLOUDFLARE_API_TOKEN` with permission to edit this account's Workers
-and D1. The workflow installs dependencies, runs `pnpm check:production`, builds,
-applies remote D1 migrations, and runs `wrangler deploy`. It does not create or
-print `CSRF_SECRET` or the Google OAuth secrets; those remain on the Worker.
+and D1. The workflow installs dependencies, runs `pnpm check:production` and
+`pnpm validate`, records a D1 Time Travel bookmark in the job summary, applies remote
+D1 migrations, and runs `wrangler deploy`. If a migration or deploy goes wrong,
+restore the database with the `wrangler d1 time-travel restore` command printed in
+that summary. It does not create or print `CSRF_SECRET` or the Google OAuth secrets;
+those remain on the Worker. The job runs only for `main` in `Sheikh566/hourlark`; in a
+fork, change the repository in its `if:` condition.
 This repository publishes Worker `hourlark-preview` to `https://hourlark.sabdullah.com`.
 
 ## 9. Sign in, configure the company, and add members
