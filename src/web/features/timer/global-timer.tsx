@@ -564,7 +564,7 @@ export function GlobalTimerBar() {
                 ) : (
                   <p className="p-4 text-center text-sm text-[#a4a4a4]">
                     No {descriptionCommand.kind === "project" ? "projects" : "tags"} start with{" "}
-                    <span className="font-mono text-[#fafafa]">
+                    <span className="text-[#fafafa] tabular-nums">
                       {descriptionCommand.marker}
                       {descriptionCommand.query}
                     </span>
@@ -649,7 +649,7 @@ export function GlobalTimerBar() {
             <CircleDollarSign size={19} />
           </button>
         ) : null}
-        <div className="ml-auto w-[95px] shrink-0 text-right font-mono text-lg font-bold text-[#fafafa]">
+        <div className="ml-auto w-[95px] shrink-0 text-right text-lg font-bold text-[#fafafa] tabular-nums">
           {activeTimer
             ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
             : "0:00:00"}

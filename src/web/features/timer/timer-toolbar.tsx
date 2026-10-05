@@ -99,11 +99,11 @@ export function TimerToolbar({
                   onClick={onTodayClick}
                   aria-label="Show today's entries"
                 >
-                  Today <span className="ml-1 font-mono text-[#fafafa]">{todayTotal}</span>
+                  Today <span className="ml-1 text-[#fafafa] tabular-nums">{todayTotal}</span>
                 </button>
               ) : (
                 <span className="whitespace-nowrap">
-                  Today <span className="ml-1 font-mono text-[#fafafa]">{todayTotal}</span>
+                  Today <span className="ml-1 text-[#fafafa] tabular-nums">{todayTotal}</span>
                 </span>
               )
             ) : null}
@@ -114,11 +114,11 @@ export function TimerToolbar({
                 onClick={onWeekClick}
                 aria-label="Show this week's entries"
               >
-                Week total <span className="ml-1 font-mono text-[#fafafa]">{weekTotal}</span>
+                Week total <span className="ml-1 text-[#fafafa] tabular-nums">{weekTotal}</span>
               </button>
             ) : (
               <span className="whitespace-nowrap">
-                Week total <span className="ml-1 font-mono text-[#fafafa]">{weekTotal}</span>
+                Week total <span className="ml-1 text-[#fafafa] tabular-nums">{weekTotal}</span>
               </span>
             )}
           </div>

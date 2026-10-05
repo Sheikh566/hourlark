@@ -317,7 +317,7 @@ export function CalendarQuickEntry({
               }}
             />
           </label>
-          <div className="mb-2 ml-auto min-w-14 text-right font-mono text-sm font-semibold text-[#fafafa]">
+          <div className="mb-2 ml-auto min-w-14 text-right text-sm font-semibold text-[#fafafa] tabular-nums">
             {formatDuration(durationMinutes * 60_000)}
           </div>
           <Button

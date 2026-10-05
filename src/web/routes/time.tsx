@@ -779,7 +779,7 @@ export function TimePage() {
                         ? "Today"
                         : formatInTimeZone(`${day}T12:00:00Z`, me.member.timezone, "EEE, d MMM")}
                     </h2>
-                    <span className="font-mono text-sm font-semibold text-[#fafafa]">
+                    <span className="text-sm font-semibold text-[#fafafa] tabular-nums">
                       {formatClockDuration(dayTotal)}
                     </span>
                   </div>

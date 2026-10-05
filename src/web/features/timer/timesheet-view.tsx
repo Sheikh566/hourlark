@@ -302,7 +302,7 @@ function TimesheetWeek({
             <tr className="text-[10px] font-bold tracking-[0.12em] text-slate-500 uppercase">
               <th className="sticky left-0 z-10 bg-[#212121] px-2 py-2 text-left">Project</th>
               {weekDays.map((day) => (
-                <th key={day} className="px-1 py-2 text-center font-mono">
+                <th key={day} className="px-1 py-2 text-center tabular-nums">
                   {dayLabel(day)}
                 </th>
               ))}
@@ -393,7 +393,7 @@ function TimesheetWeek({
                       {bucket?.entries.length ? (
                         <button
                           type="button"
-                          className="h-9 w-full rounded-md border border-white/12 bg-[#1b1b1b] px-2 text-center font-mono text-sm text-slate-200 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-slate-400"
+                          className="h-9 w-full rounded-md border border-white/12 bg-[#1b1b1b] px-2 text-center text-sm text-slate-200 tabular-nums hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-slate-400"
                           aria-label={`Edit ${row.projectName} ${dayLabel(day)} ${bucket.entries.length} ${bucket.entries.length === 1 ? "entry" : "entries"}`}
                           onClick={() =>
                             bucket.entries.length === 1
@@ -405,7 +405,7 @@ function TimesheetWeek({
                         </button>
                       ) : (
                         <input
-                          className="h-9 w-full rounded-md border border-white/12 bg-[#1b1b1b] px-2 text-center font-mono text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-slate-400"
+                          className="h-9 w-full rounded-md border border-white/12 bg-[#1b1b1b] px-2 text-center text-sm text-slate-200 tabular-nums outline-none placeholder:text-slate-600 focus:border-slate-400"
                           value={cellValues[`${row.key}:${dayKey}`] ?? ""}
                           onChange={(event) =>
                             setCellValues((current) => ({
@@ -450,7 +450,7 @@ function TimesheetWeek({
                     </td>
                   );
                 })}
-                <td className="border-b border-white/8 px-2 py-2 text-right font-mono text-slate-300">
+                <td className="border-b border-white/8 px-2 py-2 text-right text-slate-300 tabular-nums">
                   {formatHoursLabel(row.totalMs)}
                 </td>
               </tr>
@@ -466,13 +466,13 @@ function TimesheetWeek({
                 return (
                   <td
                     key={dayKey}
-                    className="px-1 py-3 text-center font-mono text-xs text-slate-400"
+                    className="px-1 py-3 text-center text-xs text-slate-400 tabular-nums"
                   >
                     {formatHoursLabel(dayTotals.get(dayKey) ?? 0)}
                   </td>
                 );
               })}
-              <td className="px-2 py-3 text-right font-mono text-sm font-bold text-slate-200">
+              <td className="px-2 py-3 text-right text-sm font-bold text-slate-200 tabular-nums">
                 {formatHoursLabel(grandTotal)}
               </td>
             </tr>
