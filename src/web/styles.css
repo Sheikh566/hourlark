@@ -212,6 +212,23 @@ select:not(:disabled) {
   padding-right: 1.25rem;
 }
 
+.manual-range input::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .manual-range {
+    order: 10;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
+  .manual-range input {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+
 .panel {
   border: 1px solid #3b3b3b;
   border-radius: 0.625rem;

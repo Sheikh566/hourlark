@@ -1,5 +1,19 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Check, CircleDollarSign, Folder, Play, Search, Square, Tags, X } from "lucide-react";
+import { formatInTimeZone } from "date-fns-tz";
+import {
+  ArrowRight,
+  Check,
+  CircleDollarSign,
+  CirclePlay,
+  CirclePlus,
+  Folder,
+  Play,
+  Plus,
+  Search,
+  Square,
+  Tags,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
@@ -17,6 +31,12 @@ import {
 import { useNow } from "@/web/hooks/use-now";
 import { ApiClientError, apiRequest, idempotencyKey } from "@/web/lib/api";
 import { formatClockDuration } from "@/web/lib/format";
+import {
+  manualEntryRange,
+  readTimerMode,
+  storeTimerMode,
+  type TimerMode,
+} from "@/web/features/timer/manual-entry";
 import { broadcastTimerChange } from "@/web/lib/timer";
 import type { Project, Tag, TimeEntry } from "@/web/types";
 
@@ -93,6 +113,10 @@ export function GlobalTimerBar() {
   const [billable, setBillable] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [operationPending, setOperationPending] = useState(false);
+  const [mode, setMode] = useState<TimerMode>(readTimerMode);
+  const [manualDate, setManualDate] = useState("");
+  const [manualStart, setManualStart] = useState("");
+  const [manualEnd, setManualEnd] = useState("");
   const runningDraftRef = useRef<string | null>(null);
   const rejectedDraftRef = useRef<string | null>(null);
   const persistPromiseRef = useRef<Promise<boolean> | null>(null);
@@ -356,7 +380,56 @@ export function GlobalTimerBar() {
     onError: refreshTimerSurfaces,
   });
 
-  const timerError = patchError ?? startMutation.error?.message ?? stopMutation.error?.message;
+  const timezone = me.member.timezone;
+  const nowFields = () => ({
+    date: formatInTimeZone(Date.now(), timezone, "yyyy-MM-dd"),
+    time: formatInTimeZone(Date.now(), timezone, "HH:mm"),
+  });
+  const effectiveManual = () => {
+    const current = nowFields();
+    return {
+      date: manualDate || current.date,
+      start: manualStart || current.time,
+      end: manualEnd || current.time,
+    };
+  };
+  const manualMutation = useMutation({
+    mutationFn: () => {
+      const fields = effectiveManual();
+      const range = manualEntryRange(fields.date, fields.start, fields.end, timezone);
+      if ("error" in range) throw new Error(range.error);
+      return apiRequest("/time-entries", {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey() },
+        body: JSON.stringify({
+          description,
+          project_id: idleProjectId || null,
+          tag_ids: selectedTags,
+          billable: canSetBillable ? billable : false,
+          ...range,
+        }),
+      });
+    },
+    onSuccess: async () => {
+      setDescription("");
+      setManualDate("");
+      setManualStart("");
+      setManualEnd("");
+      await refreshTimerSurfaces();
+    },
+  });
+  const switchMode = (next: TimerMode) => {
+    setMode(next);
+    storeTimerMode(next);
+    manualMutation.reset();
+  };
+  const manualMode = mode === "manual" && !activeTimer;
+
+  const timerError =
+    patchError ??
+    startMutation.error?.message ??
+    stopMutation.error?.message ??
+    (manualMode ? manualMutation.error?.message : undefined);
   const metadataBusy = operationPending || stopMutation.isPending;
   const selectCommandSuggestion = (suggestion: CommandSuggestion) => {
     if (!descriptionCommand || activeTimer) return;
@@ -399,7 +472,16 @@ export function GlobalTimerBar() {
       }
       return;
     }
-    if (!commandMenuOpen || !descriptionCommand) return;
+    if (!commandMenuOpen || !descriptionCommand) {
+      // Toggl starts the timer (or adds the manual entry) when Enter is pressed in the description.
+      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+        event.preventDefault();
+        if (manualMode) {
+          if (!manualMutation.isPending) manualMutation.mutate();
+        } else if (!startMutation.isPending) startMutation.mutate();
+      }
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       setCommandDismissed(true);
@@ -486,7 +568,7 @@ export function GlobalTimerBar() {
               void persistRunningDescription();
             }}
             list={commandMenuOpen ? undefined : "recent-time-descriptions"}
-            placeholder="What are you working on?"
+            placeholder={manualMode ? "What have you done?" : "What are you working on?"}
             aria-label="Timer description"
             role="combobox"
             aria-autocomplete="list"
@@ -649,11 +731,23 @@ export function GlobalTimerBar() {
             <CircleDollarSign size={19} />
           </button>
         ) : null}
-        <div className="ml-auto w-[95px] shrink-0 text-right text-lg font-bold text-[#fafafa] tabular-nums">
-          {activeTimer
-            ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
-            : "0:00:00"}
-        </div>
+        {manualMode ? (
+          <ManualRangeFields
+            date={effectiveManual().date}
+            start={effectiveManual().start}
+            end={effectiveManual().end}
+            disabled={manualMutation.isPending}
+            onDateChange={setManualDate}
+            onStartChange={setManualStart}
+            onEndChange={setManualEnd}
+          />
+        ) : (
+          <div className="ml-auto w-[95px] shrink-0 text-right text-lg font-bold text-[#fafafa] tabular-nums">
+            {activeTimer
+              ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
+              : "0:00:00"}
+          </div>
+        )}
         {activeTimer ? (
           <button
             type="button"
@@ -663,6 +757,16 @@ export function GlobalTimerBar() {
             aria-label="Stop timer"
           >
             <Square size={17} fill="currentColor" />
+          </button>
+        ) : manualMode ? (
+          <button
+            type="button"
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#18181b] transition hover:bg-[#fbbf24]"
+            onClick={() => manualMutation.mutate()}
+            disabled={manualMutation.isPending}
+            aria-label="Add time entry"
+          >
+            <Plus size={22} strokeWidth={2.75} />
           </button>
         ) : (
           <button
@@ -674,6 +778,30 @@ export function GlobalTimerBar() {
           >
             <Play className="ml-0.5" size={18} fill="currentColor" />
           </button>
+        )}
+        {activeTimer ? null : (
+          <div className="flex shrink-0 flex-col gap-0.5" role="group" aria-label="Time entry mode">
+            <button
+              type="button"
+              className={`grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-[#fafafa]" : "text-[#6b6b6b] hover:text-[#fafafa]"}`}
+              aria-label="Timer mode"
+              aria-pressed={mode === "timer"}
+              title="Timer mode"
+              onClick={() => switchMode("timer")}
+            >
+              <CirclePlay size={18} />
+            </button>
+            <button
+              type="button"
+              className={`grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-[#fafafa]" : "text-[#6b6b6b] hover:text-[#fafafa]"}`}
+              aria-label="Manual mode"
+              aria-pressed={mode === "manual"}
+              title="Manual mode"
+              onClick={() => switchMode("manual")}
+            >
+              <CirclePlus size={18} />
+            </button>
+          </div>
         )}
       </div>
     </header>
@@ -984,5 +1112,57 @@ function PickerOption({
       </span>
       {active ? <Check size={14} /> : null}
     </button>
+  );
+}
+
+function ManualRangeFields({
+  date,
+  start,
+  end,
+  disabled,
+  onDateChange,
+  onStartChange,
+  onEndChange,
+}: {
+  date: string;
+  start: string;
+  end: string;
+  disabled: boolean;
+  onDateChange: (value: string) => void;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+}) {
+  const fieldClass =
+    "h-9 rounded-lg border border-hourlark-control-border bg-transparent px-2 text-sm text-[#fafafa] outline-none focus:border-[#f59e0b] disabled:opacity-60 [color-scheme:dark]";
+  return (
+    <div className="manual-range ml-auto flex min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1">
+        <input
+          type="time"
+          className={`${fieldClass} w-[96px] min-w-0`}
+          aria-label="Start time"
+          value={start}
+          disabled={disabled}
+          onChange={(event) => onStartChange(event.target.value)}
+        />
+        <input
+          type="date"
+          className={`${fieldClass} w-[118px] min-w-0`}
+          aria-label="Entry date"
+          value={date}
+          disabled={disabled}
+          onChange={(event) => onDateChange(event.target.value)}
+        />
+      </div>
+      <ArrowRight size={15} className="text-[#a4a4a4]" aria-hidden="true" />
+      <input
+        type="time"
+        className={`${fieldClass} w-[96px] min-w-0`}
+        aria-label="End time"
+        value={end}
+        disabled={disabled}
+        onChange={(event) => onEndChange(event.target.value)}
+      />
+    </div>
   );
 }
