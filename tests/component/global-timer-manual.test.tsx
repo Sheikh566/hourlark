@@ -92,7 +92,7 @@ describe("global timer manual mode", () => {
     await waitFor(() => {
       const call = apiRequestMock.mock.calls.find(([path]) => path === "/time-entries");
       expect(call).toBeDefined();
-      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
+      expect(JSON.parse(call?.[1]?.body as string)).toMatchObject({
         description: "Planning",
         started_at: "2026-10-05T04:00:00.000Z",
         stopped_at: "2026-10-05T05:15:00.000Z",
