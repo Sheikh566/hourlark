@@ -4,9 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AdministrationPage, TagSettings } from "@/web/routes/administration";
+import { AdministrationPage } from "@/web/routes/administration";
 import { ClientsPage } from "@/web/routes/clients";
 import { MembersPage } from "@/web/routes/members";
+import { TagsPage } from "@/web/routes/tags";
 import { apiRequest } from "@/web/lib/api";
 
 const permissions = vi.hoisted(() => ({
@@ -101,7 +102,7 @@ describe("management feedback", () => {
     });
     const user = userEvent.setup();
     mount(<AdministrationPage />);
-    await user.click(screen.getByRole("button", { name: "Audit log" }));
+    await user.click(screen.getByRole("button", { name: "Audit Log" }));
     expect(await screen.findByText("client.create")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Load older events" }));
     await waitFor(() =>
@@ -113,8 +114,8 @@ describe("management feedback", () => {
   it("preserves the tag name label after a blank error and submits with Enter", async () => {
     vi.mocked(apiRequest).mockResolvedValue({ tags: [] });
     const user = userEvent.setup();
-    mount(<TagSettings />);
-    await user.click(screen.getByRole("button", { name: "New tag" }));
+    mount(<TagsPage />);
+    await user.click(screen.getByRole("button", { name: "New Tag" }));
     await user.click(screen.getByRole("button", { name: "Save tag" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Enter a tag name.");
     const name = screen.getByRole("textbox", { name: "Tag name" });

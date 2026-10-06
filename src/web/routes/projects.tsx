@@ -1,15 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Archive,
-  BriefcaseBusiness,
-  Clock3,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Search,
-  Users,
-} from "lucide-react";
+import { Clock3, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "react-router";
@@ -18,7 +9,6 @@ import { z } from "zod";
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import { useMe } from "@/web/app/context";
 import {
-  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -27,7 +17,11 @@ import {
   Input,
   Modal,
   PageHeader,
+  PageToolbar,
+  RowMenu,
+  SearchInput,
   Select,
+  SortHeader,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
 import { FormSelect } from "@/web/components/form-select";
@@ -61,6 +55,17 @@ const projectSchema = z.object({
   member_ids: z.array(z.string()),
 });
 type ProjectForm = z.infer<typeof projectSchema>;
+type SortKey = "name" | "client" | "tracked";
+
+function parseMemberIds(value: string | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export function ProjectsPage() {
   const me = useMe();
@@ -91,6 +96,26 @@ export function ProjectsPage() {
     },
   });
 
+  const [sort, setSort] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
+    key: "name",
+    direction: "asc",
+  });
+  const sorted = [...(projects.data?.projects ?? [])].sort((left, right) => {
+    const order =
+      sort.key === "tracked"
+        ? (left.tracked_ms ?? 0) - (right.tracked_ms ?? 0)
+        : sort.key === "client"
+          ? left.client_name.localeCompare(right.client_name)
+          : left.name.localeCompare(right.name);
+    return sort.direction === "asc" ? order : -order;
+  });
+  const toggleSort = (key: SortKey) =>
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  const directionFor = (key: SortKey) => (sort.key === key ? sort.direction : null);
+
   return (
     <>
       <PageHeader
@@ -104,163 +129,161 @@ export function ProjectsPage() {
           ) : undefined
         }
       />
-      <section className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-3">
-          <div className="relative min-w-0 flex-1 basis-56">
-            <Search className="absolute top-3 left-3 text-slate-400" size={15} />
-            <Input
-              className="pl-9"
-              placeholder="Search projects"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-          {me.permissions.manage_workspace ? (
-            <>
-              <Select
-                className="w-44"
-                value={clientId}
-                onValueChange={setClientId}
-                aria-label="Filter projects by client"
-                options={[
-                  { value: "", label: "All clients" },
-                  ...(clients.data?.clients ?? []).map((client) => ({
-                    value: client.id,
-                    label: client.name,
-                  })),
-                ]}
-              />
-              <Select
-                className="w-36"
-                value={status}
-                onValueChange={(value) => setStatus(value as typeof status)}
-                aria-label="Filter projects by status"
-                options={[
-                  { value: "active", label: "Active" },
-                  { value: "archived", label: "Archived" },
-                ]}
-              />
-            </>
-          ) : null}
-        </div>
-        {statusMutation.isPending ? (
-          <p role="status" className="p-4 text-sm text-slate-500">
-            Updating project status…
-          </p>
-        ) : null}
-        {statusMutation.error ? (
-          <p role="alert" className="p-4 text-sm text-red-300">
-            {statusMutation.error.message}
-          </p>
-        ) : null}
-        {projects.isPending ? (
-          <Loading label="Loading projects…" />
-        ) : projects.error ? (
-          <ErrorState message={projects.error.message} onRetry={() => void projects.refetch()} />
-        ) : projects.data.projects.length === 0 ? (
-          <EmptyState
-            title="No projects found"
-            description="Adjust the filters or create a project to make it available for tracking."
-            action={
-              me.permissions.manage_workspace ? (
-                <Button variant="secondary" onClick={() => setEditing("new")}>
-                  <Plus size={16} /> Add project
-                </Button>
-              ) : undefined
-            }
+      <PageToolbar>
+        {me.permissions.manage_workspace ? (
+          <Select
+            className="w-48"
+            value={status}
+            onValueChange={(value) => setStatus(value as typeof status)}
+            aria-label="Filter projects by status"
+            options={[
+              { value: "active", label: "Show active" },
+              { value: "archived", label: "Show archived" },
+            ]}
           />
-        ) : (
-          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-            {projects.data.projects.map((project) => {
-              const budgetMs = (project.budget_minutes ?? 0) * 60_000;
-              const utilization =
-                budgetMs > 0
-                  ? Math.min(100, Math.round(((project.tracked_ms ?? 0) / budgetMs) * 100))
-                  : null;
-              return (
-                <article key={project.id} className="rounded-xl border border-slate-200 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-white"
-                        style={{ backgroundColor: project.color }}
-                      >
-                        <BriefcaseBusiness size={18} />
-                      </span>
-                      <div className="min-w-0">
-                        <h2 className="truncate font-bold text-slate-800">{project.name}</h2>
-                        <p className="truncate text-xs text-slate-500">{project.client_name}</p>
-                      </div>
-                    </div>
-                    {me.permissions.manage_workspace ? (
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
+        ) : null}
+        <span className="text-[11px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+          Filters:
+        </span>
+        <Select
+          className="w-44"
+          value={clientId}
+          onValueChange={setClientId}
+          aria-label="Filter projects by client"
+          options={[
+            { value: "", label: "Client" },
+            ...(clients.data?.clients ?? []).map((client) => ({
+              value: client.id,
+              label: client.name,
+            })),
+          ]}
+        />
+        <SearchInput label="Project name" value={search} onChange={setSearch} />
+      </PageToolbar>
+      {statusMutation.isPending ? (
+        <p role="status" className="px-5 py-3 text-sm text-[#a4a4a4]">
+          Updating project status…
+        </p>
+      ) : null}
+      {statusMutation.error ? (
+        <p role="alert" className="px-5 py-3 text-sm text-red-300">
+          {statusMutation.error.message}
+        </p>
+      ) : null}
+      {projects.isPending ? (
+        <Loading label="Loading projects…" />
+      ) : projects.error ? (
+        <ErrorState message={projects.error.message} onRetry={() => void projects.refetch()} />
+      ) : sorted.length === 0 ? (
+        <EmptyState
+          title="No projects found"
+          description="Adjust the filters or create a project to make it available for tracking."
+          action={
+            me.permissions.manage_workspace ? (
+              <Button variant="secondary" onClick={() => setEditing("new")}>
+                <Plus size={16} /> Add project
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="relative overflow-x-auto">
+          <table className="data-table min-w-[720px]">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <SortHeader
+                    label="Project"
+                    direction={directionFor("name")}
+                    onToggle={() => toggleSort("name")}
+                  />
+                </th>
+                <th scope="col">
+                  <SortHeader
+                    label="Client"
+                    direction={directionFor("client")}
+                    onToggle={() => toggleSort("client")}
+                  />
+                </th>
+                <th scope="col">
+                  <SortHeader
+                    label="Time status"
+                    direction={directionFor("tracked")}
+                    onToggle={() => toggleSort("tracked")}
+                  />
+                </th>
+                <th scope="col">Billable</th>
+                <th scope="col">Team</th>
+                <th scope="col" className="w-16">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((project) => {
+                const budgetMs = (project.budget_minutes ?? 0) * 60_000;
+                const assigned = parseMemberIds(project.member_ids_json).length;
+                return (
+                  <tr key={project.id}>
+                    <td>
+                      <button
+                        type="button"
+                        className="max-w-72 truncate text-left font-semibold hover:underline disabled:no-underline"
+                        style={{ color: project.color }}
+                        disabled={!me.permissions.manage_workspace}
                         onClick={() => setEditing(project)}
                       >
-                        <Pencil size={15} />
-                        <span className="sr-only">Edit {project.name}</span>
-                      </Button>
-                    ) : null}
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Badge>{project.status ?? "active"}</Badge>
-                    <Badge>{project.billable_default ? "Billable default" : "Non-billable"}</Badge>
-                    {project.visibility ? (
-                      <Badge>
-                        <Users size={11} />{" "}
-                        {project.visibility === "all" ? "All members" : "Assigned"}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <div className="mt-4 border-t border-slate-100 pt-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">Tracked</span>
-                      <strong>{formatDuration(project.tracked_ms ?? 0)}</strong>
-                    </div>
-                    {utilization !== null ? (
-                      <div className="mt-2">
-                        <div className="mb-1 flex justify-between text-xs text-slate-500">
-                          <span>Budget utilization</span>
-                          <span>{utilization}%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-[#f59e0b]"
-                            style={{ width: `${utilization}%` }}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                  {me.permissions.manage_workspace ? (
-                    <div className="mt-4">
-                      {project.status !== "archived" ? (
-                        <Button
-                          variant="ghost"
-                          className="text-slate-500"
-                          disabled={statusMutation.isPending}
-                          onClick={() => statusMutation.mutate({ project, next: "archive" })}
-                        >
-                          <Archive size={14} /> Archive
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          disabled={statusMutation.isPending}
-                          onClick={() => statusMutation.mutate({ project, next: "reactivate" })}
-                        >
-                          <RotateCcw size={14} /> Reactivate
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                        {project.name}
+                      </button>
+                    </td>
+                    <td className="font-medium">{project.client_name}</td>
+                    <td className="text-[#a4a4a4] tabular-nums">
+                      {formatDuration(project.tracked_ms ?? 0)}
+                      {budgetMs > 0 ? (
+                        <span className="ml-1">
+                          / {formatDuration(budgetMs)} (
+                          {Math.round(((project.tracked_ms ?? 0) / budgetMs) * 100)}%)
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="text-[#a4a4a4]">{project.billable_default ? "Yes" : "No"}</td>
+                    <td className="font-medium">
+                      {project.visibility === "assigned"
+                        ? `${assigned} ${assigned === 1 ? "member" : "members"}`
+                        : "Everyone"}
+                    </td>
+                    <td className="text-right">
+                      <RowMenu
+                        label={`Actions for ${project.name}`}
+                        items={
+                          me.permissions.manage_workspace
+                            ? [
+                                { label: "Edit", onSelect: () => setEditing(project) },
+                                project.status !== "archived"
+                                  ? {
+                                      label: "Archive",
+                                      disabled: statusMutation.isPending,
+                                      onSelect: () =>
+                                        statusMutation.mutate({ project, next: "archive" }),
+                                    }
+                                  : {
+                                      label: "Restore",
+                                      disabled: statusMutation.isPending,
+                                      onSelect: () =>
+                                        statusMutation.mutate({ project, next: "reactivate" }),
+                                    },
+                              ]
+                            : []
+                        }
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
       <ProjectEditor
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         open={editing !== null}

@@ -43,9 +43,11 @@ export function AppLayout() {
       : []),
   ];
   const admin: NavigationItem[] = me.permissions.view_audit
-    ? [{ to: "/administration", label: "Administration", icon: Settings }]
+    ? [{ to: "/administration", label: "Settings", icon: Settings }]
     : [];
-  const edgeToEdge = location.pathname === "/time";
+  // Toggl shows the timer bar only on the Timer page; other screens use their own page header.
+  const showTimerBar = location.pathname === "/time";
+  const edgeToEdge = location.pathname !== "/reports";
 
   const sidebar = (
     <aside className="flex h-full w-[226px] text-[#fafafa]">
@@ -168,7 +170,7 @@ export function AppLayout() {
       <div
         className={twMerge(
           "min-h-screen md:pl-[226px]",
-          location.pathname === "/reports" && "[&>.global-timer]:hidden",
+          !showTimerBar && "[&>.global-timer]:hidden",
         )}
       >
         <Button

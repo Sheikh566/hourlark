@@ -1,15 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Building2, FolderOpen, Pencil, Plus, RotateCcw, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router";
+import { Link } from "react-router";
 import { z } from "zod";
 
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import { useMe } from "@/web/app/context";
 import {
-  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -18,12 +17,15 @@ import {
   Input,
   Modal,
   PageHeader,
+  PageToolbar,
+  RowMenu,
+  SearchInput,
   Select,
+  type RowMenuItem,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
 import { apiRequest } from "@/web/lib/api";
-import { formatDuration } from "@/web/lib/format";
-import type { Client } from "@/web/types";
+import type { Client, Project } from "@/web/types";
 
 const clientFormSchema = z.object({
   name: z.string().trim().min(1, "This field is required."),
@@ -53,10 +55,10 @@ type ClientForm = z.infer<typeof clientFormSchema>;
 
 export function ClientsPage() {
   const me = useMe();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Client | "new" | null>(null);
   const clients = useQuery({
     queryKey: ["clients", status, search],
@@ -72,6 +74,15 @@ export function ClientsPage() {
       await queryClient.invalidateQueries();
     },
   });
+  const list = clients.data?.clients ?? [];
+  const allExpanded = list.length > 0 && list.every((client) => expanded.has(client.id));
+  const toggle = (id: string) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <>
@@ -90,130 +101,206 @@ export function ClientsPage() {
           ) : undefined
         }
       />
-      <section className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-3">
-          <div className="relative min-w-0 flex-1 basis-56">
-            <Search className="absolute top-3 left-3 text-slate-400" size={15} />
-            <Input
-              className="pl-9"
-              placeholder="Search clients"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-          {me.permissions.manage_workspace ? (
-            <Select
-              className="w-40"
-              aria-label="Filter clients by status"
-              value={status}
-              onValueChange={(value) => setStatus(value as typeof status)}
-              options={[
-                { value: "active", label: "Active" },
-                { value: "archived", label: "Archived" },
-              ]}
-            />
-          ) : null}
-        </div>
-        {statusMutation.isPending ? (
-          <p role="status" className="p-4 text-sm text-slate-500">
-            Updating client status…
-          </p>
-        ) : null}
-        {statusMutation.error ? (
-          <p role="alert" className="p-4 text-sm text-red-300">
-            {statusMutation.error.message}
-          </p>
-        ) : null}
-        {clients.isPending ? (
-          <Loading label="Loading clients…" />
-        ) : clients.error ? (
-          <ErrorState message={clients.error.message} onRetry={() => void clients.refetch()} />
-        ) : clients.data.clients.length === 0 ? (
-          <EmptyState
-            title="No clients found"
-            description="Create a client before adding its first project."
-            action={
-              me.permissions.manage_workspace ? (
-                <Button variant="secondary" onClick={() => setEditing("new")}>
-                  <Plus size={16} /> Add client
-                </Button>
-              ) : undefined
-            }
+      <PageToolbar>
+        {me.permissions.manage_workspace ? (
+          <Select
+            className="w-40"
+            aria-label="Filter clients by status"
+            value={status}
+            onValueChange={(value) => setStatus(value as typeof status)}
+            options={[
+              { value: "active", label: "Show active" },
+              { value: "archived", label: "Show archived" },
+            ]}
           />
-        ) : (
-          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-            {clients.data.clients.map((client) => (
-              <article key={client.id} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#382b16] text-[#fbbf24]">
-                      <Building2 size={19} />
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="truncate font-bold text-slate-800">{client.name}</h2>
-                      <Badge>{client.status}</Badge>
-                    </div>
-                  </div>
-                  {me.permissions.manage_workspace ? (
-                    <Button
-                      variant="ghost"
-                      className="h-8 w-8 p-0"
-                      onClick={() => setEditing(client)}
-                    >
-                      <Pencil size={15} />
-                      <span className="sr-only">Edit {client.name}</span>
-                    </Button>
-                  ) : null}
-                </div>
-                <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm">
-                  <div>
-                    <dt className="text-xs text-slate-500">Projects</dt>
-                    <dd className="font-semibold">{client.project_count ?? 0}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-slate-500">Tracked</dt>
-                    <dd className="font-semibold">{formatDuration(client.tracked_ms ?? 0)}</dd>
-                  </div>
-                </dl>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => navigate(`/projects?client_id=${encodeURIComponent(client.id)}`)}
-                  >
-                    <FolderOpen size={14} /> View projects
-                  </Button>
-                  {me.permissions.manage_workspace ? (
-                    client.status === "active" ? (
-                      <Button
-                        variant="ghost"
-                        className="text-slate-500"
-                        disabled={statusMutation.isPending}
-                        onClick={() => statusMutation.mutate({ client, next: "archive" })}
-                      >
-                        <Archive size={14} /> Archive
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        disabled={statusMutation.isPending}
-                        onClick={() => statusMutation.mutate({ client, next: "reactivate" })}
-                      >
-                        <RotateCcw size={14} /> Reactivate
-                      </Button>
-                    )
-                  ) : null}
-                </div>
-              </article>
+        ) : null}
+        <SearchInput label="Search clients" value={search} onChange={setSearch} />
+      </PageToolbar>
+      {statusMutation.isPending ? (
+        <p role="status" className="px-5 py-3 text-sm text-[#a4a4a4]">
+          Updating client status…
+        </p>
+      ) : null}
+      {statusMutation.error ? (
+        <p role="alert" className="px-5 py-3 text-sm text-red-300">
+          {statusMutation.error.message}
+        </p>
+      ) : null}
+      {clients.isPending ? (
+        <Loading label="Loading clients…" />
+      ) : clients.error ? (
+        <ErrorState message={clients.error.message} onRetry={() => void clients.refetch()} />
+      ) : list.length === 0 ? (
+        <EmptyState
+          title="No clients found"
+          description="Create a client before adding its first project."
+          action={
+            me.permissions.manage_workspace ? (
+              <Button variant="secondary" onClick={() => setEditing("new")}>
+                <Plus size={16} /> Add client
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th scope="col" className="w-12">
+                <ExpandButton
+                  expanded={allExpanded}
+                  label={allExpanded ? "Collapse all clients" : "Expand all clients"}
+                  onClick={() =>
+                    setExpanded(allExpanded ? new Set() : new Set(list.map((client) => client.id)))
+                  }
+                />
+              </th>
+              <th scope="col">
+                Clients <span className="text-[#5f5f5f]">|</span> Projects
+              </th>
+              <th scope="col" className="w-16">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((client) => (
+              <ClientRows
+                key={client.id}
+                client={client}
+                expanded={expanded.has(client.id)}
+                onToggle={() => toggle(client.id)}
+                actions={
+                  me.permissions.manage_workspace
+                    ? [
+                        { label: "Edit", onSelect: () => setEditing(client) },
+                        client.status === "active"
+                          ? {
+                              label: "Archive",
+                              disabled: statusMutation.isPending,
+                              onSelect: () => statusMutation.mutate({ client, next: "archive" }),
+                            }
+                          : {
+                              label: "Restore",
+                              disabled: statusMutation.isPending,
+                              onSelect: () => statusMutation.mutate({ client, next: "reactivate" }),
+                            },
+                      ]
+                    : []
+                }
+              />
             ))}
-          </div>
-        )}
-      </section>
+          </tbody>
+        </table>
+      )}
       <ClientEditor
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         open={editing !== null}
         client={editing === "new" ? null : editing}
         onOpenChange={(open) => !open && setEditing(null)}
       />
+    </>
+  );
+}
+
+function ExpandButton({
+  expanded,
+  label,
+  onClick,
+}: {
+  expanded: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="grid h-7 w-7 place-items-center rounded-md text-[#fafafa] hover:bg-white/8"
+      aria-label={label}
+      aria-expanded={expanded}
+      onClick={onClick}
+    >
+      {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+    </button>
+  );
+}
+
+function ClientRows({
+  client,
+  expanded,
+  onToggle,
+  actions,
+}: {
+  client: Client;
+  expanded: boolean;
+  onToggle: () => void;
+  actions: RowMenuItem[];
+}) {
+  const projects = useQuery({
+    queryKey: ["projects", "active", "", client.id],
+    queryFn: () =>
+      apiRequest<{ projects: Project[] }>(
+        `/projects?${new URLSearchParams({ status: "active", client_id: client.id })}`,
+      ),
+    enabled: expanded,
+  });
+  return (
+    <>
+      <tr className={expanded ? "bg-white/6" : undefined}>
+        <td>
+          <ExpandButton
+            expanded={expanded}
+            label={`${expanded ? "Collapse" : "Expand"} ${client.name}`}
+            onClick={onToggle}
+          />
+        </td>
+        <td>
+          <button type="button" className="text-left font-semibold" onClick={onToggle}>
+            {client.name}
+            <span className="ml-2 font-normal text-[#a4a4a4]">({client.project_count ?? 0})</span>
+          </button>
+        </td>
+        <td className="text-right">
+          <RowMenu label={`Actions for ${client.name}`} items={actions} />
+        </td>
+      </tr>
+      {expanded ? (
+        projects.isPending ? (
+          <tr>
+            <td />
+            <td colSpan={2} className="text-[#a4a4a4]">
+              Loading projects…
+            </td>
+          </tr>
+        ) : (projects.data?.projects ?? []).length === 0 ? (
+          <tr>
+            <td />
+            <td colSpan={2} className="text-[#a4a4a4]">
+              No active projects
+            </td>
+          </tr>
+        ) : (
+          (projects.data?.projects ?? []).map((project) => (
+            <tr key={project.id} className="bg-[#1b1b1b]">
+              <td />
+              <td colSpan={2}>
+                <Link
+                  to={`/projects?client_id=${encodeURIComponent(client.id)}`}
+                  className="inline-flex items-center gap-2 pl-6 font-medium hover:underline"
+                  style={{ color: project.color }}
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: project.color }}
+                    aria-hidden="true"
+                  />
+                  {project.name}
+                </Link>
+              </td>
+            </tr>
+          ))
+        )
+      ) : null}
     </>
   );
 }

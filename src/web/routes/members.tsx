@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Pencil, Plus, Search, Timer, UserRoundCheck } from "lucide-react";
+import { KeyRound, Plus, Timer, UserRoundCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -16,6 +16,11 @@ import {
   Input,
   Modal,
   PageHeader,
+  PageToolbar,
+  RowMenu,
+  SearchInput,
+  Select,
+  SortHeader,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
 import { FormSelect } from "@/web/components/form-select";
@@ -49,9 +54,22 @@ export function MembersPage() {
     queryFn: () => apiRequest<{ members: Member[] }>("/members"),
     enabled: me.permissions.view_team,
   });
-  const filtered = (members.data?.members ?? []).filter((member) =>
-    `${member.display_name} ${member.email}`.toLowerCase().includes(search.toLowerCase()),
-  );
+  const [status, setStatus] = useState<"active" | "inactive" | "all">("active");
+  const [role, setRole] = useState("");
+  const [sort, setSort] = useState<"asc" | "desc">("asc");
+  const filtered = (members.data?.members ?? [])
+    .filter(
+      (member) =>
+        (status === "all" ||
+          (status === "active" ? member.status !== "inactive" : member.status === "inactive")) &&
+        (!role || member.role === role) &&
+        `${member.display_name} ${member.email}`.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((left, right) =>
+      sort === "asc"
+        ? left.display_name.localeCompare(right.display_name)
+        : right.display_name.localeCompare(left.display_name),
+    );
 
   if (!me.permissions.view_team)
     return <ErrorState message="You do not have permission to view members." />;
@@ -69,99 +87,140 @@ export function MembersPage() {
           ) : undefined
         }
       />
+      <PageToolbar>
+        <Select
+          className="w-40"
+          aria-label="Filter members by status"
+          value={status}
+          onValueChange={(value) => setStatus(value as typeof status)}
+          options={[
+            { value: "active", label: "Show active" },
+            { value: "inactive", label: "Show inactive" },
+            { value: "all", label: "Show all" },
+          ]}
+        />
+        <span className="text-[11px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+          Filters:
+        </span>
+        <Select
+          className="w-36"
+          aria-label="Filter members by access"
+          value={role}
+          onValueChange={setRole}
+          options={[
+            { value: "", label: "Access" },
+            { value: "admin", label: "Admin" },
+            { value: "manager", label: "Manager" },
+            { value: "member", label: "Member" },
+          ]}
+        />
+        <SearchInput
+          className="ml-auto max-w-[320px]"
+          label="Search members"
+          value={search}
+          onChange={setSearch}
+        />
+      </PageToolbar>
       {notice ? (
-        <p role="status" className="mb-4 text-sm text-[#fbbf24]">
+        <p role="status" className="px-5 py-3 text-sm text-[#fbbf24]">
           {notice}
         </p>
       ) : null}
-      <section className="panel overflow-hidden">
-        <div className="border-b border-slate-200 p-3">
-          <div className="relative max-w-lg">
-            <Search className="absolute top-3 left-3 text-slate-400" size={15} />
-            <Input
-              className="pl-9"
-              placeholder="Search members"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        </div>
-        {members.isPending ? (
-          <Loading label="Loading members…" />
-        ) : members.error ? (
-          <ErrorState message={members.error.message} onRetry={() => void members.refetch()} />
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            title="No members found"
-            description="Pre-provision a company email so Cloudflare Access can bind it on first login."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
-                <tr>
-                  <th className="px-4 py-3">Member</th>
-                  <th className="px-4 py-3">Role</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">This week</th>
-                  <th className="px-4 py-3">Timer</th>
-                  <th className="px-4 py-3">Last seen</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.map((member) => (
-                  <tr key={member.id}>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800">{member.display_name}</div>
-                      <div className="text-xs text-slate-500">{member.email}</div>
-                    </td>
-                    <td className="px-4 py-3 capitalize">{member.role}</td>
-                    <td className="px-4 py-3">
-                      <Badge>{member.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {formatDuration(member.week_tracked_ms)}
-                      {member.weekly_target_minutes ? (
-                        <span className="ml-1 text-xs text-slate-400">
-                          / {formatDuration(member.weekly_target_minutes * 60_000)}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      {member.running_entry_id ? (
-                        <Badge color="#4E7C1D">
-                          <Timer size={11} /> Running
-                        </Badge>
-                      ) : (
-                        <span className="text-slate-400">Stopped</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {member.last_seen_at
-                        ? new Intl.DateTimeFormat(undefined, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          }).format(member.last_seen_at)
-                        : "Never"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        aria-label={`Edit ${member.display_name}`}
-                        onClick={() => setEditing(member)}
+      {members.isPending ? (
+        <Loading label="Loading members…" />
+      ) : members.error ? (
+        <ErrorState message={members.error.message} onRetry={() => void members.refetch()} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="No members found"
+          description="Pre-provision a company email so Cloudflare Access can bind it on first login."
+        />
+      ) : (
+        <div className="relative overflow-x-auto">
+          <table className="data-table min-w-[850px]">
+            <thead>
+              <tr>
+                <th scope="col">
+                  <SortHeader
+                    label="Name"
+                    direction={sort}
+                    onToggle={() => setSort((value) => (value === "asc" ? "desc" : "asc"))}
+                  />
+                </th>
+                <th scope="col">Access rights</th>
+                <th scope="col">This week</th>
+                <th scope="col">Timer</th>
+                <th scope="col">Last seen</th>
+                <th scope="col" className="w-16">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((member) => (
+                <tr
+                  key={member.id}
+                  className={member.status === "inactive" ? "opacity-60" : undefined}
+                >
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#382b16] text-[10px] font-black text-[#fbbf24]"
+                        aria-hidden="true"
                       >
-                        <Pencil size={15} />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                        {initials(member.display_name)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{member.display_name}</span>
+                        <span className="block truncate text-xs text-[#a4a4a4]">
+                          {member.email}
+                          {member.status === "inactive"
+                            ? " · Inactive"
+                            : member.status === "pending"
+                              ? " · Invited"
+                              : ""}
+                        </span>
+                      </span>
+                    </div>
+                  </td>
+                  <td className="text-[#a4a4a4] capitalize">{member.role}</td>
+                  <td className="font-medium tabular-nums">
+                    {formatDuration(member.week_tracked_ms)}
+                    {member.weekly_target_minutes ? (
+                      <span className="ml-1 text-xs text-[#a4a4a4]">
+                        / {formatDuration(member.weekly_target_minutes * 60_000)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td>
+                    {member.running_entry_id ? (
+                      <Badge color="#4E7C1D">
+                        <Timer size={11} /> Running
+                      </Badge>
+                    ) : (
+                      <span className="text-[#a4a4a4]">Stopped</span>
+                    )}
+                  </td>
+                  <td className="text-[#a4a4a4]">
+                    {member.last_seen_at
+                      ? new Intl.DateTimeFormat(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(member.last_seen_at)
+                      : "Never"}
+                  </td>
+                  <td className="text-right">
+                    <RowMenu
+                      label={`Actions for ${member.display_name}`}
+                      items={[{ label: "Edit", onSelect: () => setEditing(member) }]}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <MemberEditor
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         open={editing !== null}
@@ -454,4 +513,14 @@ function MemberEditor({
       </form>
     </Modal>
   );
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }

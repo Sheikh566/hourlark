@@ -1,7 +1,26 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertCircle, CheckCircle2, LoaderCircle, X } from "lucide-react";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  LoaderCircle,
+  MoreVertical,
+  Search,
+  X,
+} from "lucide-react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { twMerge } from "tailwind-merge";
+
+import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-dismiss-popover";
 
 const controlClassName =
   "min-h-10 min-w-0 w-full max-w-full rounded-lg border border-hourlark-control-border bg-[#1b1b1b] px-3 py-2 text-sm text-[#fafafa] placeholder:text-[#a4a4a4] outline-none focus:border-[#f59e0b]";
@@ -181,18 +200,139 @@ export function PageHeader({
   title,
   description,
   actions,
+  children,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-[#fafafa]">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-[#a4a4a4]">{description}</p> : null}
+    <header className="page-header">
+      <div className="flex min-w-0 items-center gap-6">
+        <h1 className="shrink-0 text-[17px] font-bold text-[#fafafa]">{title}</h1>
+        {description ? <p className="sr-only">{description}</p> : null}
+        {children}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+    </header>
+  );
+}
+
+export function PageToolbar({ children }: { children: ReactNode }) {
+  return <div className="page-toolbar">{children}</div>;
+}
+
+export function SearchInput({
+  label,
+  value,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <label className={twMerge("relative block w-full max-w-[200px] min-w-[160px]", className)}>
+      <span className="sr-only">{label}</span>
+      <Search
+        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[#a4a4a4]"
+        size={15}
+        aria-hidden="true"
+      />
+      <input
+        type="search"
+        className="border-hourlark-control-border h-9 w-full rounded-lg border bg-transparent pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4] focus:border-[#f59e0b]"
+        placeholder={`${label}...`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+export interface RowMenuItem {
+  label: string;
+  onSelect: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismissPopover(root, close, undefined, open);
+  useEscapeToClose(open, () => {
+    setOpen(false);
+    trigger.current?.focus();
+  });
+  if (items.length === 0) return null;
+  return (
+    <div ref={root} className="relative">
+      <button
+        ref={trigger}
+        type="button"
+        className="grid h-8 w-8 place-items-center rounded-md text-[#a4a4a4] hover:bg-white/8 hover:text-[#fafafa]"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreVertical size={18} aria-hidden="true" />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="timer-popover absolute top-full right-0 z-40 mt-1 min-w-40 py-1.5"
+        >
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              className={twMerge(
+                "block w-full px-4 py-2 text-left text-sm text-[#fafafa] hover:bg-white/8 disabled:opacity-50",
+                item.danger && "text-red-400",
+              )}
+              onClick={() => {
+                setOpen(false);
+                item.onSelect();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+export function SortHeader({
+  label,
+  direction,
+  onToggle,
+}: {
+  label: string;
+  direction: "asc" | "desc" | null;
+  onToggle: () => void;
+}) {
+  const Icon =
+    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1.5 uppercase hover:text-[#fafafa]"
+      aria-label={`Sort by ${label.toLowerCase()}`}
+      onClick={onToggle}
+    >
+      {label}
+      <Icon size={13} aria-hidden="true" className={direction ? "text-[#fbbf24]" : undefined} />
+    </button>
   );
 }

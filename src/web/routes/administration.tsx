@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, History, Plus, RotateCcw, Save, ShieldCheck, Tags } from "lucide-react";
+import { Save, ShieldCheck } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -17,7 +17,6 @@ import {
   Input,
   Modal,
   PageHeader,
-  Select,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
 import { FormSelect } from "@/web/components/form-select";
@@ -93,7 +92,7 @@ const settingsSchema = z.object({
 });
 type SettingsForm = z.infer<typeof settingsSchema>;
 
-type Tab = "workspace" | "tags" | "audit";
+type Tab = "workspace" | "audit";
 
 export function AdministrationPage() {
   const me = useMe();
@@ -103,29 +102,36 @@ export function AdministrationPage() {
   return (
     <>
       <PageHeader
-        title="Administration"
-        description="Workspace policies, tags, security posture, and immutable audit history."
-      />
-      <div className="mb-4 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1">
-        {(
-          [
-            ["workspace", ShieldCheck, "Workspace & security"],
-            ["tags", Tags, "Tags"],
-            ["audit", History, "Audit log"],
-          ] as const
-        ).map(([value, Icon, label]) => (
-          <Button
-            key={value}
-            variant={tab === value ? "primary" : "ghost"}
-            onClick={() => setTab(value)}
-          >
-            <Icon size={15} /> {label}
-          </Button>
-        ))}
+        title="Settings"
+        description="Workspace policies, security posture, and immutable audit history."
+      >
+        <nav className="flex gap-5" aria-label="Settings sections">
+          {(
+            [
+              ["workspace", "General"],
+              ["audit", "Audit Log"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-current={tab === value ? "page" : undefined}
+              className={
+                tab === value
+                  ? "border-b-2 border-[#f59e0b] pb-0.5 text-sm font-semibold text-[#fbbf24]"
+                  : "border-b-2 border-transparent pb-0.5 text-sm font-semibold text-[#a4a4a4] hover:text-[#fafafa]"
+              }
+              onClick={() => setTab(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </PageHeader>
+      <div className="p-4 md:p-6">
+        {tab === "workspace" ? <WorkspaceSettings /> : null}
+        {tab === "audit" ? <AuditLog /> : null}
       </div>
-      {tab === "workspace" ? <WorkspaceSettings /> : null}
-      {tab === "tags" ? <TagSettings /> : null}
-      {tab === "audit" ? <AuditLog /> : null}
     </>
   );
 }
@@ -427,111 +433,7 @@ function WorkspaceSettings() {
   );
 }
 
-export function TagSettings() {
-  const queryClient = useQueryClient();
-  const [status, setStatus] = useState<"active" | "archived">("active");
-  const [editing, setEditing] = useState<Tag | "new" | null>(null);
-  const tags = useQuery({
-    queryKey: ["tags", status],
-    queryFn: () => apiRequest<{ tags: Tag[] }>(`/tags?status=${status}`),
-  });
-  const statusMutation = useMutation({
-    mutationFn: ({ tag, action }: { tag: Tag; action: "archive" | "reactivate" }) =>
-      apiRequest(`/tags/${tag.id}/${action}`, { method: "POST", body: "{}" }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-    },
-  });
-  return (
-    <>
-      <section className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
-          <div>
-            <h2 className="font-bold">Tags</h2>
-            <p className="text-sm text-slate-500">
-              Reusable labels remain attached to historical entries.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Select
-              className="w-32"
-              aria-label="Filter tags by status"
-              value={status}
-              onValueChange={(value) => setStatus(value as typeof status)}
-              options={[
-                { value: "active", label: "Active" },
-                { value: "archived", label: "Archived" },
-              ]}
-            />
-            <Button onClick={() => setEditing("new")}>
-              <Plus size={15} /> New tag
-            </Button>
-          </div>
-        </div>
-        {statusMutation.isPending ? (
-          <p role="status" className="p-4 text-sm text-slate-500">
-            Updating tag status…
-          </p>
-        ) : null}
-        {statusMutation.error ? (
-          <p role="alert" className="p-4 text-sm text-red-300">
-            {statusMutation.error.message}
-          </p>
-        ) : null}
-        {tags.isPending ? (
-          <Loading label="Loading tags…" />
-        ) : tags.error ? (
-          <ErrorState message={tags.error.message} onRetry={() => void tags.refetch()} />
-        ) : tags.data.tags.length === 0 ? (
-          <EmptyState title="No tags found" description="Create a tag to classify time entries." />
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {tags.data.tags.map((tag) => (
-              <div
-                key={tag.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-              >
-                <button
-                  className="flex min-w-0 flex-wrap items-center gap-3 text-left break-words"
-                  onClick={() => setEditing(tag)}
-                >
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: tag.color }} />
-                  <span className="font-medium">{tag.name}</span>
-                  <Badge>{tag.status}</Badge>
-                </button>
-                {tag.status === "active" ? (
-                  <Button
-                    variant="ghost"
-                    disabled={statusMutation.isPending}
-                    onClick={() => statusMutation.mutate({ tag, action: "archive" })}
-                  >
-                    <Archive size={14} /> Archive
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    disabled={statusMutation.isPending}
-                    onClick={() => statusMutation.mutate({ tag, action: "reactivate" })}
-                  >
-                    <RotateCcw size={14} /> Reactivate
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-      <TagEditor
-        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
-        open={editing !== null}
-        tag={editing === "new" ? null : editing}
-        onOpenChange={(open) => !open && setEditing(null)}
-      />
-    </>
-  );
-}
-
-function TagEditor({
+export function TagEditor({
   open,
   tag,
   onOpenChange,

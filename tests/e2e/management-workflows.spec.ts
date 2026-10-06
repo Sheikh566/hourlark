@@ -1,6 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 import { chooseOption } from "./select-helpers";
+
+async function rowAction(row: Locator, label: string, action: string) {
+  await row.getByRole("button", { name: `Actions for ${label}`, exact: true }).click();
+  await row.page().getByRole("menuitem", { name: action, exact: true }).click();
+}
 
 test("workspace settings validate, persist report defaults, and load audit history", async ({
   page,
@@ -27,13 +32,13 @@ test("workspace settings validate, persist report defaults, and load audit histo
     page.getByRole("dialog").getByRole("checkbox", { name: "Descriptions", exact: true }),
   ).not.toBeChecked();
   await page.keyboard.press("Escape");
-  await page.getByRole("link", { name: "Administration", exact: true }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
   await page
     .getByRole("checkbox", { name: "Include descriptions by default", exact: true })
     .check();
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Workspace settings saved.");
-  await page.getByRole("button", { name: "Audit log", exact: true }).click();
+  await page.getByRole("button", { name: "Audit Log", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Immutable audit history", exact: true }),
   ).toBeVisible();
@@ -57,14 +62,13 @@ test("client and project creation, editing, search and archive recovery", async 
   await page.getByRole("spinbutton", { name: "Default hourly rate", exact: true }).fill("12");
   await page.getByRole("button", { name: "Save client", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  const card = page.locator("article").filter({ hasText: client });
+  const card = page.locator("tbody tr").filter({ hasText: client });
   await expect(card).toBeVisible();
-  await card.getByRole("button", { name: `Edit ${client}`, exact: true }).click();
+  await rowAction(card, client, "Edit");
   await page.getByRole("textbox", { name: "Notes", exact: true }).fill("Client notes");
   await page.getByRole("button", { name: "Save client", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await card.getByRole("button", { name: "View projects", exact: true }).click();
-  await expect(page).toHaveURL(/client_id=/);
+  await page.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByRole("button", { name: "New project", exact: true }).click();
   await chooseOption(page.getByRole("combobox", { name: "Client", exact: true }), client);
   await page.getByRole("button", { name: "Save project", exact: true }).click();
@@ -75,35 +79,39 @@ test("client and project creation, editing, search and archive recovery", async 
   await page.getByRole("checkbox", { name: "Billable by default", exact: true }).check();
   await page.getByRole("button", { name: "Save project", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  const projectCard = page.locator("article").filter({ hasText: project });
+  const projectCard = page.locator("tbody tr").filter({ hasText: project });
   await expect(projectCard).toBeVisible();
-  await projectCard.getByRole("button", { name: `Edit ${project}`, exact: true }).click();
+  await projectCard.getByRole("button", { name: project, exact: true }).click();
   await page.getByRole("textbox", { name: "Notes", exact: true }).fill("Project notes");
   await page.getByRole("button", { name: "Save project", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await page.getByPlaceholder("Search projects").fill("no matching project");
+  await page.getByRole("searchbox", { name: "Project name" }).fill("no matching project");
   await expect(page.getByRole("heading", { name: "No projects found" })).toBeVisible();
-  await page.getByPlaceholder("Search projects").fill(project);
+  await page.getByRole("searchbox", { name: "Project name" }).fill(project);
   await expect(projectCard).toBeVisible();
-  await projectCard.getByRole("button", { name: "Archive", exact: true }).click();
+  await rowAction(projectCard, project, "Archive");
   await expect(projectCard).toBeHidden();
-  await chooseOption(page.getByRole("combobox", { name: "Filter projects by status" }), "Archived");
+  await chooseOption(
+    page.getByRole("combobox", { name: "Filter projects by status" }),
+    "Show archived",
+  );
   await expect(projectCard).toBeVisible();
-  await projectCard.getByRole("button", { name: "Reactivate", exact: true }).click();
+  await rowAction(projectCard, project, "Restore");
   await expect(projectCard).toBeHidden();
   await page.getByRole("link", { name: "Clients", exact: true }).click();
-  await page.getByPlaceholder("Search clients").fill(client);
+  await page.getByRole("searchbox", { name: "Search clients" }).fill(client);
   await expect(card).toBeVisible();
-  await card.getByRole("button", { name: "Archive", exact: true }).click();
+  await rowAction(card, client, "Archive");
   await expect(card).toBeHidden();
   await chooseOption(
     page.getByRole("combobox", { name: /^Filter (clients|tags) by status$/ }),
-    "Archived",
+    "Show archived",
   );
   await expect(card).toBeVisible();
   // Existing project metadata remains editable while the client stays archived.
-  await card.getByRole("button", { name: "View projects", exact: true }).click();
-  await page.getByRole("button", { name: `Edit ${project}`, exact: true }).click();
+  await page.getByRole("link", { name: "Projects", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Project name" }).fill(project);
+  await page.getByRole("button", { name: project, exact: true }).click();
   await page
     .getByRole("textbox", { name: "Notes", exact: true })
     .fill("Archived client, retained association");
@@ -117,25 +125,25 @@ test("tags and members have working validation, editing and status controls", as
     tag = `Tag audit ${suffix}`,
     name = `Member audit ${suffix}`;
   await page.goto("/tags");
-  await page.getByRole("button", { name: "New tag", exact: true }).click();
+  await page.getByRole("button", { name: "New Tag", exact: true }).click();
   await page.getByRole("button", { name: "Save tag", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveText("Enter a tag name.");
   await page.getByRole("textbox", { name: "Tag name", exact: true }).fill(tag);
   await page.getByRole("button", { name: "Save tag", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await page.getByRole("button", { name: `${tag} active`, exact: true }).click();
+  await page.getByRole("button", { name: tag, exact: true }).click();
   await page.getByRole("textbox", { name: "Tag name", exact: true }).fill(`${tag} edited`);
   await page.getByRole("button", { name: "Save tag", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  const tagRow = page.locator("section .divide-y > div").filter({ hasText: `${tag} edited` });
-  await tagRow.getByRole("button", { name: "Archive", exact: true }).click();
+  const tagRow = page.locator("tbody tr").filter({ hasText: `${tag} edited` });
+  await rowAction(tagRow, `${tag} edited`, "Archive");
   await expect(tagRow).toBeHidden();
   await chooseOption(
     page.getByRole("combobox", { name: /^Filter (clients|tags) by status$/ }),
-    "Archived",
+    "Show archived",
   );
   await expect(tagRow).toBeVisible();
-  await tagRow.getByRole("button", { name: "Reactivate", exact: true }).click();
+  await rowAction(tagRow, `${tag} edited`, "Restore");
   await expect(tagRow).toBeHidden();
   await page.getByRole("link", { name: "Members", exact: true }).click();
   await page.getByRole("button", { name: "Add member", exact: true }).click();
@@ -148,13 +156,17 @@ test("tags and members have working validation, editing and status controls", as
   await page.getByRole("spinbutton", { name: "Weekly target hours", exact: true }).fill("35");
   await page.getByRole("button", { name: "Save member", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await page.getByPlaceholder("Search members").fill(name);
+  await page.getByRole("searchbox", { name: "Search members" }).fill(name);
   await expect(page.getByText(name, { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
+  await rowAction(page.locator("tbody tr").filter({ hasText: name }), name, "Edit");
   await page.getByRole("textbox", { name: "Display name", exact: true }).fill(`${name} edited`);
   await page.getByRole("button", { name: "Save member", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await page.getByRole("button", { name: `Edit ${name} edited`, exact: true }).click();
+  await rowAction(
+    page.locator("tbody tr").filter({ hasText: `${name} edited` }),
+    `${name} edited`,
+    "Edit",
+  );
   page.once("dialog", (dialog) => dialog.accept());
   await chooseOption(
     page.getByRole("combobox", { name: "Account status", exact: true }),
@@ -162,7 +174,11 @@ test("tags and members have working validation, editing and status controls", as
   );
   await page.getByRole("button", { name: "Save member", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.locator("tr").filter({ hasText: `${name} edited` })).toContainText("inactive");
+  await chooseOption(
+    page.getByRole("combobox", { name: "Filter members by status", exact: true }),
+    "Show inactive",
+  );
+  await expect(page.locator("tr").filter({ hasText: `${name} edited` })).toContainText("Inactive");
 });
 
 test("every management dialog fits 320px and 768px with visible footer actions", async ({
@@ -174,7 +190,7 @@ test("every management dialog fits 320px and 768px with visible footer actions",
       ["/clients", "New client"],
       ["/projects", "New project"],
       ["/members", "Add member"],
-      ["/tags", "New tag"],
+      ["/tags", "New Tag"],
     ] as const) {
       await page.goto(path);
       await page.getByRole("button", { name: button, exact: true }).click();
