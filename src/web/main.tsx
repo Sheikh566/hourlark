@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router";
 
 import { MeProvider } from "@/web/app/context";
 import { AppRouter } from "@/web/app/router";
+import { ToastProvider } from "@/web/components/toast";
 import "@/web/styles.css";
 
 const queryClient = new QueryClient({
@@ -28,7 +29,9 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <MeProvider>
-          <AppRouter />
+          <ToastProvider>
+            <AppRouter />
+          </ToastProvider>
         </MeProvider>
       </BrowserRouter>
     </QueryClientProvider>
