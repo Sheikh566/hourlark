@@ -98,7 +98,7 @@ export function Select({
           sideOffset={4}
           collisionPadding={8}
           className={twMerge(
-            "dark-surface relative z-[60] max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[min(24rem,calc(100vw-16px))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-[#3b3b3b] bg-[#212121] text-sm text-[#fafafa] shadow-[0_18px_50px_rgb(0_0_0/45%)]",
+            "dark-surface relative z-[60] max-h-[min(20rem,var(--radix-select-content-available-height))] max-w-[min(24rem,calc(100vw-16px))] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-[#3a3a3a] bg-[#1b1b1b] text-sm text-[#fafafa] shadow-[0_18px_50px_rgb(0_0_0/45%)]",
             contentClassName,
           )}
         >

@@ -265,7 +265,7 @@ export function CalendarView({
             <span
               className={
                 isToday
-                  ? "grid h-6 w-6 place-items-center rounded-full bg-[#f59e0b] text-xs font-bold text-[#18181b]"
+                  ? "grid h-6 w-6 place-items-center rounded-full bg-[#f59e0b] text-xs font-bold text-[#121212]"
                   : "text-sm font-semibold text-slate-200"
               }
             >
@@ -310,7 +310,7 @@ export function CalendarView({
           <ErrorState message={calendar.error.message} onRetry={() => void calendar.refetch()} />
         </div>
       ) : (
-        <section className="overflow-hidden bg-[#212121] p-3">
+        <section className="overflow-hidden bg-[#1b1b1b] p-3">
           <FullCalendar
             ref={calendarRef}
             className="hourlark-calendar"

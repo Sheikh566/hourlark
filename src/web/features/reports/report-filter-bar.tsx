@@ -143,7 +143,7 @@ function FilterChoice({
                 onSelect(option.value);
                 trigger.current?.focus();
               }}
-              className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#3b3b3b] ${value === option.value ? "bg-[#382b16] text-[#fbbf24]" : ""} ${focusClass}`}
+              className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#3a3a3a] ${value === option.value ? "bg-[#382b16] text-[#fbbf24]" : ""} ${focusClass}`}
             >
               {option.label}
             </button>
@@ -358,7 +358,7 @@ export function ReportFilterBar({
           {ordered.map(({ key, label }) => (
             <div
               key={key}
-              className={`flex h-9 max-w-full items-center rounded-md ${editing === key ? "bg-[#382b16] text-[#fbbf24]" : filters[key] ? "bg-[#3b3b3b] text-[#fafafa]" : "text-[#fafafa]"}`}
+              className={`flex h-9 max-w-full items-center rounded-md ${editing === key ? "bg-[#382b16] text-[#fbbf24]" : filters[key] ? "bg-[#3a3a3a] text-[#fafafa]" : "text-[#fafafa]"}`}
             >
               <button
                 ref={(element) => {
@@ -441,7 +441,7 @@ export function ReportFilterBar({
                 maxWidth: "calc(100vw - 16px)",
                 maxHeight: `calc(100dvh - ${position.top + 8}px)`,
               }}
-              className="dark-surface fixed z-50 overflow-y-auto rounded-md border border-[#3b3b3b] bg-[#212121] p-4 text-[#fafafa] shadow-[0_6px_18px_#0008] outline-none"
+              className="dark-surface fixed z-50 overflow-y-auto rounded-md border border-[#3a3a3a] bg-[#1b1b1b] p-4 text-[#fafafa] shadow-[0_6px_18px_#0008] outline-none"
             >
               {editing === "add" ? (
                 <>
@@ -478,7 +478,7 @@ export function ReportFilterBar({
                           type="button"
                           role="menuitem"
                           onClick={() => open(key)}
-                          className={`flex h-9 w-full items-center gap-3 rounded px-2 text-left text-sm hover:bg-[#3b3b3b] ${focusClass}`}
+                          className={`flex h-9 w-full items-center gap-3 rounded px-2 text-left text-sm hover:bg-[#3a3a3a] ${focusClass}`}
                         >
                           <FilterGlyph filterKey={key} /> {label}
                         </button>
@@ -560,7 +560,7 @@ export function ReportFilterBar({
                         {visibleOptions.map((option) => (
                           <label
                             key={option.id}
-                            className="flex min-h-[30px] cursor-pointer items-center gap-2 rounded px-1 text-sm hover:bg-[#3b3b3b]"
+                            className="flex min-h-[30px] cursor-pointer items-center gap-2 rounded px-1 text-sm hover:bg-[#3a3a3a]"
                           >
                             <input
                               type="checkbox"
@@ -601,7 +601,7 @@ export function ReportFilterBar({
                         ) : null}
                       </div>
                       {entityKey !== "tag" ? (
-                        <div className="-mx-4 mt-3 flex items-center justify-between border-t border-[#3b3b3b] px-4 pt-2">
+                        <div className="-mx-4 mt-3 flex items-center justify-between border-t border-[#3a3a3a] px-4 pt-2">
                           <span className={labelClass}>Show</span>
                           <div>
                             {choice(
@@ -648,12 +648,12 @@ export function ReportFilterBar({
                       )}
                     </div>
                   ) : null}
-                  <div className="-mx-4 mt-4 border-t border-[#3b3b3b] px-4 pt-4">
+                  <div className="-mx-4 mt-4 border-t border-[#3a3a3a] px-4 pt-4">
                     <button
                       type="button"
                       disabled={!valid || loading}
                       onClick={apply}
-                      className={`h-9 w-full rounded-md bg-[#fbbf24] text-sm font-semibold text-[#212121] hover:bg-[#fcd34d] disabled:cursor-not-allowed disabled:opacity-30 ${focusClass}`}
+                      className={`h-9 w-full rounded-md bg-[#fbbf24] text-sm font-semibold text-[#1b1b1b] hover:bg-[#fcd34d] disabled:cursor-not-allowed disabled:opacity-30 ${focusClass}`}
                     >
                       Add
                     </button>
@@ -697,21 +697,21 @@ function FilterGlyph({
       />
       {filterKey === "member" || filterKey === "client" ? (
         <>
-          <circle cx="9" cy="6" r="2.5" fill="#212121" />
-          <path d="M4 15v-2a5 5 0 0 1 10 0v2z" fill="#212121" />
+          <circle cx="9" cy="6" r="2.5" fill="#1b1b1b" />
+          <path d="M4 15v-2a5 5 0 0 1 10 0v2z" fill="#1b1b1b" />
         </>
       ) : filterKey === "project" ? (
         <>
           <path d="M3 1h5l2 3H3z" />
-          <path d="M3 6h12v2H3z" fill="#212121" />
+          <path d="M3 6h12v2H3z" fill="#1b1b1b" />
         </>
       ) : filterKey === "tag" ? (
         <>
-          <path d="M4 4h5l5 5-5 5-5-5z" fill="#212121" />
+          <path d="M4 4h5l5 5-5 5-5-5z" fill="#1b1b1b" />
           <circle cx="6" cy="6" r="1" />
         </>
       ) : (
-        <text x="2.5" y="13" fill="#212121" fontSize="11" fontWeight="700">
+        <text x="2.5" y="13" fill="#1b1b1b" fontSize="11" fontWeight="700">
           Aa
         </text>
       )}

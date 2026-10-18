@@ -122,7 +122,7 @@ function ListEntryRow({
   return (
     <article
       id={rowId}
-      className={`group grid min-h-[50px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[#3b3b3b] px-5 py-3 transition hover:bg-white/[0.03] lg:h-[50px] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)_minmax(190px,auto)_auto] lg:py-0 ${
+      className={`group grid min-h-[50px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[#3a3a3a] px-5 py-3 transition hover:bg-white/[0.03] lg:h-[50px] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)_minmax(190px,auto)_auto] lg:py-0 ${
         running ? "bg-[#382b16]/35" : ""
       } ${nested ? "bg-[#1b1b1b]/35 pl-8 lg:pl-12" : ""}`}
     >
@@ -681,11 +681,11 @@ export function TimePage() {
         <TimesheetView weekStart={weekStartDate} memberId={memberId} />
       ) : null}
       {view === "list" ? (
-        <section className="min-w-0 bg-[#212121]">
+        <section className="min-w-0 bg-[#1b1b1b]">
           <TimeEntryListCapWarning entryCount={entries.data?.entries.length ?? 0} />
           {selectedIds.size > 0 ? (
             <div
-              className="flex flex-wrap items-center gap-3 border-b border-[#3b3b3b] px-5 py-3"
+              className="flex flex-wrap items-center gap-3 border-b border-[#3a3a3a] px-5 py-3"
               aria-label="Selected entries actions"
             >
               <span className="text-sm">{selectedIds.size} selected</span>
@@ -713,7 +713,7 @@ export function TimePage() {
               {[1, 2, 3].map((item) => (
                 <div
                   key={item}
-                  className="h-[50px] animate-pulse border-b border-[#3b3b3b] bg-white/5"
+                  className="h-[50px] animate-pulse border-b border-[#3a3a3a] bg-white/5"
                 />
               ))}
             </div>
@@ -738,7 +738,7 @@ export function TimePage() {
                   ) : null}
                   <Link
                     to="/reports"
-                    className="inline-flex h-9 items-center rounded-lg border border-[#3b3b3b] bg-[#382b16] px-3 text-sm font-semibold text-[#fbbf24] hover:bg-[#48361b]"
+                    className="inline-flex h-9 items-center rounded-lg border border-[#3a3a3a] bg-[#382b16] px-3 text-sm font-semibold text-[#fbbf24] hover:bg-[#48361b]"
                   >
                     View full history in reports
                   </Link>
@@ -755,7 +755,7 @@ export function TimePage() {
               const someSelected = selectedInDay > 0 && !allSelected;
               return (
                 <section key={day} aria-labelledby={`day-${day}`}>
-                  <div className="flex h-[50px] items-center gap-3 border-y border-[#3b3b3b] bg-[#212121] px-5">
+                  <div className="flex h-[50px] items-center gap-3 border-y border-[#3a3a3a] bg-[#1b1b1b] px-5">
                     <input
                       type="checkbox"
                       disabled={actionsPending}
@@ -940,7 +940,7 @@ export function TimePage() {
           <div className="flex justify-center py-8">
             <Link
               to="/reports"
-              className="inline-flex h-8 items-center rounded-full border border-[#3b3b3b] bg-[#382b16] px-4 text-sm font-medium text-[#fbbf24] hover:bg-[#48361b]"
+              className="inline-flex h-8 items-center rounded-full border border-[#3a3a3a] bg-[#382b16] px-4 text-sm font-medium text-[#fbbf24] hover:bg-[#48361b]"
             >
               View full history in reports
             </Link>
@@ -954,7 +954,7 @@ export function TimePage() {
         </p>
       ) : null}
       {undoEntries.length > 0 ? (
-        <div className="fixed right-4 bottom-4 z-30 flex items-center gap-3 rounded-xl border border-[#3b3b3b] bg-[#212121] px-4 py-3 text-sm text-[#fafafa] shadow-xl">
+        <div className="fixed right-4 bottom-4 z-30 flex items-center gap-3 rounded-xl border border-[#3a3a3a] bg-[#1b1b1b] px-4 py-3 text-sm text-[#fafafa] shadow-xl">
           {undoEntries.length === 1 ? "Entry deleted." : `${undoEntries.length} entries deleted.`}
           <Button
             variant="accent"

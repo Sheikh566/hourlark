@@ -245,7 +245,7 @@ export function ReportsPage() {
   return (
     <>
       <h1 className="sr-only">Reports</h1>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#3b3b3b] pb-0 pl-10 md:pl-0">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#3a3a3a] pb-0 pl-10 md:pl-0">
         <div className="flex items-center gap-5" role="tablist" aria-label="Report view">
           {(["summary", "detailed"] as const).map((value) => (
             <button
@@ -285,7 +285,7 @@ export function ReportsPage() {
           {exportError}
         </p>
       ) : null}
-      <section className="mb-5 border-b border-[#3b3b3b] pb-3">
+      <section className="mb-5 border-b border-[#3a3a3a] pb-3">
         <ReportFilterBar
           filters={filters}
           onChange={changeFilters}
@@ -562,7 +562,7 @@ function ReportMetrics({
   return (
     <div
       aria-label="Report totals"
-      className="flex flex-wrap gap-x-10 gap-y-4 border-b border-[#3b3b3b] px-1 pb-5"
+      className="flex flex-wrap gap-x-10 gap-y-4 border-b border-[#3a3a3a] px-1 pb-5"
     >
       {cards.map(([label, value]) => (
         <div key={label}>
@@ -626,7 +626,7 @@ function SummaryContent({
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={days}>
-                  <CartesianGrid vertical={false} stroke="#3b3b3b" />
+                  <CartesianGrid vertical={false} stroke="#3a3a3a" />
                   <XAxis
                     dataKey="key"
                     tick={{ fill: "#a4a4a4", fontSize: 11 }}
@@ -640,8 +640,8 @@ function SummaryContent({
                   <Tooltip
                     formatter={(value) => formatDuration(Number(value))}
                     contentStyle={{
-                      background: "#212121",
-                      border: "1px solid #3b3b3b",
+                      background: "#1b1b1b",
+                      border: "1px solid #3a3a3a",
                       color: "#fafafa",
                     }}
                     cursor={{ fill: "rgba(255,255,255,0.04)" }}
@@ -675,7 +675,7 @@ function SummaryContent({
                   <Tooltip
                     formatter={(value) => formatDuration(Number(value))}
                     contentStyle={{
-                      background: "#212121",
+                      background: "#1b1b1b",
                       border: "1px solid rgba(255,255,255,0.12)",
                       borderRadius: 8,
                       color: "#e2e8f0",
@@ -689,7 +689,7 @@ function SummaryContent({
         </section>
       </div>
       <section className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#3b3b3b] px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#3a3a3a] px-4 py-3">
           <h2 className="text-sm font-semibold">
             {dimensionLabel}
             {secondary ? ` and ${secondary}` : ""} breakdown

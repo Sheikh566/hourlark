@@ -26,7 +26,7 @@ export function TimeEntryListCapWarning({ entryCount }: { entryCount: number }) 
   return (
     <p
       role="status"
-      className="border-b border-[#3b3b3b] bg-[#382b16]/50 px-5 py-3 text-sm text-[#fafafa]"
+      className="border-b border-[#3a3a3a] bg-[#382b16]/50 px-5 py-3 text-sm text-[#fafafa]"
     >
       {message}
     </p>
@@ -125,7 +125,7 @@ export function DateRangePopover({
       aria-label={ariaLabel}
       className="timer-popover absolute top-11 left-0 z-50 w-[min(calc(100vw-40px),22rem)] outline-none"
     >
-      <div className="grid grid-cols-2 gap-1 border-b border-[#3b3b3b] p-2">
+      <div className="grid grid-cols-2 gap-1 border-b border-[#3a3a3a] p-2">
         {presets ??
           LIST_DATE_PRESETS.map((preset) => {
             const active = value.preset === preset.id;
@@ -191,7 +191,7 @@ export function DateRangePopover({
                 aria-pressed={selected}
                 className={`h-8 rounded-md text-xs ${
                   endpoint
-                    ? "bg-[#f59e0b] text-[#18181b]"
+                    ? "bg-[#f59e0b] text-[#121212]"
                     : selected
                       ? "bg-[#382b16] text-[#fbbf24]"
                       : inMonth
@@ -211,7 +211,7 @@ export function DateRangePopover({
             Start
             <input
               type="date"
-              className="h-8 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
+              className="h-8 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
               value={draftStart}
               aria-label="Range start date"
               onChange={(event) => {
@@ -223,7 +223,7 @@ export function DateRangePopover({
             End
             <input
               type="date"
-              className="h-8 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
+              className="h-8 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
               value={draftEnd}
               aria-label="Range end date"
               onChange={(event) => {
@@ -249,7 +249,7 @@ export function DateRangePopover({
           </button>
           <button
             type="button"
-            className="h-8 rounded-md bg-[#f59e0b] px-3 text-xs font-semibold text-[#18181b] hover:bg-[#fbbf24]"
+            className="h-8 rounded-md bg-[#f59e0b] px-3 text-xs font-semibold text-[#121212] hover:bg-[#fbbf24]"
             disabled={!draftStart || !draftEnd}
             onClick={applyCustom}
           >

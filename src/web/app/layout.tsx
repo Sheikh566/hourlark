@@ -51,7 +51,7 @@ export function AppLayout() {
 
   const sidebar = (
     <aside className="flex h-full w-[226px] text-[#fafafa]">
-      <div className="flex w-[47px] shrink-0 flex-col items-center border-r border-[#3b3b3b] bg-black py-3">
+      <div className="flex w-[47px] shrink-0 flex-col items-center border-r border-[#3a3a3a] bg-black py-3">
         <NavLink
           to="/time"
           aria-label="Hourlark home"
@@ -61,8 +61,8 @@ export function AppLayout() {
           <img src="/brand/hourlark-original/icon-48.png" alt="" width={32} height={32} />
         </NavLink>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col bg-[#151515]">
-        <div className="relative border-b border-[#3b3b3b] p-3">
+      <div className="flex min-w-0 flex-1 flex-col bg-[#0d0d0d]">
+        <div className="relative border-b border-[#3a3a3a] p-3">
           <img
             src="/brand/hourlark-original/wordmark-dark.png"
             alt="Hourlark"
@@ -95,7 +95,7 @@ export function AppLayout() {
           </button>
           {userOpen ? (
             <div className="timer-popover absolute top-full left-3 z-50 mt-1 w-64 p-2">
-              <div className="border-b border-[#3b3b3b] p-2">
+              <div className="border-b border-[#3a3a3a] p-2">
                 <p className="truncate text-sm font-medium text-[#fafafa]">{me.member.email}</p>
                 <p className="mt-0.5 text-xs text-[#a4a4a4]">{me.member.timezone}</p>
               </div>
@@ -141,11 +141,11 @@ export function AppLayout() {
         </nav>
 
         {admin.length ? (
-          <div className="border-t border-[#3b3b3b] px-2 py-3">
+          <div className="border-t border-[#3a3a3a] px-2 py-3">
             <NavigationGroup label="Admin" items={admin} onNavigate={() => setMobileOpen(false)} />
           </div>
         ) : (
-          <div className="border-t border-[#3b3b3b] px-4 py-3 text-[10px] text-[#a4a4a4]">
+          <div className="border-t border-[#3a3a3a] px-4 py-3 text-[10px] text-[#a4a4a4]">
             Hourlark workspace
           </div>
         )}
@@ -154,7 +154,7 @@ export function AppLayout() {
   );
 
   return (
-    <div className="app-shell min-h-screen bg-[#212121] text-[#fafafa]">
+    <div className="app-shell min-h-screen bg-[#1b1b1b] text-[#fafafa]">
       <div className="fixed inset-y-0 left-0 z-30 hidden md:block">{sidebar}</div>
       {mobileOpen ? (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -175,7 +175,7 @@ export function AppLayout() {
       >
         <Button
           variant="ghost"
-          className="fixed top-4 left-2 z-30 h-10 w-10 bg-[#212121]/90 p-0 text-[#fafafa] md:hidden"
+          className="fixed top-4 left-2 z-30 h-10 w-10 bg-[#1b1b1b]/90 p-0 text-[#fafafa] md:hidden"
           aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
           onClick={() => setMobileOpen((value) => !value)}
         >

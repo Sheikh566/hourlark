@@ -214,7 +214,7 @@ export function InlineEntryEditor({
 
   return (
     <form
-      className="border-b border-l-2 border-[#3b3b3b] border-l-[#f59e0b]/50 bg-white/[0.04] px-4 py-2 md:px-5"
+      className="border-b border-l-2 border-[#3a3a3a] border-l-[#f59e0b]/50 bg-white/[0.04] px-4 py-2 md:px-5"
       aria-label={`Edit ${entry.description || "time entry"}`}
       onSubmit={submit}
       onKeyDown={(event) => {
@@ -230,7 +230,7 @@ export function InlineEntryEditor({
           <div className="flex min-w-0 items-center gap-3">
             <input
               autoFocus={initialField === "description"}
-              className="h-9 min-w-[120px] flex-[1_1_52%] rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-[#fafafa] outline-none placeholder:text-[#a4a4a4] hover:bg-black/10 focus:border-[#3b3b3b] focus:bg-[#1b1b1b]"
+              className="h-9 min-w-[120px] flex-[1_1_52%] rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-[#fafafa] outline-none placeholder:text-[#a4a4a4] hover:bg-black/10 focus:border-[#3a3a3a] focus:bg-[#1b1b1b]"
               value={description}
               maxLength={500}
               placeholder="Add description"
@@ -321,7 +321,7 @@ export function InlineEntryEditor({
             <Button
               type="submit"
               variant="ghost"
-              className="h-8 min-h-8 w-8 rounded-md bg-[#f59e0b] p-0 text-[#18181b] hover:bg-[#fbbf24] hover:text-[#18181b]"
+              className="h-8 min-h-8 w-8 rounded-md bg-[#f59e0b] p-0 text-[#121212] hover:bg-[#fbbf24] hover:text-[#121212]"
               aria-label="Save time entry"
               disabled={mutation.isPending}
             >
@@ -420,13 +420,13 @@ function ProjectPicker({
       </button>
       {open ? (
         <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto xl:absolute xl:top-10 xl:left-0 xl:max-h-none xl:translate-x-0 xl:translate-y-0">
-          <div className="relative border-b border-[#3b3b3b] p-2">
+          <div className="relative border-b border-[#3a3a3a] p-2">
             <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
+              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Search projects or clients"
               aria-label="Search entry projects"
             />
@@ -537,13 +537,13 @@ function TagPicker({
       </button>
       {open ? (
         <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,280px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto xl:absolute xl:top-10 xl:right-0 xl:left-auto xl:max-h-none xl:translate-x-0 xl:translate-y-0">
-          <div className="relative border-b border-[#3b3b3b] p-2">
+          <div className="relative border-b border-[#3a3a3a] p-2">
             <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
+              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Filter tags"
               aria-label="Search entry tags"
             />
@@ -658,7 +658,7 @@ function TimePicker({
       </button>
       {open ? (
         <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,410px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto p-3 xl:absolute xl:top-10 xl:right-0 xl:left-auto xl:max-h-none xl:translate-x-0 xl:translate-y-0">
-          <div className="mb-3 flex items-center gap-2 border-b border-[#3b3b3b] pb-3">
+          <div className="mb-3 flex items-center gap-2 border-b border-[#3a3a3a] pb-3">
             <CalendarClock size={17} className="text-[#fbbf24]" />
             <div>
               <p className="text-sm font-semibold text-[#fafafa]">Date and time</p>
@@ -681,13 +681,13 @@ function TimePicker({
             />
           </div>
 
-          <div className="mt-3 grid items-end gap-3 border-t border-[#3b3b3b] pt-3 sm:grid-cols-2">
+          <div className="mt-3 grid items-end gap-3 border-t border-[#3a3a3a] pt-3 sm:grid-cols-2">
             <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
               Duration (h:mm:ss)
               <input
                 className={`h-9 min-w-0 rounded-md border bg-[#1b1b1b] px-2.5 text-sm text-[#fafafa] tabular-nums outline-none ${
                   parseClockDuration(durationDraft)
-                    ? "border-[#3b3b3b] focus:border-[#f59e0b]"
+                    ? "border-[#3a3a3a] focus:border-[#f59e0b]"
                     : "border-red-500/70"
                 }`}
                 value={durationDraft}
@@ -701,7 +701,7 @@ function TimePicker({
               <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
                 Rate ({currency})
                 <input
-                  className="h-9 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2.5 text-right text-sm text-[#fafafa] outline-none focus:border-[#f59e0b]"
+                  className="h-9 min-w-0 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2.5 text-right text-sm text-[#fafafa] outline-none focus:border-[#f59e0b]"
                   type="number"
                   min="0"
                   step="0.01"
@@ -713,7 +713,7 @@ function TimePicker({
             ) : (
               <button
                 type="button"
-                className="h-9 rounded-md border border-[#3b3b3b] text-xs font-semibold text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]"
+                className="h-9 rounded-md border border-[#3a3a3a] text-xs font-semibold text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]"
                 onClick={() => requestClose(true)}
               >
                 Done
@@ -738,13 +738,13 @@ function DateTimeFields({
   onChange: (value: string) => void;
 }) {
   return (
-    <fieldset className="min-w-0 rounded-lg border border-[#3b3b3b] bg-black/10 p-2.5 disabled:opacity-50">
+    <fieldset className="min-w-0 rounded-lg border border-[#3a3a3a] bg-black/10 p-2.5 disabled:opacity-50">
       <legend className="px-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
         {label}
       </legend>
       <div className="grid min-w-0 gap-2">
         <input
-          className="h-8 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
+          className="h-8 min-w-0 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
           type="date"
           value={value.slice(0, 10)}
           disabled={disabled}
@@ -752,7 +752,7 @@ function DateTimeFields({
           onChange={(event) => onChange(replaceDate(value, event.target.value))}
         />
         <input
-          className="h-8 min-w-0 rounded-md border border-[#3b3b3b] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] tabular-nums outline-none focus:border-[#f59e0b]"
+          className="h-8 min-w-0 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] tabular-nums outline-none focus:border-[#f59e0b]"
           type="time"
           step={1}
           value={value.slice(11)}

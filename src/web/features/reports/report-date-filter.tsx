@@ -295,9 +295,9 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
           role="dialog"
           aria-label="Choose report dates"
           style={{ left: popupLeft }}
-          className="absolute top-11 z-50 flex max-h-[75vh] w-[min(915px,calc(100vw-32px))] flex-col overflow-auto rounded-lg border border-[#3b3b3b] bg-[#212121] shadow-2xl md:flex-row"
+          className="absolute top-11 z-50 flex max-h-[75vh] w-[min(915px,calc(100vw-32px))] flex-col overflow-auto rounded-lg border border-[#3a3a3a] bg-[#1b1b1b] shadow-2xl md:flex-row"
         >
-          <div className="relative shrink-0 border-b border-[#3b3b3b] p-3 md:w-[250px] md:border-r md:border-b-0">
+          <div className="relative shrink-0 border-b border-[#3a3a3a] p-3 md:w-[250px] md:border-r md:border-b-0">
             {SHORTCUTS.map((shortcut) => (
               <button
                 key={shortcut}
@@ -317,7 +317,7 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
               ref={shortcutTrigger}
               type="button"
               aria-expanded={allOpen}
-              className="mt-2 flex w-full items-center justify-between border-t border-[#3b3b3b] px-3 py-2 text-left text-sm"
+              className="mt-2 flex w-full items-center justify-between border-t border-[#3a3a3a] px-3 py-2 text-left text-sm"
               onClick={() => {
                 setAllOpen(!allOpen);
                 setYearOpen(null);
@@ -473,7 +473,7 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
                                 { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" },
                               )}
                               aria-pressed={selected}
-                              className={`h-8 text-sm focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-amber-400 ${endpoint ? "rounded bg-amber-400 text-[#212121]" : selected ? "bg-amber-400/20 text-amber-300" : "hover:bg-white/8"} ${!date.startsWith(prefix) && !selected ? "text-[#666]" : ""} ${date === today && !selected ? "rounded border border-[#777]" : ""}`}
+                              className={`h-8 text-sm focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-amber-400 ${endpoint ? "rounded bg-amber-400 text-[#1b1b1b]" : selected ? "bg-amber-400/20 text-amber-300" : "hover:bg-white/8"} ${!date.startsWith(prefix) && !selected ? "text-[#666]" : ""} ${date === today && !selected ? "rounded border border-[#777]" : ""}`}
                               onClick={() => selectDay(date)}
                             >
                               {Number(date.slice(8))}

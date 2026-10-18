@@ -532,7 +532,7 @@ export function GlobalTimerBar() {
   };
 
   return (
-    <header className="global-timer sticky top-0 z-20 border-b border-[#3b3b3b] bg-[#1b1b1b] pr-3 pl-14 md:px-5">
+    <header className="global-timer sticky top-0 z-20 border-b border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-14 md:px-5">
       <div className="flex min-h-[84px] w-full flex-wrap items-center gap-2 py-3 sm:h-[84px] sm:flex-nowrap sm:py-0">
         <div className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <input
@@ -597,13 +597,13 @@ export function GlobalTimerBar() {
                 descriptionCommand.kind === "project" ? "Project suggestions" : "Tag suggestions"
               }
             >
-              <div className="flex items-center justify-between border-b border-[#3b3b3b] px-3 py-2">
+              <div className="flex items-center justify-between border-b border-[#3a3a3a] px-3 py-2">
                 <p className="text-xs font-semibold text-[#fafafa]">
                   {descriptionCommand.kind === "project" ? "Choose a project" : "Add a tag"}
                 </p>
                 <p className="text-[10px] text-[#a4a4a4]">
-                  <kbd className="rounded border border-[#3b3b3b] px-1 py-0.5">↑↓</kbd> navigate ·{" "}
-                  <kbd className="rounded border border-[#3b3b3b] px-1 py-0.5">Enter</kbd> select
+                  <kbd className="rounded border border-[#3a3a3a] px-1 py-0.5">↑↓</kbd> navigate ·{" "}
+                  <kbd className="rounded border border-[#3a3a3a] px-1 py-0.5">Enter</kbd> select
                 </p>
               </div>
               <div className="max-h-72 overflow-y-auto p-1.5">
@@ -761,7 +761,7 @@ export function GlobalTimerBar() {
         ) : manualMode ? (
           <button
             type="button"
-            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#18181b] transition hover:bg-[#fbbf24]"
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#121212] transition hover:bg-[#fbbf24]"
             onClick={() => manualMutation.mutate()}
             disabled={manualMutation.isPending}
             aria-label="Add time entry"
@@ -771,7 +771,7 @@ export function GlobalTimerBar() {
         ) : (
           <button
             type="button"
-            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#18181b] transition hover:bg-[#fbbf24]"
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#121212] transition hover:bg-[#fbbf24]"
             onClick={() => startMutation.mutate()}
             disabled={startMutation.isPending}
             aria-label="Start timer"
@@ -903,13 +903,13 @@ function ProjectPicker({
       </button>
       {open ? (
         <div className="timer-popover absolute top-12 right-0 z-50 w-[min(88vw,360px)]">
-          <div className="relative border-b border-[#3b3b3b] p-2">
+          <div className="relative border-b border-[#3a3a3a] p-2">
             <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#212121] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
+              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Search projects or clients"
               aria-label="Search projects or clients"
             />
@@ -1011,20 +1011,20 @@ function TagPicker({
       >
         <Tags size={19} />
         {value.length ? (
-          <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-[#18181b]">
+          <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-[#121212]">
             {value.length}
           </span>
         ) : null}
       </button>
       {open ? (
         <div className="timer-popover absolute top-12 right-0 z-50 w-[min(82vw,280px)]">
-          <div className="relative border-b border-[#3b3b3b] p-2">
+          <div className="relative border-b border-[#3a3a3a] p-2">
             <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
             <input
               autoFocus
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3b3b3b] bg-[#212121] pr-8 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
+              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-8 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
               placeholder="Filter tags"
               aria-label="Search timer tags"
             />

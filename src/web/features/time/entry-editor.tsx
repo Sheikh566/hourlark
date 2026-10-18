@@ -137,7 +137,7 @@ function DateTimeFields({
   return (
     <fieldset
       disabled={disabled}
-      className="min-w-0 rounded-lg border border-[#3b3b3b] bg-[#1b1b1b] p-2.5 disabled:opacity-50"
+      className="min-w-0 rounded-lg border border-[#3a3a3a] bg-[#1b1b1b] p-2.5 disabled:opacity-50"
     >
       <legend className="px-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
         {label}
@@ -476,7 +476,7 @@ export function EntryEditor({
                 {availableTags.map((tag) => (
                   <label
                     key={tag.id}
-                    className="flex items-center gap-2 rounded-lg border border-[#3b3b3b] px-2.5 py-1.5 text-sm text-[#fafafa]"
+                    className="flex items-center gap-2 rounded-lg border border-[#3a3a3a] px-2.5 py-1.5 text-sm text-[#fafafa]"
                   >
                     <input type="checkbox" value={tag.id} {...form.register("tag_ids")} />
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.color }} />

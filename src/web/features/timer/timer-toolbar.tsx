@@ -50,7 +50,7 @@ export function TimerToolbar({
   onWeekClick?: () => void;
 }) {
   return (
-    <section className="border-b border-[#3b3b3b] bg-[#1b1b1b]">
+    <section className="border-b border-[#3a3a3a] bg-[#1b1b1b]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-4 2xl:h-[68px] 2xl:flex-nowrap 2xl:py-0">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 2xl:flex-nowrap">
           <div className="relative max-w-full min-w-0 shrink-0">

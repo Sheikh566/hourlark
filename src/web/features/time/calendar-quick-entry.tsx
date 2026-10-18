@@ -160,7 +160,7 @@ export function CalendarQuickEntry({
 
   return (
     <form
-      className="dark-surface fixed top-1/2 left-1/2 z-30 flex max-h-[min(92vh,100dvh)] w-[min(92vw,500px)] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-y-auto rounded-xl border border-[#3b3b3b] bg-[#212121] p-4 text-[#fafafa] shadow-[0_24px_70px_rgb(0_0_0_/_0.55)] md:left-[calc(50%+102px)]"
+      className="dark-surface fixed top-1/2 left-1/2 z-30 flex max-h-[min(92vh,100dvh)] w-[min(92vw,500px)] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-y-auto rounded-xl border border-[#3a3a3a] bg-[#1b1b1b] p-4 text-[#fafafa] shadow-[0_24px_70px_rgb(0_0_0_/_0.55)] md:left-[calc(50%+102px)]"
       aria-label="Add calendar time entry"
       onSubmit={submit}
     >
@@ -168,7 +168,7 @@ export function CalendarQuickEntry({
         <div className="flex min-w-0 items-center gap-3">
           <Input
             autoFocus
-            className="h-10 min-h-10 min-w-0 flex-1 border-0 bg-transparent px-1 text-base font-semibold focus:border focus:border-[#3b3b3b]"
+            className="h-10 min-h-10 min-w-0 flex-1 border-0 bg-transparent px-1 text-base font-semibold focus:border focus:border-[#3a3a3a]"
             value={description}
             maxLength={500}
             placeholder="What did you work on?"
@@ -186,7 +186,7 @@ export function CalendarQuickEntry({
           </Button>
         </div>
 
-        <div className="mt-2 grid min-w-0 items-center gap-2 border-t border-[#3b3b3b] pt-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <div className="mt-2 grid min-w-0 items-center gap-2 border-t border-[#3a3a3a] pt-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <div className="min-w-0">
             <Select
               className="h-9 min-h-9 px-2.5"
@@ -226,7 +226,7 @@ export function CalendarQuickEntry({
               <Tags size={17} />
             </button>
             {showTags ? (
-              <div className="absolute top-11 left-0 z-10 max-h-52 w-56 overflow-y-auto rounded-lg border border-[#3b3b3b] bg-[#212121] p-1.5 shadow-xl sm:right-0 sm:left-auto">
+              <div className="absolute top-11 left-0 z-10 max-h-52 w-56 overflow-y-auto rounded-lg border border-[#3a3a3a] bg-[#1b1b1b] p-1.5 shadow-xl sm:right-0 sm:left-auto">
                 {tags.length ? (
                   tags.map((tag) => {
                     const selected = tagIds.includes(tag.id);

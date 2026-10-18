@@ -42,7 +42,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
 
   if (me.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#212121]">
+      <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b]">
         <div className="text-center">
           <img
             src="/brand/hourlark-original/logo-dark.png"
@@ -66,7 +66,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
     const message = me.error instanceof Error ? me.error.message : "Unable to load your workspace.";
     const developmentIdentity = getDevelopmentIdentity();
     return (
-      <div className="app-shell flex min-h-screen items-center justify-center bg-[#212121] p-6">
+      <div className="app-shell flex min-h-screen items-center justify-center bg-[#1b1b1b] p-6">
         <div className="panel w-full max-w-lg p-8 text-center">
           <img
             src="/brand/hourlark-original/logo-dark.png"
@@ -79,7 +79,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
           <p className="mt-2 text-sm text-[#a4a4a4]">{message}</p>
           <div className="mt-5 flex justify-center">
             <button
-              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-[#18181b] hover:bg-[#fbbf24]"
+              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-[#121212] hover:bg-[#fbbf24]"
               onClick={() => void me.refetch()}
             >
               Try again
@@ -97,7 +97,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
               </p>
               <button
                 type="button"
-                className="mt-3 w-full rounded-lg bg-[#f59e0b] px-3 py-2 text-sm font-bold text-[#18181b] hover:bg-[#fbbf24]"
+                className="mt-3 w-full rounded-lg bg-[#f59e0b] px-3 py-2 text-sm font-bold text-[#121212] hover:bg-[#fbbf24]"
                 onClick={clearDevelopmentIdentity}
               >
                 Use default development account

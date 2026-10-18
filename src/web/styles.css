@@ -73,16 +73,56 @@
 }
 
 @theme {
-  --color-hourlark-bg: #212121;
-  --color-hourlark-sidebar: #151515;
+  --color-hourlark-bg: #1b1b1b;
+  --color-hourlark-sidebar: #0d0d0d;
   --color-hourlark-rail: #000000;
-  --color-hourlark-border: #3b3b3b;
+  --color-hourlark-border: #3a3a3a;
   --color-hourlark-control-border: #808080;
   --color-hourlark-text: #fafafa;
   --color-hourlark-muted: #a4a4a4;
   --color-hourlark-amber: #f59e0b;
   --color-hourlark-selected: #382b16;
   --color-hourlark-nav: #48361b;
+
+  /* Toggl Track dark-theme roles, measured from the live app. Names follow Toggl's tokens
+     (--background-primary, --stroke-primary, ...). Accent roles keep Toggl's OKLCH lightness
+     and chroma with the hue rotated to Hourlark amber. */
+  --color-surface: #1b1b1b;
+  --color-surface-hover: #3a3a3a;
+  --color-surface-active: #555555;
+  --color-surface-secondary: #121212;
+  --color-surface-raised: #191919;
+  --color-sidenav: #0d0d0d;
+  --color-sidenav-hover: #1e1e1e;
+  --color-stroke: #3a3a3a;
+  --color-stroke-secondary: #555555;
+  --color-stroke-tertiary: #808080;
+  --color-control: #666666;
+  --color-fg: #fafafa;
+  --color-fg-strong: #ffffff;
+  --color-fg-soft: #cecece;
+  --color-fg-secondary: #b1b1b1;
+  --color-fg-muted: #a4a4a4;
+  --color-fg-subtle: #999999;
+  --color-fg-disabled: #555555;
+  --color-fg-inverted: #121212;
+  --color-error: #ca564e;
+  --color-error-fg: #fab8ac;
+  --color-stop: #e87161;
+  --color-accent: #f59e0b;
+  --color-accent-hover: #fbbf24;
+  --color-accent-fg: #d88b10;
+  --color-accent-fg-hover: #efb878;
+  --color-accent-fg-active: #fcd7ad;
+  --color-accent-muted: #3b2301;
+  --color-accent-muted-hover: #452901;
+  --color-accent-muted-active: #653e00;
+  --color-nav-selected: #482c02;
+  --color-nav-selected-hover: #7a4c01;
+
+  --shadow-popover: 0 4px 16px rgb(0 0 0 / 50%);
+  --shadow-popover-sm: 0 2px 8px rgb(0 0 0 / 50%);
+  --shadow-card: 0 0 0 1px #3a3a3a;
 
   --font-sans: Inter, Helvetica, sans-serif;
   --font-display: Lexend, Inter, Helvetica, sans-serif;
@@ -106,7 +146,7 @@
 
 :root {
   color: #fafafa;
-  background: #212121;
+  background: #1b1b1b;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -124,9 +164,11 @@ body {
   margin: 0;
   min-width: 0;
   min-height: 100vh;
-  background: #212121;
+  background: #1b1b1b;
   color: #fafafa;
   font-size: 14px;
+  /* Toggl's "normal" weight is 500 (--theme-typography-fontWeight-normal). */
+  font-weight: 500;
 }
 
 button:not(:disabled),
@@ -134,82 +176,89 @@ select:not(:disabled) {
   cursor: pointer;
 }
 
+/* Toggl's focus ring is neutral, not accent: 1px surface gap, 3px stroke-secondary ring and an
+   inset foreground-secondary line. */
 :focus-visible,
 .timer-date-control:has(:focus-visible),
 .timer-view-switch:has(:focus-visible) {
-  outline: 3px solid color-mix(in srgb, #f59e0b 75%, white);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow:
+    0 0 0 1px #1b1b1b,
+    0 0 0 3px #555555,
+    inset 0 0 0 1px #b1b1b1;
 }
 
 /* Select items show keyboard focus through their highlight background instead. */
 .hourlark-select-item:focus-visible {
-  outline: none;
+  box-shadow: none;
 }
 
-.page-header {
-  display: flex;
-  min-height: 66px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid #3b3b3b;
-  padding: 0.75rem 1.25rem 0.75rem 1.25rem;
-}
-
-@media (max-width: 767px) {
+/* Layered so Tailwind utilities on the same elements win. */
+@layer components {
   .page-header {
-    padding-left: 3.5rem;
+    display: flex;
+    min-height: 66px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid #3a3a3a;
+    padding: 0.75rem 1.25rem 0.75rem 1.25rem;
   }
-}
 
-.page-toolbar {
-  display: flex;
-  min-height: 50px;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid #3b3b3b;
-  padding: 0.5rem 1.25rem;
-}
+  @media (max-width: 767px) {
+    .page-header {
+      padding-left: 3.5rem;
+    }
+  }
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
+  .page-toolbar {
+    display: flex;
+    min-height: 50px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 1.25rem;
+  }
 
-.data-table th {
-  height: 46px;
-  border-bottom: 1px solid #3b3b3b;
-  padding: 0 0.75rem;
-  color: #a4a4a4;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
 
-.data-table td {
-  height: 50px;
-  border-bottom: 1px solid #3b3b3b;
-  padding: 0 0.75rem;
-  color: #fafafa;
-}
+  .data-table th {
+    height: 50px;
+    border-bottom: 1px solid #3a3a3a;
+    padding: 0 10px;
+    color: #999999;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 11px;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
 
-.data-table tbody tr:hover {
-  background: rgb(255 255 255 / 4%);
-}
+  .data-table td {
+    height: 50px;
+    border-bottom: 1px solid #3a3a3a;
+    padding: 0 10px;
+    font-weight: 500;
+  }
 
-.data-table th:first-child,
-.data-table td:first-child {
-  padding-left: 1.25rem;
-}
+  .data-table tbody tr:hover {
+    background: #3a3a3a;
+  }
 
-.data-table th:last-child,
-.data-table td:last-child {
-  padding-right: 1.25rem;
+  .data-table th:first-child,
+  .data-table td:first-child {
+    padding-left: 1.25rem;
+  }
+
+  .data-table th:last-child,
+  .data-table td:last-child {
+    padding-right: 1.25rem;
+  }
 }
 
 .manual-range input::-webkit-calendar-picker-indicator {
@@ -229,11 +278,12 @@ select:not(:disabled) {
   }
 }
 
-.panel {
-  border: 1px solid #3b3b3b;
-  border-radius: 0.625rem;
-  background: #212121;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 14%);
+@layer components {
+  .panel {
+    border: 1px solid #3a3a3a;
+    border-radius: 0.5rem;
+    background: #1b1b1b;
+  }
 }
 
 .timer-tool {
@@ -281,11 +331,14 @@ select:not(:disabled) {
   }
 }
 
-.timer-popover {
-  border: 1px solid #3b3b3b;
-  border-radius: 0.5rem;
-  background: #212121;
-  box-shadow: 0 18px 50px rgb(0 0 0 / 45%);
+/* Every Toggl popover, menu and dropdown shares this surface. */
+@layer components {
+  .timer-popover {
+    border: 1px solid #3a3a3a;
+    border-radius: 0.5rem;
+    background: #1b1b1b;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 50%);
+  }
 }
 
 .timer-date-control {
@@ -329,14 +382,14 @@ select:not(:disabled) {
 
 .app-shell option,
 .dark-surface option {
-  background: #212121;
+  background: #1b1b1b;
   color: #fafafa;
 }
 
 .app-shell textarea,
 .dark-surface textarea {
-  border-color: #3b3b3b !important;
-  background: #212121 !important;
+  border-color: var(--color-hourlark-control-border) !important;
+  background: #1b1b1b !important;
   color: #fafafa !important;
 }
 
@@ -357,11 +410,11 @@ select:not(:disabled) {
 }
 
 .app-shell .bg-white {
-  background-color: #212121;
+  background-color: #1b1b1b;
 }
 
 .app-shell .bg-slate-50 {
-  background-color: #1a1a1a;
+  background-color: #121212;
 }
 
 .app-shell .bg-slate-100 {
@@ -374,39 +427,40 @@ select:not(:disabled) {
 .dark-surface .border-slate-100,
 .dark-surface .border-slate-200,
 .dark-surface .border-slate-300 {
-  border-color: #3b3b3b;
+  border-color: #3a3a3a;
 }
 
 .app-shell .divide-y > :not(:last-child) {
-  border-color: #3b3b3b;
+  border-color: #3a3a3a;
 }
 
 .app-shell .hover\:bg-slate-50:hover,
 .app-shell .hover\:bg-slate-100:hover {
-  background-color: rgb(255 255 255 / 7%);
+  background-color: #3a3a3a;
 }
 
-.app-shell ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* Toggl: 5px scrollbar, transparent track, 20% white rounded thumb (--scrollbar-*). */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
 }
 
-.app-shell ::-webkit-scrollbar-track {
-  background: #212121;
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-.app-shell ::-webkit-scrollbar-thumb {
-  border: 2px solid #212121;
+::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #3b3b3b;
+  background: rgb(255 255 255 / 20%);
 }
 
 .hourlark-calendar {
-  --fc-classic-background: #212121;
-  --fc-classic-muted: #1a1a1a;
+  --fc-classic-background: #1b1b1b;
+  --fc-classic-muted: #121212;
   --fc-classic-muted-foreground: #a4a4a4;
-  --fc-classic-border: #3b3b3b;
-  --fc-classic-button: #212121;
+  --fc-classic-border: #3a3a3a;
+  --fc-classic-button: #1b1b1b;
   --fc-classic-button-border: var(--color-hourlark-control-border);
   --fc-classic-button-strong: #48361b;
   --fc-classic-button-strong-border: #f59e0b;

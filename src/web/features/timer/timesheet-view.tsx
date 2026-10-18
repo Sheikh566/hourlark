@@ -272,7 +272,7 @@ function TimesheetWeek({
   }
 
   return (
-    <section className="min-h-[calc(100vh-220px)] max-w-full min-w-0 bg-[#212121] px-4 py-4 md:px-5">
+    <section className="min-h-[calc(100vh-220px)] max-w-full min-w-0 bg-[#1b1b1b] px-4 py-4 md:px-5">
       {rows.length === 0 ? (
         <EmptyState
           title="No timesheet rows this week"
@@ -300,7 +300,7 @@ function TimesheetWeek({
         <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr className="text-[10px] font-bold tracking-[0.12em] text-slate-500 uppercase">
-              <th className="sticky left-0 z-10 bg-[#212121] px-2 py-2 text-left">Project</th>
+              <th className="sticky left-0 z-10 bg-[#1b1b1b] px-2 py-2 text-left">Project</th>
               {weekDays.map((day) => (
                 <th key={day} className="px-1 py-2 text-center tabular-nums">
                   {dayLabel(day)}
@@ -312,7 +312,7 @@ function TimesheetWeek({
           <tbody>
             {rows.map((row) => (
               <tr key={row.key} className="group">
-                <td className="sticky left-0 z-10 border-b border-white/8 bg-[#212121] px-2 py-2">
+                <td className="sticky left-0 z-10 border-b border-white/8 bg-[#1b1b1b] px-2 py-2">
                   {draftRows.some((draft) => draft.key === row.key) ? (
                     <div className="flex min-w-48 items-start gap-2">
                       <div className="space-y-1">
@@ -457,7 +457,7 @@ function TimesheetWeek({
           </tbody>
           <tfoot>
             <tr>
-              <td className="sticky left-0 bg-[#212121] px-2 py-3 text-xs font-bold tracking-wider text-slate-400 uppercase">
+              <td className="sticky left-0 bg-[#1b1b1b] px-2 py-3 text-xs font-bold tracking-wider text-slate-400 uppercase">
                 Total
               </td>
               {weekDays.map((day) => {

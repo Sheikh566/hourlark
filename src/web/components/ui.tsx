@@ -34,12 +34,12 @@ export function Button({
   variant?: "primary" | "secondary" | "danger" | "ghost" | "accent";
 }) {
   const variants = {
-    primary: "bg-[#f59e0b] text-[#18181b] hover:bg-[#fbbf24] hover:text-[#18181b]",
+    primary: "bg-[#f59e0b] text-[#121212] hover:bg-[#fbbf24] hover:text-[#121212]",
     secondary:
       "border border-hourlark-control-border bg-[#1b1b1b] text-[#fafafa] hover:border-[#f59e0b] hover:bg-white/8",
     danger: "bg-red-600 text-white hover:bg-red-700",
     ghost: "text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]",
-    accent: "bg-[#f59e0b] text-[#18181b] hover:bg-[#fbbf24] hover:text-[#18181b]",
+    accent: "bg-[#f59e0b] text-[#121212] hover:bg-[#fbbf24] hover:text-[#121212]",
   };
   return (
     <button
@@ -106,8 +106,8 @@ export function Modal({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-[2px]" />
-        <Dialog.Content className="dark-surface fixed top-1/2 left-1/2 z-50 flex max-h-[min(92vh,100dvh)] w-[min(94vw,620px)] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-[#3b3b3b] bg-[#212121] text-[#fafafa] shadow-2xl">
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#3b3b3b] px-5 py-4">
+        <Dialog.Content className="dark-surface fixed top-1/2 left-1/2 z-50 flex max-h-[min(92vh,100dvh)] w-[min(94vw,620px)] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col rounded-xl border border-[#3a3a3a] bg-[#1b1b1b] text-[#fafafa] shadow-2xl">
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#3a3a3a] px-5 py-4">
             <div className="min-w-0 flex-1">
               <Dialog.Title className="font-display text-lg font-bold text-[#fafafa]">
                 {title}
@@ -126,7 +126,7 @@ export function Modal({
           </header>
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">{children}</div>
           {footer ? (
-            <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[#3b3b3b] px-5 py-4">
+            <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[#3a3a3a] px-5 py-4">
               {footer}
             </footer>
           ) : null}
@@ -180,7 +180,7 @@ export function EmptyState({
 export function Badge({ children, color }: { children: ReactNode; color?: string | null }) {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-[#3b3b3b] bg-white/4 px-2 py-0.5 text-xs font-medium text-[#a4a4a4]"
+      className="inline-flex items-center gap-1 rounded-full border border-[#3a3a3a] bg-white/4 px-2 py-0.5 text-xs font-medium text-[#a4a4a4]"
       style={
         color
           ? {

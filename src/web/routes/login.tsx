@@ -46,7 +46,7 @@ export function LoginScreen() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10">
-      <section className="w-full max-w-[420px] rounded-xl border border-[#3b3b3b] bg-[#1c1c1c] px-8 py-10 shadow-[0_24px_80px_rgb(0_0_0/45%)]">
+      <section className="w-full max-w-[420px] rounded-xl border border-[#3a3a3a] bg-[#1c1c1c] px-8 py-10 shadow-[0_24px_80px_rgb(0_0_0/45%)]">
         <div className="text-center">
           <img
             src="/brand/hourlark-original/logo-dark.png"
@@ -70,7 +70,7 @@ export function LoginScreen() {
 
         <a
           href="/api/v1/auth/google"
-          className="mt-6 flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-[#3b3b3b] bg-white text-sm font-semibold text-[#1f1f1f] hover:bg-[#f4f4f5]"
+          className="mt-6 flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-[#3a3a3a] bg-white text-sm font-semibold text-[#1f1f1f] hover:bg-[#f4f4f5]"
         >
           <GoogleMark />
           Continue with Google
