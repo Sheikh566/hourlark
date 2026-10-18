@@ -46,7 +46,7 @@ export function LoginScreen() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-4 py-10">
-      <section className="w-full max-w-[420px] rounded-xl border border-[#3a3a3a] bg-[#1c1c1c] px-8 py-10 shadow-[0_24px_80px_rgb(0_0_0/45%)]">
+      <section className="border-stroke bg-surface-raised shadow-popover w-full max-w-[420px] rounded-lg border px-8 py-10">
         <div className="text-center">
           <img
             src="/brand/hourlark-original/logo-dark.png"
@@ -56,7 +56,7 @@ export function LoginScreen() {
             className="mx-auto h-auto w-36"
           />
           <h1 className="sr-only">Hourlark</h1>
-          <p className="mt-4 text-sm text-[#a4a4a4]">Log in and get tracking</p>
+          <p className="text-fg-muted mt-4 text-sm">Log in and get tracking</p>
         </div>
 
         {error ? (
@@ -70,13 +70,13 @@ export function LoginScreen() {
 
         <a
           href="/api/v1/auth/google"
-          className="mt-6 flex h-11 w-full items-center justify-center gap-3 rounded-lg border border-[#3a3a3a] bg-white text-sm font-semibold text-[#1f1f1f] hover:bg-[#f4f4f5]"
+          className="border-stroke mt-6 flex h-11 w-full items-center justify-center gap-3 rounded-lg border bg-white text-sm font-semibold text-[#1f1f1f] hover:bg-[#f4f4f5]"
         >
           <GoogleMark />
           Continue with Google
         </a>
 
-        <p className="mt-5 text-center text-xs leading-5 text-[#a4a4a4]">
+        <p className="text-fg-muted mt-5 text-center text-xs leading-5">
           Use the Google account for your workspace email. An admin must add that email before the
           first sign-in.
         </p>

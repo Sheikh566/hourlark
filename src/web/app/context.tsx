@@ -42,7 +42,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
 
   if (me.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#1b1b1b]">
+      <div className="bg-surface flex min-h-screen items-center justify-center">
         <div className="text-center">
           <img
             src="/brand/hourlark-original/logo-dark.png"
@@ -51,7 +51,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
             height={138}
             className="mx-auto mb-5 h-auto w-36"
           />
-          <p className="text-sm font-medium text-[#fafafa]">Loading Hourlark…</p>
+          <p className="text-fg text-sm font-medium">Loading Hourlark…</p>
         </div>
       </div>
     );
@@ -66,7 +66,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
     const message = me.error instanceof Error ? me.error.message : "Unable to load your workspace.";
     const developmentIdentity = getDevelopmentIdentity();
     return (
-      <div className="app-shell flex min-h-screen items-center justify-center bg-[#1b1b1b] p-6">
+      <div className="app-shell bg-surface flex min-h-screen items-center justify-center p-6">
         <div className="panel w-full max-w-lg p-8 text-center">
           <img
             src="/brand/hourlark-original/logo-dark.png"
@@ -75,11 +75,11 @@ export function MeProvider({ children }: { children: ReactNode }) {
             height={138}
             className="mx-auto mb-5 h-auto w-36"
           />
-          <h1 className="font-display text-xl font-bold text-[#fafafa]">Unable to open Hourlark</h1>
-          <p className="mt-2 text-sm text-[#a4a4a4]">{message}</p>
+          <h1 className="font-display text-fg text-xl font-bold">Unable to open Hourlark</h1>
+          <p className="text-fg-muted mt-2 text-sm">{message}</p>
           <div className="mt-5 flex justify-center">
             <button
-              className="rounded-lg bg-[#f59e0b] px-4 py-2 text-sm font-semibold text-[#121212] hover:bg-[#fbbf24]"
+              className="bg-accent text-fg-inverted hover:bg-accent-hover h-9 rounded-lg px-4 text-sm font-semibold"
               onClick={() => void me.refetch()}
             >
               Try again
@@ -87,9 +87,9 @@ export function MeProvider({ children }: { children: ReactNode }) {
           </div>
 
           {import.meta.env.DEV ? (
-            <section className="mt-6 border-t border-white/10 pt-5 text-left">
-              <h2 className="text-sm font-bold text-slate-200">Development account recovery</h2>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+            <section className="border-stroke mt-6 border-t pt-5 text-left">
+              <h2 className="text-fg text-sm font-semibold">Development account recovery</h2>
+              <p className="text-fg-subtle mt-1 text-xs leading-5">
                 {developmentIdentity
                   ? `This browser is currently using ${developmentIdentity}.`
                   : "This browser is using the configured default development identity."}{" "}
@@ -97,7 +97,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
               </p>
               <button
                 type="button"
-                className="mt-3 w-full rounded-lg bg-[#f59e0b] px-3 py-2 text-sm font-bold text-[#121212] hover:bg-[#fbbf24]"
+                className="bg-accent text-fg-inverted hover:bg-accent-hover mt-3 h-9 w-full rounded-lg px-3 text-sm font-semibold"
                 onClick={clearDevelopmentIdentity}
               >
                 Use default development account
@@ -107,12 +107,12 @@ export function MeProvider({ children }: { children: ReactNode }) {
                   <button
                     type="button"
                     key={email}
-                    className="rounded-lg border border-white/10 bg-white/4 px-2 py-2 text-left hover:border-white/20 hover:bg-white/7 disabled:cursor-default disabled:opacity-50"
+                    className="border-stroke hover:bg-surface-hover rounded-lg border px-2 py-2 text-left disabled:cursor-default disabled:opacity-50"
                     disabled={email === developmentIdentity}
                     onClick={() => setDevelopmentIdentity(email)}
                   >
-                    <span className="block text-xs font-semibold text-slate-200">{label}</span>
-                    <span className="mt-0.5 block truncate text-[10px] text-slate-500">
+                    <span className="text-fg block text-xs font-semibold">{label}</span>
+                    <span className="text-fg-subtle mt-0.5 block truncate text-[10px]">
                       {email}
                     </span>
                   </button>
