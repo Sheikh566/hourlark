@@ -176,21 +176,18 @@ select:not(:disabled) {
   cursor: pointer;
 }
 
-/* Toggl's focus ring is neutral, not accent: 1px surface gap, 3px stroke-secondary ring and an
-   inset foreground-secondary line. */
+/* Toggl's keyboard focus is neutral, not accent: a 2px 20% white outline 1px outside the control.
+   An outline leaves inset-ring borders (secondary buttons, search fields) intact. */
 :focus-visible,
 .timer-date-control:has(:focus-visible),
 .timer-view-switch:has(:focus-visible) {
-  outline: none;
-  box-shadow:
-    0 0 0 1px #1b1b1b,
-    0 0 0 3px #555555,
-    inset 0 0 0 1px #b1b1b1;
+  outline: 2px solid rgb(250 250 250 / 20%);
+  outline-offset: 1px;
 }
 
 /* Select items show keyboard focus through their highlight background instead. */
 .hourlark-select-item:focus-visible {
-  box-shadow: none;
+  outline: none;
 }
 
 /* Layered so Tailwind utilities on the same elements win. */
@@ -370,9 +367,46 @@ select:not(:disabled) {
   border-radius: 0 7px 7px 0;
 }
 
-.app-shell input[type="checkbox"],
-.dark-surface input[type="checkbox"] {
-  accent-color: #f59e0b;
+/* Toggl checkbox: 14x14, radius 4, 1px #666 on the surface colour, accent fill with a dark tick.
+   Layered so a utility class on an individual input can still override it. */
+@layer components {
+  .hl-checkbox,
+  .app-shell input[type="checkbox"],
+  .dark-surface input[type="checkbox"] {
+    appearance: none;
+    display: inline-block;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border: 1px solid var(--color-control);
+    border-radius: 4px;
+    background: var(--color-surface) center / 10px 10px no-repeat;
+    vertical-align: middle;
+  }
+
+  .hl-checkbox:checked,
+  .app-shell input[type="checkbox"]:checked,
+  .dark-surface input[type="checkbox"]:checked {
+    border-color: var(--color-accent);
+    background-color: var(--color-accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23121212' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1.8 5.4 4 7.5l4.2-5'/%3E%3C/svg%3E");
+  }
+
+  .hl-checkbox:indeterminate,
+  .app-shell input[type="checkbox"]:indeterminate,
+  .dark-surface input[type="checkbox"]:indeterminate {
+    border-color: var(--color-accent);
+    background-color: var(--color-accent);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%23121212' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M2 5h6'/%3E%3C/svg%3E");
+  }
+
+  .hl-checkbox:disabled,
+  .app-shell input[type="checkbox"]:disabled,
+  .dark-surface input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 .app-shell,
@@ -497,4 +531,36 @@ select:not(:disabled) {
   border-top-color: transparent;
   border-bottom-color: transparent;
   border-left-color: #f59e0b;
+}
+
+/* Toggl dialog fields (New client dialog): surface fill, 1px #808080 border, and a 2px
+   white/20% outline at 1px offset on focus instead of the global ring. Unlayered so it beats the
+   global focus ring and utilities. */
+.hl-modal .hl-control:not([type="search"]) {
+  border-color: var(--color-stroke-tertiary);
+}
+
+.hl-modal .hl-control:not([type="search"]):focus-visible {
+  outline: 2px solid rgb(250 250 250 / 20%);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.hl-modal .hl-control[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+/* The global textarea rule above forces colours with !important; align shared Textarea with Input. */
+.app-shell textarea.hl-control,
+.dark-surface textarea.hl-control {
+  border-color: var(--color-control) !important;
+  background: var(--color-surface) !important;
+}
+
+.hl-modal textarea.hl-control {
+  border-color: var(--color-stroke-tertiary) !important;
+}
+
+.hl-modal textarea.hl-control[aria-invalid="true"] {
+  border-color: var(--color-error) !important;
 }

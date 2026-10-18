@@ -33,7 +33,7 @@ export function FormErrors<T extends FieldValues>({ errors }: { errors: FieldErr
   return (
     <div
       role="alert"
-      className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300 sm:col-span-2"
+      className="border-error/40 bg-error/10 text-error-fg rounded-lg border p-3 text-sm font-medium sm:col-span-2"
     >
       {messages.map((message) => (
         <p key={message}>{message}</p>
