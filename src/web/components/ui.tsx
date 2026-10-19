@@ -146,6 +146,7 @@ export function Modal({
   size = "lg",
   align = "center",
   titleSize = size === "compact" ? "md" : "sm",
+  bodyClassName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -158,6 +159,8 @@ export function Modal({
   /** `top` anchors the panel 100px from the top like Toggl's project dialogs. */
   align?: "center" | "top";
   titleSize?: keyof typeof modalTitleSizes;
+  /** Body spacing overrides, e.g. Toggl's invite dialog starts its body 16px under the title. */
+  bodyClassName?: string;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -195,6 +198,7 @@ export function Modal({
             className={twMerge(
               "-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 py-1",
               modalSizes[size].body,
+              bodyClassName,
             )}
           >
             {children}
