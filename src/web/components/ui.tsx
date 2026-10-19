@@ -397,12 +397,19 @@ export function RowMenu({
   }, [open, position]);
   useEffect(() => {
     if (!open) return;
-    // Scrolling or resizing would detach a fixed menu from its row, so dismiss instead.
+    // Scrolling or resizing would detach a fixed menu from its row, so dismiss instead. Only
+    // scrolls that move the trigger count: text inputs fire their own scroll events.
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (target === document || (target instanceof Node && target.contains(trigger.current))) {
+        close();
+      }
+    };
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [close, open]);
 
