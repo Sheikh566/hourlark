@@ -35,8 +35,14 @@ export function ReportExportMenu({
     };
     place();
     window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [open]);
+    // The content area is the scroll container; a fixed menu would detach from its header
+    // trigger, so dismiss it when anything scrolls (there are no text inputs in this menu).
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open, close]);
   useLayoutEffect(() => {
     if (!open || !position || !openedByKeyboard.current) return;
     openedByKeyboard.current = false;

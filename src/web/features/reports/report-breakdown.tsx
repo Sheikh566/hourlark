@@ -139,12 +139,12 @@ export function ReportBreakdown({
   return (
     <ReportCard>
       <ReportCardHeader title={title}>
-        <div className="flex gap-[5px]">
+        <div className="flex min-w-0 flex-wrap gap-[5px]">
           <Select
             aria-label="Primary group"
             tone="accent"
             labelPrefix="Breakdown by:"
-            className="h-9 w-[202px] [&_span]:whitespace-normal"
+            className="h-9 w-[202px]"
             value={groupBy}
             onValueChange={(value) => onGroupChange(value as GroupDimension)}
             options={GROUP_DIMENSIONS.map((value) => ({ value, label: DIMENSION_LABELS[value] }))}
@@ -153,7 +153,7 @@ export function ReportBreakdown({
             aria-label="Secondary group"
             tone="accent"
             labelPrefix="and:"
-            className="h-9 w-[160px] [&_span]:whitespace-normal"
+            className="h-9 w-[160px]"
             value={secondary}
             onValueChange={(value) => onSecondaryChange(value as GroupDimension | "")}
             options={[

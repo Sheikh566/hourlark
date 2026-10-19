@@ -480,9 +480,7 @@ export function SliceBySelect({
       aria-label="Slice by"
       tone="accent"
       labelPrefix="Slice by:"
-      // Toggl's select trigger text is `white-space: normal`; the shared Select's truncate makes it
-      // nowrap, so undo it locally (no visual change with these short labels).
-      className="h-9 w-[175px] [&_span]:whitespace-normal"
+      className="h-9 w-[175px]"
       value={value}
       onValueChange={(next) => onChange(next as GroupDimension)}
       options={SLICE_DIMENSIONS.map((dimension) => ({

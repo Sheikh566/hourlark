@@ -91,3 +91,29 @@ test("report filters, CSV and PDF downloads, errors and mobile layout", async ({
     ),
   ).toBe(true);
 });
+
+test("report breakdown selectors fit a 320px viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/reports");
+  const primary = page.getByRole("combobox", { name: "Primary group" });
+  const secondary = page.getByRole("combobox", { name: "Secondary group" });
+  await expect(primary).toBeVisible();
+  await expect(secondary).toBeVisible();
+  for (const control of [primary, secondary]) {
+    const bounds = await control.boundingBox();
+    expect(bounds?.x).toBeGreaterThanOrEqual(0);
+    expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(320);
+  }
+  // The content area is the scroll container, so it must not overflow horizontally either.
+  expect(
+    await page.evaluate(() => {
+      const main = document.querySelector("main");
+      return main ? main.scrollWidth <= main.clientWidth : false;
+    }),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
