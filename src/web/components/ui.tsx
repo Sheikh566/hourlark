@@ -39,7 +39,8 @@ const buttonVariants: Record<ButtonVariant, string> = {
   danger: "bg-error text-fg-inverted hover:bg-[#d96a62]",
   ghost: "text-fg-muted hover:bg-surface-hover hover:text-fg",
   // Header actions: no chrome, foreground text.
-  text: "text-fg hover:text-fg-soft",
+  // Toggl ui-hover #d5d5d5 (measured on report header actions).
+  text: "text-fg hover:text-[#d5d5d5]",
 };
 
 export function Button({
@@ -121,10 +122,18 @@ export { Switch } from "@/web/components/switch";
 export { ToastProvider, useToast } from "@/web/components/toast";
 
 // Toggl small dialogs inset content 24px (360 wide); the 520 project dialog uses 20px.
+// `compact` is Toggl's New/Edit tag dialog: 360x187, 20px inset, 16px title, 21px to the body.
 const modalSizes = {
-  sm: "w-[min(94vw,360px)] px-6 pt-[15px] pb-6",
-  md: "w-[min(94vw,520px)] px-[19px] pt-[15px] pb-[19px]",
-  lg: "w-[min(94vw,620px)] px-[19px] pt-[15px] pb-[19px]",
+  sm: { panel: "w-[min(94vw,360px)] px-6 pt-[15px] pb-6", body: "mt-7" },
+  md: { panel: "w-[min(94vw,520px)] px-[19px] pt-[15px] pb-[19px]", body: "mt-7" },
+  lg: { panel: "w-[min(94vw,620px)] px-[19px] pt-[15px] pb-[19px]", body: "mt-7" },
+  compact: { panel: "w-[min(94vw,360px)] px-5 pt-[22px] pb-4", body: "mt-[17px]" },
+} as const;
+
+const modalTitleSizes = {
+  sm: "text-sm leading-5",
+  // Toggl invite/tag dialogs: 16px/600, line-height 22.88px.
+  md: "text-base leading-[22.88px]",
 } as const;
 
 export function Modal({
@@ -136,6 +145,7 @@ export function Modal({
   footer,
   size = "lg",
   align = "center",
+  titleSize = size === "compact" ? "md" : "sm",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -147,6 +157,7 @@ export function Modal({
   size?: keyof typeof modalSizes;
   /** `top` anchors the panel 100px from the top like Toggl's project dialogs. */
   align?: "center" | "top";
+  titleSize?: keyof typeof modalTitleSizes;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -163,14 +174,16 @@ export function Modal({
           }}
           className={twMerge(
             "dark-surface hl-modal border-stroke bg-surface text-fg shadow-popover fixed left-1/2 z-50 flex -translate-x-1/2 flex-col rounded-lg border",
-            modalSizes[size],
+            modalSizes[size].panel,
             align === "top"
               ? "top-[100px] max-h-[calc(100dvh-116px)]"
               : "top-1/2 max-h-[calc(100dvh-32px)] -translate-y-1/2",
           )}
         >
           <div className="min-w-0 shrink-0 pr-7">
-            <Dialog.Title className="text-fg text-sm leading-5 font-semibold">{title}</Dialog.Title>
+            <Dialog.Title className={twMerge("text-fg font-semibold", modalTitleSizes[titleSize])}>
+              {title}
+            </Dialog.Title>
             {description ? (
               <Dialog.Description className="text-fg-secondary mt-1 text-sm leading-5">
                 {description}
@@ -178,7 +191,12 @@ export function Modal({
             ) : null}
           </div>
           {/* Padding keeps focus rings from being clipped by the scroll container. */}
-          <div className="-mx-1 mt-7 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 py-1">
+          <div
+            className={twMerge(
+              "-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 py-1",
+              modalSizes[size].body,
+            )}
+          >
             {children}
           </div>
           {footer ? (
@@ -223,17 +241,23 @@ export function EmptyState({
   title,
   description,
   action,
+  icon,
 }: {
   title: string;
   description: string;
   action?: ReactNode;
+  /** Stands in for Toggl's illustrations, which are not reusable; defaults to a neutral mark. */
+  icon?: ReactNode;
 }) {
+  // Toggl spaces the illustration, heading, copy and action 16px apart.
   return (
-    <div className="flex min-h-52 flex-col items-center justify-center gap-2 p-8 text-center">
-      <CheckCircle2 className="text-accent-fg" size={28} />
-      <h3 className="text-fg text-2xl leading-9 font-bold">{title}</h3>
-      <p className="text-fg-subtle max-w-md text-sm leading-5 font-medium">{description}</p>
-      {action ? <div className="mt-2">{action}</div> : null}
+    <div className="flex min-h-52 flex-col items-center justify-center gap-4 p-8 text-center">
+      {icon ?? <CheckCircle2 className="text-fg-disabled" size={56} strokeWidth={1.25} />}
+      <div className="grid gap-1">
+        <h3 className="text-fg text-2xl leading-9 font-bold">{title}</h3>
+        <p className="text-fg-subtle max-w-md text-sm leading-5 font-medium">{description}</p>
+      </div>
+      {action ? <div>{action}</div> : null}
     </div>
   );
 }
@@ -300,13 +324,13 @@ export function SearchInput({
       <span className="sr-only">{label}</span>
       <Search
         className="text-fg-muted pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
-        size={15}
+        size={14}
         aria-hidden="true"
       />
       {/* Toggl search: transparent, inset 1px #808080 ring instead of a border. */}
       <input
         type="search"
-        className="hl-control text-fg placeholder:text-fg-subtle box-border h-9 w-full rounded-lg bg-transparent pr-8 pl-9 text-sm leading-5 font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
+        className="hl-control text-fg placeholder:text-fg-subtle box-border h-9 w-full rounded-lg bg-transparent pr-8 pl-[34px] text-sm leading-5 font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
         placeholder={`${label}...`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -335,13 +359,21 @@ export interface RowMenuItem {
 /** Gap between the kebab and its menu (Toggl: menu top sits 5px below the 30px trigger). */
 const MENU_OFFSET = 5;
 
-export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] }) {
+export function RowMenu({
+  label,
+  items,
+  menuClassName,
+}: {
+  label: string;
+  items: RowMenuItem[];
+  /** Width/size overrides per surface, e.g. Toggl's list menu is 170px and the timer menu 130px. */
+  menuClassName?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const openedByKeyboard = useRef(false);
   const close = useCallback(() => setOpen(false), []);
   useDismissPopover(root, close, menu, open);
   useEscapeToClose(open, () => {
@@ -358,9 +390,9 @@ export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] 
   useLayoutEffect(() => {
     if (open) place();
   }, [open, place]);
+  // Toggl focuses the first item however the menu was opened.
   useEffect(() => {
-    if (!open || !position || !openedByKeyboard.current) return;
-    openedByKeyboard.current = false;
+    if (!open || !position) return;
     menu.current?.querySelector<HTMLButtonElement>("button:enabled")?.focus();
   }, [open, position]);
   useEffect(() => {
@@ -396,11 +428,7 @@ export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] 
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={(event) => {
-          // detail is 0 for keyboard activation, which should land focus inside the menu.
-          openedByKeyboard.current = event.detail === 0;
-          setOpen((value) => !value);
-        }}
+        onClick={() => setOpen((value) => !value)}
       >
         <svg width="4" height="16" viewBox="0 0 4 16" fill="currentColor" aria-hidden="true">
           <circle cx="2" cy="2" r="2" />
@@ -415,7 +443,10 @@ export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] 
               role="menu"
               style={{ top: position.top, right: position.right }}
               onKeyDown={moveFocus}
-              className="timer-popover dark-surface fixed z-[70] min-w-32 p-[5px] text-sm font-medium"
+              className={twMerge(
+                "timer-popover dark-surface fixed z-[70] min-w-32 p-[5px] text-sm font-medium",
+                menuClassName,
+              )}
             >
               {items.map((item) => (
                 <button
@@ -424,7 +455,7 @@ export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] 
                   role="menuitem"
                   disabled={item.disabled}
                   className={twMerge(
-                    "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover disabled:text-fg-disabled flex h-[30px] w-full items-center rounded-lg px-2.5 text-left whitespace-nowrap disabled:cursor-not-allowed disabled:hover:bg-transparent",
+                    "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover disabled:text-fg-disabled flex h-[30px] w-full items-center rounded-lg px-2.5 text-left leading-[30px] whitespace-nowrap disabled:cursor-not-allowed disabled:hover:bg-transparent",
                     item.danger && "text-error-fg",
                   )}
                   onClick={() => {
