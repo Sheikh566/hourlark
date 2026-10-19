@@ -207,11 +207,19 @@ export function Modal({
             <footer className="mt-6 flex shrink-0 flex-wrap justify-end gap-2.5">{footer}</footer>
           ) : null}
           {/* Rendered last so Radix's initial focus lands on the first field, not on Close. */}
+          {/* Toggl's 520 project dialog uses a 50x50 corner close with a 10px glyph; others a 14px glyph. */}
           <Dialog.Close
-            className="text-fg hover:text-fg-soft absolute top-[7.5px] right-[6.5px] grid size-[37px] place-items-center rounded-lg"
+            className={twMerge(
+              "text-fg hover:text-fg-soft absolute grid place-items-center rounded-lg",
+              size === "md" ? "top-0 right-0 size-[50px]" : "top-[7.5px] right-[6.5px] size-[37px]",
+            )}
             aria-label="Close dialog"
           >
-            <X size={14} strokeWidth={2} aria-hidden="true" />
+            <X
+              size={size === "md" ? 10 : 14}
+              strokeWidth={size === "md" ? 1.5 : 2}
+              aria-hidden="true"
+            />
           </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
@@ -334,7 +342,7 @@ export function SearchInput({
       {/* Toggl search: transparent, inset 1px #808080 ring instead of a border. */}
       <input
         type="search"
-        className="hl-control text-fg placeholder:text-fg-subtle box-border h-9 w-full rounded-lg bg-transparent pr-8 pl-[34px] text-sm leading-5 font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
+        className="hl-control text-fg placeholder:text-fg-muted box-border h-9 w-full rounded-lg bg-transparent pr-8 pl-[34px] text-sm leading-5 font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
         placeholder={`${label}...`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -389,7 +397,10 @@ export function RowMenu({
   const place = useCallback(() => {
     const rect = trigger.current?.getBoundingClientRect();
     if (!rect) return;
-    setPosition({ top: rect.bottom + MENU_OFFSET, right: window.innerWidth - rect.right });
+    // In tables Toggl opens the menu flush with the row's bottom edge.
+    const row = trigger.current?.closest("tr")?.getBoundingClientRect();
+    const top = row ? row.bottom : rect.bottom + MENU_OFFSET;
+    setPosition({ top, right: window.innerWidth - rect.right });
   }, []);
   useLayoutEffect(() => {
     if (open) place();
