@@ -30,7 +30,8 @@ export function ReportExportMenu({
   useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
-      const rect = anchor.current?.getBoundingClientRect();
+      // The trigger's 5px margin sits inside the anchor span. Align to the button edge.
+      const rect = anchor.current?.querySelector("button")?.getBoundingClientRect();
       if (rect) setPosition({ top: rect.bottom + 5, right: window.innerWidth - rect.right });
     };
     place();
@@ -60,7 +61,7 @@ export function ReportExportMenu({
     ]?.focus();
   };
   const item =
-    "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover flex h-7 w-full items-center gap-2 rounded-lg px-3 text-left text-sm leading-5 font-medium whitespace-nowrap";
+    "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover flex h-7 w-full items-center gap-2 rounded px-3 text-left text-sm leading-5 font-medium whitespace-nowrap";
 
   return (
     <>
@@ -89,7 +90,7 @@ export function ReportExportMenu({
               aria-label="Export"
               style={{ top: position.top, right: position.right }}
               onKeyDown={moveFocus}
-              className="bg-surface border-stroke shadow-popover-sm dark-surface fixed z-[70] min-w-[115px] rounded-lg border p-1"
+              className="bg-surface border-stroke shadow-popover-sm dark-surface fixed z-[70] flex min-w-[115px] flex-col gap-px rounded-lg border p-1"
             >
               <button
                 type="button"

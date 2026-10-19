@@ -131,7 +131,7 @@ describe("report filter bar", () => {
     render(<Harness onChange={onChange} />);
     await user.click(screen.getByRole("button", { name: "Client" }));
     await user.click(screen.getByRole("button", { name: "All" }));
-    await user.type(screen.getByRole("textbox", { name: "Find client..." }), "Acme");
+    await user.type(screen.getByRole("textbox", { name: "Filter entities" }), "Acme");
     await user.click(screen.getByRole("button", { name: "None" }));
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(screen.getAllByRole("checkbox")[0]).toHaveAccessibleName("Beta");

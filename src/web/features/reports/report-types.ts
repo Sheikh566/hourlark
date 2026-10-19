@@ -57,6 +57,22 @@ export const GROUP_DIMENSIONS = [
 ] as const;
 export type GroupDimension = (typeof GROUP_DIMENSIONS)[number];
 
+/**
+ * Breakdown menu order for dimensions Hourlark can group by, following Toggl's list
+ * (Members, Clients, Projects, Descriptions). Toggl also lists Tasks and Tags, both
+ * disabled; Hourlark has no task or tag grouping. Days, Weeks, and Months are Hourlark
+ * time axes that Toggl's summary menu does not show.
+ */
+export const BREAKDOWN_DIMENSIONS: readonly GroupDimension[] = [
+  "member",
+  "client",
+  "project",
+  "description",
+  "day",
+  "week",
+  "month",
+];
+
 /** Toggl names the breakdown dimensions in plural title case ("Projects"). */
 export const DIMENSION_LABELS: Record<GroupDimension, string> = {
   client: "Clients",

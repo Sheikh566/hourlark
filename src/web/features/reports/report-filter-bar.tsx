@@ -124,7 +124,7 @@ function FilterChoice({
             onToggle();
           }
         }}
-        className={`text-fg box-border flex w-full items-center justify-between rounded-lg text-sm leading-5 font-medium ${compact ? "hover:bg-surface-hover h-7 gap-1 px-2 py-1" : "bg-surface h-9 px-3 py-2 shadow-[0_0_0_1px_var(--color-stroke-tertiary)]"}`}
+        className={`text-fg box-border flex w-full items-center justify-between rounded-lg text-sm leading-5 font-medium ${compact ? "hover:bg-surface-hover h-7 gap-0 px-2 py-1" : "bg-surface h-9 px-3 py-2 shadow-[0_0_0_1px_var(--color-stroke-tertiary)]"}`}
       >
         {options.find((option) => option.value === value)?.label}
         {compact ? (
@@ -554,9 +554,7 @@ export function ReportFilterBar({
                         <FilterSearch
                           value={search}
                           onChange={setSearch}
-                          placeholder={
-                            entityKey === "project" ? "Filter entities" : `Find ${entityKey}...`
-                          }
+                          placeholder="Filter entities"
                         />
                         <div className="-mx-2 -mt-2 flex h-[35px] items-center justify-between py-1 pl-3">
                           <span className={labelClass}>

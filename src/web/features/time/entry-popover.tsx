@@ -132,7 +132,7 @@ export function PopoverCloseButton({ label, onClick }: { label: string; onClick:
   return (
     <button
       type="button"
-      className="text-fg-muted hover:bg-surface-hover absolute top-0 right-0 inline-flex size-[30px] items-center justify-center rounded-lg leading-[normal]"
+      className="text-fg hover:bg-surface-hover absolute top-0 right-0 inline-flex size-[30px] items-center justify-center rounded-lg leading-[normal]"
       aria-label={label}
       onClick={onClick}
     >
@@ -244,7 +244,7 @@ export function EntryIconRow({
           type="button"
           disabled={disabled}
           className={twMerge(
-            "text-fg-muted hover:text-fg flex h-6 min-w-7 items-center gap-1.5 rounded-lg px-[5px] disabled:opacity-50",
+            "text-fg flex h-6 min-w-7 items-center gap-1.5 rounded-lg px-[5px] disabled:opacity-50",
             project && "hover:bg-surface-hover max-w-[240px]",
           )}
           aria-label="Select project"
@@ -288,10 +288,7 @@ export function EntryIconRow({
           ref={tagTrigger}
           type="button"
           disabled={disabled}
-          className={twMerge(
-            "hover:text-fg grid size-6 place-items-center rounded-lg disabled:opacity-50",
-            tagIds.length ? "text-accent-fg" : "text-fg-muted",
-          )}
+          className="text-accent-fg grid size-6 place-items-center rounded-lg disabled:opacity-50"
           aria-label={tagIds.length ? `${tagIds.length} tags selected` : "Choose tags"}
           aria-haspopup="listbox"
           aria-expanded={openPicker === "tags"}
@@ -314,7 +311,7 @@ export function EntryIconRow({
           disabled={disabled}
           className={twMerge(
             "hover:bg-surface-hover grid size-6 place-items-center rounded-lg disabled:opacity-50",
-            billable ? "text-accent-fg" : "text-fg-disabled",
+            billable ? "text-accent-fg" : "text-fg",
           )}
           aria-label={billable ? "Mark non-billable" : "Mark billable"}
           aria-pressed={billable}
@@ -830,7 +827,7 @@ export function EntryTimeRow({
           <button
             type="button"
             disabled={disabled}
-            className="text-fg-muted hover:text-fg absolute top-[2px] right-px grid size-8 place-items-center rounded-lg disabled:opacity-50"
+            className="text-fg absolute top-[2px] right-px grid size-8 place-items-center rounded-lg disabled:opacity-50"
             aria-label="Choose start date"
             onClick={() => {
               try {
@@ -854,7 +851,7 @@ export function EntryTimeRow({
         </div>
         <ArrowRight
           size={15}
-          className="hl-cal-time-arrow text-fg-muted mx-[3px] mt-[14px] ml-1 shrink-0"
+          className="hl-cal-time-arrow text-fg mx-[3px] mt-[14px] ml-1 shrink-0"
           aria-hidden="true"
         />
         <TimeTextInput

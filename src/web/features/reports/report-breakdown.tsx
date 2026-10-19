@@ -4,9 +4,9 @@ import { Select, SortHeader } from "@/web/components/ui";
 import { ReportCard, ReportCardHeader, ReportTh } from "@/web/features/reports/report-card";
 import { ReportEmpty } from "@/web/features/reports/report-empty";
 import {
+  BREAKDOWN_DIMENSIONS,
   DIMENSION_LABELS,
   DIMENSION_SINGULAR,
-  GROUP_DIMENSIONS,
   type GroupDimension,
   type SummaryGroup,
   type SummaryReport,
@@ -143,22 +143,27 @@ export function ReportBreakdown({
           <Select
             aria-label="Primary group"
             tone="accent"
+            density="compact"
             labelPrefix="Breakdown by:"
-            className="h-9 w-[202px]"
+            className="hover:bg-surface-hover data-[state=open]:bg-surface-hover h-9 w-[202px] hover:border-[#989898] data-[state=open]:border-[#989898]"
             value={groupBy}
             onValueChange={(value) => onGroupChange(value as GroupDimension)}
-            options={GROUP_DIMENSIONS.map((value) => ({ value, label: DIMENSION_LABELS[value] }))}
+            options={BREAKDOWN_DIMENSIONS.map((value) => ({
+              value,
+              label: DIMENSION_LABELS[value],
+            }))}
           />
           <Select
             aria-label="Secondary group"
             tone="accent"
+            density="compact"
             labelPrefix="and:"
-            className="h-9 w-[160px]"
+            className="hover:bg-surface-hover data-[state=open]:bg-surface-hover h-9 w-[160px] hover:border-[#989898] data-[state=open]:border-[#989898]"
             value={secondary}
             onValueChange={(value) => onSecondaryChange(value as GroupDimension | "")}
             options={[
               { value: "", label: "None" },
-              ...GROUP_DIMENSIONS.filter((value) => value !== groupBy).map((value) => ({
+              ...BREAKDOWN_DIMENSIONS.filter((value) => value !== groupBy).map((value) => ({
                 value,
                 label: DIMENSION_LABELS[value],
               })),

@@ -532,6 +532,33 @@ select:not(:disabled) {
   box-shadow: none;
 }
 
+/* The 424px time row wraps once the popover is narrower than the desktop anchor width. */
+@media (max-width: 439px) {
+  .hl-cal-popover .hl-cal-time-row {
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .hl-cal-popover .hl-cal-time-arrow {
+    display: none;
+  }
+
+  .hl-cal-popover .hl-cal-time-start,
+  .hl-cal-popover .hl-cal-time-stop,
+  .hl-cal-popover .hl-cal-time-duration,
+  .hl-cal-popover .hl-cal-time-action {
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .hl-cal-popover .hl-cal-time-action {
+    display: flex;
+  }
+}
+
 .hourlark-calendar {
   --fc-classic-background: var(--color-surface);
   --fc-classic-muted: var(--color-surface-secondary);
@@ -551,7 +578,8 @@ select:not(:disabled) {
   line-height: normal;
 }
 
-/* Header: Toggl pads 10px above / 3px below the 40px day cells. */
+/* Header: Toggl pads 10px above / 3px below the 40px day cells.
+   With height:auto the week grid scrolls in <main>; the header sticks under the toolbar. */
 .hourlark-calendar .hl-cal-header {
   box-sizing: border-box;
   padding: 10px 0 3px;
@@ -562,6 +590,10 @@ select:not(:disabled) {
   border-left-style: none;
   background: var(--color-surface);
   line-height: 14px;
+  position: sticky;
+  /* Beats FullCalendar's .fc-q0 { top: 0 !important }. --hl-cal-toolbar is the toolbar's height. */
+  top: var(--hl-cal-toolbar, 68px) !important;
+  z-index: 4 !important;
 }
 
 /* FullCalendar adds an inner divider; the header's own bottom border draws the single line. */
@@ -687,6 +719,12 @@ select:not(:disabled) {
   z-index: 2;
   height: 8px;
   cursor: ns-resize;
+}
+
+/* FullCalendar hides its resizer until :hover. The grip stays invisible, but the hit
+   target must remain so a drag that leaves the event still resizes it. */
+.hourlark-calendar .hl-cal-resizer {
+  display: block;
 }
 
 .hl-cal-resizer-start {

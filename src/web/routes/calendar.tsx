@@ -14,7 +14,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Minus, Play, Plus } from "lucide-react";
 import { formatInTimeZone } from "date-fns-tz";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 
 import { overlapDuration } from "@/domain/dates/time";
 import { useMe } from "@/web/app/context";
@@ -68,6 +76,62 @@ function calendarEventBeforeClass(info: EventDisplayInfo): string {
 
 function calendarEventAfterClass(info: EventDisplayInfo): string {
   return info.isEndResizable ? "hl-cal-resizer hl-cal-resizer-end" : "";
+}
+
+/** Working-hours anchor. Earlier hours stay reachable by scrolling `<main>`. */
+const INITIAL_SCROLL = "11:00:00";
+
+function dayFraction(time: string): number {
+  const [hours = 0, minutes = 0, seconds = 0] = time.split(":").map(Number);
+  return (hours * 3600 + minutes * 60 + seconds) / 86_400;
+}
+
+/** Slot labels sit 8px above their line; keep that line clear of the sticky header. */
+const SCROLL_ANCHOR_PAD = 14;
+
+function gridScrollMetrics(shell: HTMLElement): {
+  main: HTMLElement;
+  gridTop: number;
+  gridSpan: number;
+  anchor: number;
+} | null {
+  const main = shell.closest("main");
+  if (!(main instanceof HTMLElement)) return null;
+  const lanes = shell.querySelectorAll<HTMLElement>(".hl-cal-slot-lane");
+  const first = lanes[0];
+  const last = lanes[lanes.length - 1];
+  const header = shell.querySelector<HTMLElement>(".hl-cal-header");
+  if (!first || !last || !header) return null;
+  const gridTop = first.getBoundingClientRect().top;
+  const gridSpan = last.getBoundingClientRect().bottom - gridTop;
+  if (gridSpan < 1) return null;
+  return {
+    main,
+    gridTop,
+    gridSpan,
+    anchor: header.getBoundingClientRect().bottom + SCROLL_ANCHOR_PAD,
+  };
+}
+
+/** Time-of-day currently sitting just under the sticky day header, as a fraction of the day. */
+function visibleGridFraction(shell: HTMLElement): number | null {
+  const metrics = gridScrollMetrics(shell);
+  if (!metrics) return null;
+  const fraction = (metrics.anchor - metrics.gridTop) / metrics.gridSpan;
+  if (!Number.isFinite(fraction)) return null;
+  return Math.min(1, Math.max(0, fraction));
+}
+
+/**
+ * Move `<main>` so `fraction` of the day lines up just under the sticky day header.
+ * FullCalendar's own scroller does not scroll when `height` is `auto`.
+ */
+function scrollMainToFraction(shell: HTMLElement, fraction: number): boolean {
+  const metrics = gridScrollMetrics(shell);
+  if (!metrics) return false;
+  const target = metrics.gridTop + fraction * metrics.gridSpan;
+  metrics.main.scrollTop += target - metrics.anchor;
+  return true;
 }
 
 /** Toggl event blocks hide their text progressively as the block gets shorter. */
@@ -159,21 +223,51 @@ export function CalendarView({
   const [zoom, setZoom] = useState(readCalendarZoom);
   const zoomLevel = CALENDAR_ZOOM_LEVELS[clampCalendarZoom(zoom)] ?? CALENDAR_ZOOM_LEVELS[3];
   const slotMs = (zoomLevel?.minutes ?? 15) * 60_000;
-  // Match the measured calendar's initial hours; earlier hours remain reachable by scrolling.
-  const initialScroll = "11:00:00";
+  // Set by the zoom buttons so the time under the sticky header stays put after slot heights change.
+  const focusedFraction = useRef<number | null>(null);
 
-  // A new zoom level changes every slot height; bring the working hours back into view.
-  const firstZoomRender = useRef(true);
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    const main = shell?.closest("main");
+    const toolbar = main?.querySelector<HTMLElement>(".timer-calendar-toolbar");
+    if (!shell || !(main instanceof HTMLElement) || !toolbar) return;
+    const sync = () => {
+      const toolbarHeight = Math.round(toolbar.getBoundingClientRect().height);
+      const headerHeight = Math.round(
+        shell.querySelector(".hl-cal-header")?.getBoundingClientRect().height ?? 55,
+      );
+      shell.style.setProperty("--hl-cal-toolbar", `${toolbarHeight}px`);
+      // scrollIntoView must clear the sticky toolbar and day header, which overlay <main>.
+      main.style.scrollPaddingTop = `${toolbarHeight + headerHeight}px`;
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(toolbar);
+    observer.observe(shell);
+    return () => {
+      observer.disconnect();
+      main.style.scrollPaddingTop = "";
+    };
+  }, []);
+
   useEffect(() => {
-    if (firstZoomRender.current) {
-      firstZoomRender.current = false;
-      return;
-    }
-    const frame = window.requestAnimationFrame(() =>
-      calendarRef.current?.getApi().scrollToTime(initialScroll),
-    );
-    return () => window.cancelAnimationFrame(frame);
-  }, [initialScroll, zoom]);
+    // AppLayout resets main.scrollTop in its own effect on load. Scrolling from this effect
+    // directly loses that race; a frame later the reset has already happened.
+    const fraction = focusedFraction.current ?? dayFraction(INITIAL_SCROLL);
+    focusedFraction.current = null;
+    const shell = shellRef.current;
+    if (!shell) return;
+    let frames = 0;
+    let raf = 0;
+    const apply = () => {
+      if (!scrollMainToFraction(shell, fraction) && frames < 60) {
+        frames += 1;
+        raf = requestAnimationFrame(apply);
+      }
+    };
+    raf = requestAnimationFrame(apply);
+    return () => cancelAnimationFrame(raf);
+  }, [calendarMode, dateKey, zoom]);
 
   useEffect(() => {
     setEditing(null);
@@ -192,6 +286,9 @@ export function CalendarView({
   }, [calendarMode, me.member.timezone, dateKey, memberId]);
 
   const changeZoom = useCallback((next: number) => {
+    const shell = shellRef.current;
+    const fraction = shell ? visibleGridFraction(shell) : null;
+    if (fraction !== null) focusedFraction.current = fraction;
     const level = clampCalendarZoom(next);
     setZoom(level);
     storeCalendarZoom(level);
@@ -512,23 +609,25 @@ export function CalendarView({
         <section
           ref={shellRef}
           aria-label="Time entry calendar"
-          className="hl-cal-shell bg-surface relative overflow-hidden"
+          className="hl-cal-shell bg-surface relative"
         >
-          <div className="absolute top-[21px] left-[21.7px] z-[4] flex gap-[3px]">
-            <ZoomButton
-              label="Decrease zoom"
-              disabled={zoom <= 0}
-              onClick={() => changeZoom(zoom - 1)}
-            >
-              <Minus width={10} height={3} viewBox="0 10 24 4" aria-hidden="true" />
-            </ZoomButton>
-            <ZoomButton
-              label="Increase zoom"
-              disabled={zoom >= CALENDAR_ZOOM_LEVELS.length - 1}
-              onClick={() => changeZoom(zoom + 1)}
-            >
-              <Plus size={10} aria-hidden="true" />
-            </ZoomButton>
+          <div className="pointer-events-none sticky top-[var(--hl-cal-toolbar,68px)] z-[6] h-0">
+            <div className="pointer-events-auto absolute top-[21px] left-[21.7px] flex gap-[3px]">
+              <ZoomButton
+                label="Decrease zoom"
+                disabled={zoom <= 0}
+                onClick={() => changeZoom(zoom - 1)}
+              >
+                <Minus width={10} height={3} viewBox="0 10 24 4" aria-hidden="true" />
+              </ZoomButton>
+              <ZoomButton
+                label="Increase zoom"
+                disabled={zoom >= CALENDAR_ZOOM_LEVELS.length - 1}
+                onClick={() => changeZoom(zoom + 1)}
+              >
+                <Plus size={10} aria-hidden="true" />
+              </ZoomButton>
+            </div>
           </div>
           <FullCalendar
             ref={calendarRef}
@@ -538,7 +637,9 @@ export function CalendarView({
             initialDate={dateKey}
             firstDay={calendarMode === "workweek" || me.workspace.week_start === "monday" ? 1 : 0}
             timeZone={me.member.timezone}
-            height="max(320px, calc(100dvh - 152px))"
+            // Grow with the week grid so `<main>` is the scroller. The day header sticks via CSS.
+            height="auto"
+            tableHeaderSticky
             allDaySlot={false}
             weekends={calendarMode !== "workweek"}
             nowIndicator
@@ -554,7 +655,7 @@ export function CalendarView({
             snapDuration={zoomLevel?.snap ?? "00:15:00"}
             slotHeaderInterval={zoomLevel?.slot ?? "00:15:00"}
             slotMinHeight={CALENDAR_SLOT_HEIGHT}
-            scrollTime={initialScroll}
+            scrollTime={INITIAL_SCROLL}
             eventMinHeight={0}
             eventShortHeight={0}
             headerToolbar={false}

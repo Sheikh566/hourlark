@@ -358,7 +358,7 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
                 setSearch("");
               }}
             >
-              <span>All shortcuts</span> <ChevronRight size={10} />
+              <span>All shortcuts</span> <ChevronRight width={6.3} height={10} />
             </button>
             {allOpen && (
               <div
@@ -527,7 +527,7 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
                                 { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" },
                               )}
                               aria-pressed={selected}
-                              className={`grid h-[29px] w-[38px] place-items-center text-sm leading-[14px] font-medium focus-visible:z-10 ${endpoint ? `bg-accent-fg text-fg-inverted ${date === start ? "rounded-l-lg" : ""} ${date === end ? "rounded-r-lg font-semibold" : ""}` : selected ? "bg-accent-muted-hover text-fg" : "hover:bg-surface-hover"}`}
+                              className={`grid h-[29px] w-[38px] place-items-center text-sm leading-[14px] focus-visible:z-10 ${date === start ? "font-semibold" : "font-medium"} ${endpoint ? `bg-accent-fg text-fg-inverted ${date === start ? "rounded-l-lg" : ""} ${date === end ? "rounded-r-lg" : ""}` : selected ? "bg-accent-muted-hover text-fg" : "hover:bg-surface-hover"}`}
                               onClick={() => selectDay(date)}
                             >
                               <span

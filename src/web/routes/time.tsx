@@ -442,79 +442,86 @@ export function TimePage() {
   return (
     <>
       <h1 className="sr-only">Timer</h1>
-      <TimerToolbar
-        view={view}
-        onViewChange={setView}
-        periodLabel={periodLabel}
-        periodSuffix={periodSuffix}
-        onClearPeriod={
-          view === "list" && listSelection.preset !== "all"
-            ? () => applyListPreset("all")
-            : undefined
+      <div
+        className={
+          view === "calendar" ? "timer-calendar-toolbar bg-surface sticky top-0 z-20" : "contents"
         }
-        onPrevious={onPrevious}
-        onNext={onNext}
-        onPeriodClick={
-          view === "list"
-            ? () => setRangeOpen((current) => !current)
-            : () => setAnchor(localToday())
-        }
-        previousDisabled={view === "list" && listSelection.preset === "all"}
-        nextDisabled={view === "list" && listSelection.preset === "all"}
-        showTodayTotal={view === "list"}
-        todayTotal={formatClockDuration(todayTotal)}
-        weekTotal={formatClockDuration(weekTotal)}
-        periodTitle={view === "list" ? "Choose date range" : "Jump to current period"}
-        periodButtonRef={periodButtonRef}
-        periodExpanded={rangeOpen}
-        periodPopover={
-          view === "list" ? (
-            <DateRangePopover
-              open={rangeOpen}
-              timezone={me.member.timezone}
-              weekStartsOn={listWeekStartsOn}
-              value={listSelection}
-              now={listClock}
-              onChange={setListSelection}
-              onClose={(restoreFocus) => {
-                setRangeOpen(false);
-                if (restoreFocus) periodButtonRef.current?.focus();
-              }}
-              triggerRef={periodButtonRef}
-              mode="instant"
-            />
-          ) : null
-        }
-        onTodayClick={view === "list" ? () => applyListPreset("today") : undefined}
-        onWeekClick={view === "list" ? () => applyListPreset("this_week") : undefined}
-        trailing={
-          <>
-            {view === "calendar" ? (
-              <Select
-                className="[&>svg:last-child]:text-fg h-9 w-auto gap-2 border-0 bg-transparent px-3 [&>span]:whitespace-normal [&>svg:last-child]:h-[8.8px] [&>svg:last-child]:w-[14px] [&>svg:last-child]:[stroke-width:1.2]"
-                tone="accent"
-                contentClassName="h-24 w-[113.8px] min-w-0 [&_[data-radix-select-viewport]]:p-1 [&_[role=option]]:h-7 [&_[role=option]]:px-3 [&_[role=option][data-state=checked]]:bg-accent-muted-hover [&_[role=option]>span[aria-hidden=true]]:hidden"
-                value={calendarMode}
-                onValueChange={(value) => setCalendarMode(value as CalendarMode)}
-                aria-label="Calendar density"
-                options={CALENDAR_MODES.map((mode) => ({ ...mode }))}
+      >
+        <TimerToolbar
+          view={view}
+          onViewChange={setView}
+          periodLabel={periodLabel}
+          periodSuffix={periodSuffix}
+          onClearPeriod={
+            view === "list" && listSelection.preset !== "all"
+              ? () => applyListPreset("all")
+              : undefined
+          }
+          onPrevious={onPrevious}
+          onNext={onNext}
+          onPeriodClick={
+            view === "list"
+              ? () => setRangeOpen((current) => !current)
+              : () => setAnchor(localToday())
+          }
+          previousDisabled={view === "list" && listSelection.preset === "all"}
+          nextDisabled={view === "list" && listSelection.preset === "all"}
+          showTodayTotal={view === "list"}
+          todayTotal={formatClockDuration(todayTotal)}
+          weekTotal={formatClockDuration(weekTotal)}
+          periodTitle={view === "list" ? "Choose date range" : "Jump to current period"}
+          periodButtonRef={periodButtonRef}
+          periodExpanded={rangeOpen}
+          periodPopover={
+            view === "list" ? (
+              <DateRangePopover
+                open={rangeOpen}
+                timezone={me.member.timezone}
+                weekStartsOn={listWeekStartsOn}
+                value={listSelection}
+                now={listClock}
+                onChange={setListSelection}
+                onClose={(restoreFocus) => {
+                  setRangeOpen(false);
+                  if (restoreFocus) periodButtonRef.current?.focus();
+                }}
+                triggerRef={periodButtonRef}
+                mode="instant"
               />
-            ) : null}
-            {me.permissions.view_team ? (
-              <Select
-                className="h-9 w-auto max-w-[12rem] min-w-0"
-                value={memberId}
-                onValueChange={setMemberId}
-                aria-label="Timer member"
-                options={(members.data?.members ?? []).map((member) => ({
-                  value: member.id,
-                  label: member.display_name,
-                }))}
-              />
-            ) : null}
-          </>
-        }
-      />
+            ) : null
+          }
+          onTodayClick={view === "list" ? () => applyListPreset("today") : undefined}
+          onWeekClick={view === "list" ? () => applyListPreset("this_week") : undefined}
+          trailing={
+            <>
+              {view === "calendar" ? (
+                <Select
+                  className="[&>svg:last-child]:text-fg h-9 w-auto gap-2 border-0 bg-transparent px-3 [&>span]:whitespace-normal [&>svg:last-child]:h-[8.8px] [&>svg:last-child]:w-[14px] [&>svg:last-child]:[stroke-width:1.2]"
+                  tone="accent"
+                  density="compact"
+                  contentClassName="w-[113.8px] min-w-0"
+                  value={calendarMode}
+                  onValueChange={(value) => setCalendarMode(value as CalendarMode)}
+                  aria-label="Calendar density"
+                  options={CALENDAR_MODES.map((mode) => ({ ...mode }))}
+                />
+              ) : null}
+              {me.permissions.view_team ? (
+                <Select
+                  className="h-9 w-auto max-w-[12rem] min-w-0"
+                  value={memberId}
+                  onValueChange={setMemberId}
+                  aria-label="Timer member"
+                  options={(members.data?.members ?? []).map((member) => ({
+                    value: member.id,
+                    label: member.display_name,
+                  }))}
+                />
+              ) : null}
+            </>
+          }
+        />
+      </div>
 
       {view === "calendar" ? (
         <CalendarView weekStart={calendarStart} memberId={memberId} calendarMode={calendarMode} />
