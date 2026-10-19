@@ -29,6 +29,14 @@ test("project chip, picker dismissal, dates, and report navigation work at mobil
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     ),
   ).toBe(true);
+  expect(
+    await page.getByRole("main").evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
+  expect(
+    await page
+      .locator(".global-timer")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
   await page.setViewportSize({ width: 280, height: 740 });
   const switchBounds = await page.getByRole("radiogroup", { name: "Timer view" }).boundingBox();
   if (!switchBounds) throw new Error("Missing timer view switch");

@@ -1,5 +1,5 @@
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { twMerge } from "tailwind-merge";
 
@@ -12,12 +12,17 @@ export function AppLayout() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
+  const content = useRef<HTMLElement>(null);
   // Toggl shows the timer bar only on the Timer page; other screens use their own page header.
   const showTimerBar = location.pathname === "/time";
   const edgeToEdge = location.pathname !== "/reports";
 
+  useEffect(() => {
+    if (content.current) content.current.scrollTop = 0;
+  }, [location.pathname]);
+
   return (
-    <div className="app-shell bg-surface text-fg min-h-screen">
+    <div className="app-shell bg-surface text-fg h-dvh overflow-hidden">
       <div className="fixed inset-y-0 left-0 z-30 hidden md:block">
         <Sidebar
           collapsed={collapsed}
@@ -40,7 +45,7 @@ export function AppLayout() {
 
       <div
         className={twMerge(
-          "min-h-screen transition-[padding-left] duration-200 ease-in-out",
+          "flex h-full min-w-0 flex-col md:transition-[padding-left] md:duration-200 md:ease-in-out",
           collapsed ? "md:pl-[47px]" : "md:pl-[226px]",
           !showTimerBar && "[&>.global-timer]:hidden",
         )}
@@ -54,7 +59,13 @@ export function AppLayout() {
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </Button>
         <GlobalTimerBar />
-        <main className={twMerge("w-full", edgeToEdge ? "p-0" : "p-4 md:p-6")}>
+        <main
+          ref={content}
+          className={twMerge(
+            "min-h-0 w-full flex-1 overflow-y-auto",
+            edgeToEdge ? "p-0" : "p-4 md:p-6",
+          )}
+        >
           <Outlet />
         </main>
       </div>

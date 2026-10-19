@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
+
 test("list rows, in-place editing, grouped selection and date ranges retain measured geometry", async ({
   page,
 }) => {
@@ -64,6 +66,34 @@ test("list rows, in-place editing, grouped selection and date ranges retain meas
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(row).toBeVisible();
 
+    // Exercise real ancestor scrolling without adding unrelated entries to the fixture.
+    await row.evaluate((element) => {
+      const spacer = document.createElement("div");
+      spacer.id = "list-scroll-fixture";
+      spacer.style.height = "1000px";
+      element.closest("section")?.appendChild(spacer);
+    });
+    const main = page.getByRole("main");
+    expect(await main.evaluate((element) => element.clientWidth)).toBe(1689);
+    expect((await page.locator(".global-timer").boundingBox())?.width).toBe(1694);
+    await row.getByRole("button", { name: "More actions" }).click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    await main.evaluate((element) => {
+      element.scrollTop = 100;
+    });
+    await expect(page.getByRole("menu")).toBeHidden();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    expect((await page.locator(".global-timer").boundingBox())?.y).toBe(0);
+    const sidebar = await page.getByRole("complementary").boundingBox();
+    expect(sidebar?.y).toBe(0);
+    expect(sidebar?.height).toBe(905);
+    const dayHeader = page.getByRole("heading", { name: "Today", exact: true });
+    expect((await dayHeader.locator("..").boundingBox())?.y).toBe(84);
+    await main.evaluate((element) => {
+      document.getElementById("list-scroll-fixture")?.remove();
+      element.scrollTop = 0;
+    });
+
     const period = page.getByTitle("Choose date range");
     await period.click();
     const picker = page.getByRole("dialog", { name: "Choose date range" });
@@ -85,4 +115,45 @@ test("list rows, in-place editing, grouped selection and date ranges retain meas
   } finally {
     for (const id of ids) await page.request.delete(`/api/v1/time-entries/${id}`, { headers });
   }
+});
+
+test("the content owns its scrollbar while the shell keeps the viewport width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 905 });
+  for (const path of [
+    "/time",
+    "/time?view=calendar",
+    "/time?view=timesheet",
+    "/tags",
+    "/reports",
+  ]) {
+    await page.goto(path);
+    await expect(
+      page.getByRole("heading", {
+        name: path === "/tags" ? "Tags" : path === "/reports" ? "Reports" : "Timer",
+        exact: true,
+      }),
+    ).toBeAttached();
+    const main = page.getByRole("main");
+    expect((await main.boundingBox())?.width).toBe(1694);
+    await expect(main).toHaveCSS("overflow-y", "auto");
+    const geometry = await main.evaluate((element) => ({
+      fits: element.scrollHeight <= element.clientHeight,
+      width: element.clientWidth,
+    }));
+    expect(geometry.width).toBe(geometry.fits ? 1694 : 1689);
+    if (path.startsWith("/time")) {
+      expect((await page.locator(".global-timer").boundingBox())?.width).toBe(1694);
+    }
+    expect(await page.evaluate(() => document.documentElement.clientWidth)).toBe(1920);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(905);
+  }
+  const main = page.getByRole("main");
+  await main.evaluate((element) => {
+    element.scrollTop = 100;
+  });
+  await page.getByRole("link", { name: "Tags", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Tags", exact: true })).toBeVisible();
+  await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(0);
 });

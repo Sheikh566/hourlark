@@ -90,7 +90,7 @@ test("member can open the timer workspace and navigate core views", async ({ pag
 
   await page.getByRole("radio", { name: "Timesheet" }).click();
   await expect(page).toHaveURL(/view=timesheet/);
-  await expect(page.getByRole("button", { name: "Add row" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Add row" })).toBeVisible();
 
   const navigation = page.getByRole("navigation", { name: "Primary navigation" });
   await navigation.getByRole("link", { name: "Reports" }).click();

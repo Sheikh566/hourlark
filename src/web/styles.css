@@ -160,16 +160,10 @@ body {
   font-family: Inter, Helvetica, sans-serif;
 }
 
-/* Toggl's content column always keeps its 5px scrollbar gutter (1689px at 1920 wide), whether or
-   not the page overflows. */
-html {
-  overflow-y: scroll;
-}
-
 body {
   margin: 0;
   min-width: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #1b1b1b;
   color: #fafafa;
   font-size: 14px;

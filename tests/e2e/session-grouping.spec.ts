@@ -3,6 +3,32 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 
 import type { TimeEntry } from "../../src/web/types";
 
+const createdEntries = new Set<string>();
+
+test.afterEach(async ({ page }) => {
+  const { csrf_token: csrfToken } = (await (await page.request.get("/api/v1/me")).json()) as {
+    csrf_token: string;
+  };
+  const headers = { Origin: new URL(page.url()).origin, "X-CSRF-Token": csrfToken };
+  const { entry } = (await (await page.request.get("/api/v1/timer")).json()) as {
+    entry: TimeEntry | null;
+  };
+  if (entry) {
+    expect(
+      (
+        await page.request.post("/api/v1/timer/stop", {
+          headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+          data: {},
+        })
+      ).ok(),
+    ).toBe(true);
+  }
+  for (const id of createdEntries) {
+    expect((await page.request.delete(`/api/v1/time-entries/${id}`, { headers })).ok()).toBe(true);
+  }
+  createdEntries.clear();
+});
+
 function shiftLocalDate(date: string, days: number): string {
   const utc = new Date(`${date}T12:00:00.000Z`);
   utc.setUTCDate(utc.getUTCDate() + days);
@@ -18,9 +44,12 @@ test("same-day matching sessions group, expand to real entries, and stay split a
   }
   await expect(page.getByRole("button", { name: "Start timer" })).toBeVisible();
 
-  const description = `Grouped ${crypto.randomUUID().slice(0, 8)}`;
+  const description = `HLTEST Grouped ${crypto.randomUUID().slice(0, 8)}`;
   await page.getByRole("combobox", { name: "Timer description" }).fill(description);
+  const starting = page.waitForResponse((response) => response.url().endsWith("/timer/start"));
   await page.getByRole("button", { name: "Start timer" }).click();
+  const { entry: first } = (await (await starting).json()) as { entry: TimeEntry };
+  createdEntries.add(first.id);
   await expect(page.getByRole("button", { name: "Stop timer" })).toBeVisible();
   await page.getByRole("button", { name: "Stop timer" }).click();
   await expect(page.getByRole("button", { name: "Start timer" })).toBeVisible();
@@ -30,7 +59,12 @@ test("same-day matching sessions group, expand to real entries, and stay split a
   await expect(
     page.getByRole("button", { name: `Show 2 matching sessions for ${description}` }),
   ).toHaveCount(0);
+  const continuing = page.waitForResponse((response) =>
+    response.url().endsWith(`/time-entries/${first.id}/continue`),
+  );
   await firstRow.getByRole("button", { name: "Continue time entry" }).click();
+  const { entry: second } = (await (await continuing).json()) as { entry: TimeEntry };
+  createdEntries.add(second.id);
   await expect(page.getByRole("button", { name: "Stop timer" })).toBeVisible();
 
   const count = page.getByRole("button", {
@@ -80,6 +114,7 @@ test("same-day matching sessions group, expand to real entries, and stay split a
   });
   expect(created.ok()).toBe(true);
   const { entry: previous } = (await created.json()) as { entry: TimeEntry };
+  createdEntries.add(previous.id);
   expect(previous.description).toBe(description);
   await page.reload();
 
@@ -110,5 +145,10 @@ test("same-day matching sessions group, expand to real entries, and stay split a
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
     ),
+  ).toBe(true);
+  expect(
+    await page
+      .getByRole("main")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
   ).toBe(true);
 });

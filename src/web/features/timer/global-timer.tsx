@@ -776,7 +776,7 @@ export function GlobalTimerBar() {
   const activeCommand = commandSuggestions[highlightedCommand];
 
   return (
-    <header className="global-timer bg-surface sticky top-0 z-20 pr-3 pl-14 leading-none shadow-[0_0_0_1px_var(--color-stroke)] md:pr-0 md:pl-0">
+    <header className="global-timer bg-surface relative z-20 shrink-0 pr-3 pl-14 leading-none shadow-[0_0_0_1px_var(--color-stroke)] md:pr-0 md:pl-0">
       <div className="flex min-h-[84px] w-full flex-wrap items-center gap-2 py-3 sm:h-[84px] sm:flex-nowrap sm:gap-0 sm:py-0">
         <div className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <input

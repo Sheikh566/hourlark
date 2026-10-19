@@ -66,6 +66,7 @@ export function SuggestionsDropdown({
           <Fragment key={item.key}>
             {heading ? (
               <h2
+                role="presentation"
                 className={`text-fg h-[30px] px-[15px] text-[11px] leading-[13px] font-semibold tracking-[0.4px] uppercase ${
                   heading === "Projects" && hasRecent && hasProjects ? "mt-[18px]" : ""
                 }`}
@@ -161,13 +162,13 @@ export function CommandMenu({
       highlight ? "bg-surface-hover" : "hover:bg-surface-hover"
     }`;
   return (
-    <div
-      id="timer-description-command-menu"
-      className="timer-popover absolute top-[56px] left-10 z-50 w-[min(88vw,360px)] pt-[5px]"
-      role="listbox"
-      aria-label={isProject ? "Project suggestions" : "Tag suggestions"}
-    >
-      <div className="ml-px max-h-[324px] [scrollbar-gutter:stable] overflow-y-auto">
+    <div className="timer-popover absolute top-[56px] left-10 z-50 w-[min(88vw,360px)] pt-[5px]">
+      <div
+        id="timer-description-command-menu"
+        role="listbox"
+        aria-label={isProject ? "Project suggestions" : "Tag suggestions"}
+        className="ml-px max-h-[324px] [scrollbar-gutter:stable] overflow-y-auto"
+      >
         {loading ? (
           <p className="text-fg-muted p-4 text-center text-sm">
             Loading {isProject ? "projects" : "tags"}…
@@ -201,13 +202,17 @@ export function CommandMenu({
                   onClick={() => onSelectProject(null)}
                 >
                   <ProjectDot color="#999999" />
-                  <span className="text-fg-subtle">No Project</span>
+                  <span className={highlightedId === "" ? "text-fg-secondary" : "text-fg-subtle"}>
+                    No Project
+                  </span>
                 </button>
               </div>
             ) : null}
             {grouped.map(([client, items]) => (
-              <div key={client}>
-                <PickerHeading>{client === "No client" ? "No Client" : client}</PickerHeading>
+              <div key={client} role="group" aria-label={client}>
+                <div aria-hidden="true">
+                  <PickerHeading>{client === "No client" ? "No Client" : client}</PickerHeading>
+                </div>
                 {items.map((project) => {
                   const optionId = `timer-description-command-project-${project.id}`;
                   return (
@@ -226,7 +231,11 @@ export function CommandMenu({
                         <ProjectDot color={project.color} />
                         <ProjectName project={project} />
                         {hasClient(project.client_name) ? (
-                          <span className="text-fg-subtle truncate">{project.client_name}</span>
+                          <span
+                            className={`truncate ${highlightedId === project.id ? "text-fg-secondary" : "text-fg-subtle"}`}
+                          >
+                            {project.client_name}
+                          </span>
                         ) : null}
                       </button>
                     </div>
@@ -237,7 +246,9 @@ export function CommandMenu({
           </>
         ) : (
           <>
-            <PickerHeading>Tags</PickerHeading>
+            <div aria-hidden="true">
+              <PickerHeading>Tags</PickerHeading>
+            </div>
             {tags.map((tag) => (
               <div key={tag.id} className="py-px pr-[3px] pl-1.5">
                 <button
