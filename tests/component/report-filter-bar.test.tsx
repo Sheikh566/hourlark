@@ -130,9 +130,9 @@ describe("report filter bar", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
     await user.click(screen.getByRole("button", { name: "Client" }));
-    await user.click(screen.getByRole("button", { name: "ALL" }));
-    await user.type(screen.getByRole("textbox", { name: "Find client…" }), "Acme");
-    await user.click(screen.getByRole("button", { name: "NONE" }));
+    await user.click(screen.getByRole("button", { name: "All" }));
+    await user.type(screen.getByRole("textbox", { name: "Find client..." }), "Acme");
+    await user.click(screen.getByRole("button", { name: "None" }));
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(screen.getAllByRole("checkbox")[0]).toHaveAccessibleName("Beta");
     expect(screen.getByRole("button", { name: "Client: is Beta" })).toBeVisible();
@@ -141,7 +141,7 @@ describe("report filter bar", () => {
     await user.click(screen.getByRole("button", { name: "Show" }));
     await user.click(screen.getByRole("option", { name: "Archived" }));
     expect(screen.queryByRole("checkbox", { name: "Beta" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "ALL" }));
+    await user.click(screen.getByRole("button", { name: "All" }));
     await user.click(screen.getByRole("button", { name: "Add" }));
     expect(onChange).toHaveBeenLastCalledWith({
       client: { condition: "is", values: ["c2", "c3"] },
@@ -195,12 +195,14 @@ describe("report filter bar", () => {
   it("locks members to the current member and collapses the whole filter bar with a count including the locked member", async () => {
     const user = userEvent.setup();
     render(<Harness canViewTeam={false} initial={{ tag: { condition: "is", values: ["t1"] } }} />);
-    expect(screen.getByText("Member is Abdullah")).toBeVisible();
+    expect(screen.getByTitle("Members can view their own time entries")).toHaveTextContent(
+      "Member is Abdullah",
+    );
     expect(screen.queryByRole("button", { name: "Member" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Hide filters" }));
     expect(screen.queryByRole("button", { name: "Client" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tag: is Design" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Member is Abdullah")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Members can view their own time entries")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add filter" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Show 2 filters" }));
     expect(screen.getByRole("button", { name: "Client" })).toBeVisible();
@@ -240,7 +242,7 @@ describe("report filter bar", () => {
     await user.click(screen.getByRole("button", { name: "Add" }));
     await user.click(screen.getByRole("button", { name: "Tag" }));
     expect(screen.queryByRole("button", { name: "Show" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "ALL" }));
+    await user.click(screen.getByRole("button", { name: "All" }));
     await user.click(screen.getByRole("button", { name: "Add" }));
     await user.click(screen.getByRole("button", { name: "Client" }));
     await selectCondition(user, "is archived");
@@ -268,7 +270,7 @@ describe("report filter bar", () => {
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Project" }));
     const popup = screen.getByRole("dialog", { name: "Project filter" });
-    expect(popup).toHaveStyle({ left: "580px", top: "92px" });
+    expect(popup).toHaveStyle({ left: "580px", top: "91px" });
     expect(popup).toHaveClass("dark-surface");
     activeLeft = 1200;
     fireEvent(window, new Event("resize"));
@@ -276,13 +278,13 @@ describe("report filter bar", () => {
     activeLeft = 40;
     activeTop = 100;
     fireEvent(window, new Event("scroll"));
-    expect(popup).toHaveStyle({ left: "40px", top: "142px" });
+    expect(popup).toHaveStyle({ left: "40px", top: "141px" });
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Add filter" }));
     await user.click(screen.getByRole("menuitem", { name: "Project" }));
     expect(screen.getByRole("dialog", { name: "Project filter" })).toHaveStyle({
       left: "40px",
-      top: "142px",
+      top: "141px",
     });
   });
 
@@ -304,7 +306,7 @@ describe("report filter bar", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
     await user.click(screen.getByRole("button", { name: "Add filter" }));
-    await user.type(screen.getByRole("textbox", { name: "Find filter…" }), "bill");
+    await user.type(screen.getByRole("textbox", { name: "Find filter..." }), "bill");
     const menu = screen.getByRole("menu", { name: "Available filters" });
     expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
     await user.click(screen.getByRole("menuitem", { name: "Billable" }));

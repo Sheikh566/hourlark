@@ -65,3 +65,21 @@ export function parseClockDuration(value: string): number | null {
   const total = hours * 3600 + minutes * 60 + seconds;
   return Number.isFinite(total) && total > 0 && total <= 7 * 86400 ? total : null;
 }
+
+/** Toggl report clock: `H:MM:SS`, or `-` when there is no tracked time. */
+export function formatReportDuration(durationMs: number): string {
+  return durationMs > 0 ? formatClockDuration(durationMs) : "-";
+}
+
+/** Toggl average-hours value: two decimals (`8.63`), `0.00` when empty. */
+export function formatDecimalHours(durationMs: number): string {
+  return (Math.max(0, durationMs) / 3_600_000).toFixed(2);
+}
+
+/** Toggl chart axis label: `3h 30`, `17h`, `0h` (minutes only when non-zero). */
+export function formatAxisHours(durationMs: number): string {
+  const totalMinutes = Math.round(Math.max(0, durationMs) / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${hours}h ${minutes}` : `${hours}h`;
+}

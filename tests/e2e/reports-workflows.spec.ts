@@ -34,9 +34,11 @@ test("report filters, CSV and PDF downloads, errors and mobile layout", async ({
   await expect(page.getByRole("button", { name: "Project", exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Detailed", exact: true }).click();
   const csv = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export CSV", exact: true }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menuitem", { name: "CSV", exact: true }).click();
   expect((await csv).suggestedFilename()).toBe("hourlark-detailed.csv");
-  await page.getByRole("button", { name: "Time Report PDF", exact: true }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menuitem", { name: "PDF", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Client-ready Time Report" });
   await expect(dialog.getByRole("button", { name: "Generate PDF" })).toBeDisabled();
   await chooseOption(dialog.getByRole("combobox").first(), "Internal");
@@ -60,7 +62,8 @@ test("report filters, CSV and PDF downloads, errors and mobile layout", async ({
   await expect(dialog).toBeHidden();
   const filteredCsv = page.waitForEvent("download");
   const csvRequest = page.waitForRequest("**/api/v1/exports/csv");
-  await page.getByRole("button", { name: "Export CSV", exact: true }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menuitem", { name: "CSV", exact: true }).click();
   expect((await filteredCsv).suggestedFilename()).toBe("hourlark-detailed.csv");
   expect((await csvRequest).postDataJSON()).toMatchObject({
     start: pdfFilters.start,
@@ -71,7 +74,8 @@ test("report filters, CSV and PDF downloads, errors and mobile layout", async ({
   });
   expect(pdfFilters.client_ids).toBe(pdfFilters.client_id);
   await page.setViewportSize({ width: 320, height: 640 });
-  await page.getByRole("button", { name: "Time Report PDF" }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menuitem", { name: "PDF", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "Generate PDF" })).toBeInViewport();
   expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.keyboard.press("Escape");

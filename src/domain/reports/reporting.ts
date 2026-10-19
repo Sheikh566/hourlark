@@ -5,6 +5,7 @@ import { hasFinancialAccess } from "@/domain/permissions/policy";
 import type { AuthenticatedMember, WorkspaceRow } from "@/domain/types";
 import { parseTags, type EntryJoinedRow } from "@/db/repositories/time-entries";
 import { startOfWeekDate } from "@/domain/dates/calendar";
+import { trackedDayCount } from "@/domain/reports/averages";
 
 export type GroupDimension =
   "client" | "project" | "member" | "day" | "week" | "month" | "description";
@@ -227,6 +228,7 @@ export function buildSummary(
     timezone,
     totals: {
       tracked_duration_ms: totalDurationMs,
+      tracked_days: trackedDayCount(rows, timezone),
       billable_duration_ms: billableDurationMs,
       non_billable_duration_ms:
         totalDurationMs -

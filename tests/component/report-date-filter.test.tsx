@@ -45,7 +45,7 @@ describe("ReportDateFilter", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
-      "This week · W10",
+      "This week W10",
     );
     await userEvent.click(screen.getByRole("button", { name: "Next report period" }));
     expect(changed).toHaveBeenLastCalledWith({ start: "2024-03-11", end: "2024-03-17" });
@@ -53,6 +53,35 @@ describe("ReportDateFilter", () => {
     await userEvent.click(screen.getByRole("button", { name: "This week" }));
     expect(changed).toHaveBeenLastCalledWith({ start: "2024-03-04", end: "2024-03-10" });
   });
+
+  it.each([0, 1] as const)(
+    "selects an ISO week from a calendar starting on %s and closes the popup",
+    async (weekStartsOn) => {
+      const changed = vi.fn();
+      render(
+        <Harness
+          today="2026-10-18"
+          weekStartsOn={weekStartsOn}
+          initial={{ start: "2026-10-01", end: "2026-10-31" }}
+          changed={changed}
+        />,
+      );
+      const user = userEvent.setup();
+      await open();
+      await user.click(screen.getByRole("button", { name: "Select week W42" }));
+      expect(changed).toHaveBeenLastCalledWith({ start: "2026-10-12", end: "2026-10-18" });
+      expect(screen.queryByRole("dialog", { name: "Choose report dates" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
+        "12 - 18 Oct 2026 · W42",
+      );
+      expect(screen.getByRole("button", { name: "Report date range" })).toHaveFocus();
+      await open();
+      await user.click(screen.getByRole("button", { name: "This week" }));
+      expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
+        "This week",
+      );
+    },
+  );
 
   it("searches extended shortcuts, applies calendar quarter and rolling bounds", async () => {
     const changed = vi.fn();
@@ -124,6 +153,14 @@ describe("ReportDateFilter", () => {
     expect(screen.getByRole("dialog", { name: "Choose report dates" })).toBeInTheDocument();
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("dialog", { name: "Choose report dates" })).not.toBeInTheDocument();
+  });
+
+  it("shows three-letter weekdays and omits the first week number when it starts outside the month", async () => {
+    render(<Harness />);
+    await open();
+    expect(screen.getAllByText("Mon")).toHaveLength(2);
+    expect(screen.queryByText("W40")).not.toBeInTheDocument();
+    expect(screen.getByText("W41")).toBeVisible();
   });
 
   it("uses Sunday as the start when configured and spans leap month correctly", async () => {

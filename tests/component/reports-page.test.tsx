@@ -41,6 +41,9 @@ vi.mock("recharts", () => {
     CartesianGrid: () => null,
     XAxis: () => null,
     YAxis: () => null,
+    LabelList: () => null,
+    useChartWidth: () => 600,
+    useYAxisScale: () => (value: number) => value,
   };
 });
 
@@ -93,6 +96,7 @@ describe("report date and filter workflow", () => {
         return Promise.resolve({
           totals: {
             tracked_duration_ms: 3_600_000,
+            tracked_days: 1,
             billable_duration_ms: 0,
             non_billable_duration_ms: 3_600_000,
             amounts: { USD: 1200 },
@@ -131,9 +135,9 @@ describe("report date and filter workflow", () => {
 
   it("uses the member-local week and inclusive display endpoints", async () => {
     renderPage();
-    await screen.findByText("Total Hours");
+    await screen.findByText("Total hours");
     expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
-      "This week · W41",
+      "This week W41",
     );
     const request = summaryRequests()[0];
     expect(request?.searchParams.get("start")).toBe("2026-10-04T19:00:00.000Z");
@@ -156,9 +160,9 @@ describe("report date and filter workflow", () => {
     process.env.TZ = "America/Los_Angeles";
     try {
       renderPage();
-      await screen.findByText("Total Hours");
+      await screen.findByText("Total hours");
       expect(screen.getByRole("button", { name: "Report date range" })).toHaveTextContent(
-        "This week · W41",
+        "This week W41",
       );
       const request = summaryRequests()[0];
       expect(request?.searchParams.get("start")).toBe("2026-10-04T19:00:00.000Z");
@@ -281,9 +285,10 @@ describe("report date and filter workflow", () => {
     identity.reportDetails = false;
     renderPage();
     const user = userEvent.setup();
-    await screen.findByText("Total Hours");
+    await screen.findByText("Total hours");
     await selectFilter("Client", ["IOMechs"]);
-    await user.click(screen.getByRole("button", { name: "Time Report PDF" }));
+    await user.click(screen.getByRole("button", { name: "Export" }));
+    await user.click(screen.getByRole("menuitem", { name: "PDF" }));
     const dialog = screen.getByRole("dialog", { name: "Client-ready Time Report" });
     expect(within(dialog).getByRole("checkbox", { name: "Member names" })).not.toBeChecked();
     expect(within(dialog).getByRole("checkbox", { name: "Descriptions" })).not.toBeChecked();
@@ -312,7 +317,7 @@ describe("report date and filter workflow", () => {
     async (condition) => {
       renderPage();
       const user = userEvent.setup();
-      await screen.findByText("Total Hours");
+      await screen.findByText("Total hours");
       await selectFilter("Client", ["IOMechs", "Another client"]);
       if (condition === "contains") {
         await selectFilter("Tag", ["Review", "Delivery"]);
@@ -361,13 +366,15 @@ describe("report date and filter workflow", () => {
           .at(-1);
         expect(detailed && requestFilters(detailed)).toEqual(expected);
       });
-      await user.click(screen.getByRole("button", { name: "Export CSV" }));
+      await user.click(screen.getByRole("button", { name: "Export" }));
+      await user.click(screen.getByRole("menuitem", { name: "CSV" }));
       expect(apiDownloadMock).toHaveBeenLastCalledWith(
         "/exports/csv",
         expect.objectContaining({ ...expected, mode: "detailed" }),
         "hourlark-detailed.csv",
       );
-      await user.click(screen.getByRole("button", { name: "Time Report PDF" }));
+      await user.click(screen.getByRole("button", { name: "Export" }));
+      await user.click(screen.getByRole("menuitem", { name: "PDF" }));
       const pdf = screen.getByRole("dialog", { name: "Client-ready Time Report" });
       expect(within(pdf).getByRole("button", { name: "Generate PDF" })).toBeDisabled();
       await chooseOption(user, within(pdf).getByRole("combobox", { name: /^Client/ }), "IOMechs");
@@ -399,8 +406,11 @@ describe("report date and filter workflow", () => {
     renderPage();
     const totals = await screen.findByLabelText("Report totals");
     expect(within(totals).queryByText("Amount")).not.toBeInTheDocument();
-    expect(within(totals).getByText("Average Daily Hours")).toBeVisible();
+    expect(within(totals).getByText("Average daily hours")).toBeVisible();
+    expect(within(totals).getByText("1.00")).toHaveTextContent("1.00Hours");
     expect(screen.queryByRole("button", { name: "Member" })).not.toBeInTheDocument();
-    expect(screen.getByText("Member is Member")).toBeVisible();
+    expect(screen.getByTitle("Members can view their own time entries")).toHaveTextContent(
+      "Member is Member",
+    );
   });
 });

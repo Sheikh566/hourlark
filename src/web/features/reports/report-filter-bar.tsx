@@ -1,12 +1,17 @@
 import {
+  AlignLeft,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Folder,
   Plus,
   Search,
+  Tag as TagIcon,
   Timer,
+  User,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useEffect,
@@ -18,6 +23,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { Checkbox } from "@/web/components/checkbox";
 import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-dismiss-popover";
 import type { Client, Member, Project, Tag } from "@/web/types";
 
@@ -58,9 +64,10 @@ const conditionLabels: Record<ReportFilterValue["condition"], string> = {
   is_archived: "is archived",
   contains: "contains",
 };
-const focusClass =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400";
-const labelClass = "text-[11px] uppercase text-[#a3a3a3]";
+// Keyboard focus uses the global neutral ring (styles.css), so controls need no local focus class.
+const focusClass = "";
+/** Toggl's section label: 11/600 #999, uppercase, 0.04em tracking. */
+const labelClass = "text-fg-subtle text-[11px] leading-4 font-semibold tracking-[0.04em] uppercase";
 
 type ChoiceOption = { value: string; label: string };
 function moveOptionFocus(event: KeyboardEvent<HTMLElement>) {
@@ -107,6 +114,7 @@ function FilterChoice({
         ref={trigger}
         type="button"
         aria-label={label}
+        id={`report-filter-${label.toLowerCase().replaceAll(" ", "-")}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={onToggle}
@@ -116,13 +124,13 @@ function FilterChoice({
             onToggle();
           }
         }}
-        className={`flex h-9 w-full items-center justify-between rounded-md text-sm ${compact ? "gap-1 px-1" : "border border-[#808080] px-3"} ${focusClass}`}
+        className={`text-fg box-border flex w-full items-center justify-between rounded-lg text-sm leading-5 font-medium ${compact ? "hover:bg-surface-hover h-7 gap-1 px-2 py-1" : "bg-surface h-9 px-3 py-2 shadow-[0_0_0_1px_var(--color-stroke-tertiary)]"}`}
       >
         {options.find((option) => option.value === value)?.label}
         {compact ? (
           <ChevronRight size={14} aria-hidden="true" />
         ) : (
-          <ChevronDown size={16} className="text-[#a3a3a3]" aria-hidden="true" />
+          <ChevronDown size={14} className="text-fg-subtle" aria-hidden="true" />
         )}
       </button>
       {open ? (
@@ -131,7 +139,7 @@ function FilterChoice({
           role="listbox"
           aria-label={label}
           onKeyDown={moveOptionFocus}
-          className={`absolute top-full right-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-md border border-[#555] bg-[#292929] py-1 shadow-xl ${compact ? "w-36" : "left-0"}`}
+          className={`timer-popover dark-surface absolute top-full right-0 z-10 mt-[5px] max-h-48 overflow-y-auto p-[5px] ${compact ? "w-36" : "left-0"}`}
         >
           {options.map((option) => (
             <button
@@ -143,7 +151,7 @@ function FilterChoice({
                 onSelect(option.value);
                 trigger.current?.focus();
               }}
-              className={`block w-full px-3 py-2 text-left text-sm hover:bg-[#3a3a3a] ${value === option.value ? "bg-[#382b16] text-[#fbbf24]" : ""} ${focusClass}`}
+              className={`hover:bg-surface-hover focus-visible:bg-surface-hover block h-[30px] w-full rounded-lg px-2.5 text-left text-sm font-medium ${value === option.value ? "bg-surface-hover" : ""}`}
             >
               {option.label}
             </button>
@@ -198,10 +206,20 @@ export function ReportFilterBar({
     const positionAtTrigger = () => {
       const bounds = trigger.current?.getBoundingClientRect();
       if (!bounds) return;
-      const width = editing === "add" ? 272 : 340;
+      const width = editing === "add" ? 275 : 340;
+      // Toggl aligns filter forms with the first filter chip, and the add menu with its button.
+      const rowStart =
+        editing === "add"
+          ? bounds.left
+          : Math.min(
+              bounds.left,
+              ...Object.entries(buttons.current)
+                .filter(([key, element]) => key !== "add" && element)
+                .flatMap(([, element]) => (element ? [element.getBoundingClientRect().left] : [])),
+            );
       const next = {
-        left: Math.max(8, Math.min(bounds.left, window.innerWidth - width - 8)),
-        top: Math.max(8, Math.min(bounds.bottom + 6, Math.max(8, window.innerHeight - 220))),
+        left: Math.max(8, Math.min(rowStart, window.innerWidth - width - 8)),
+        top: Math.max(8, Math.min(bounds.bottom + 5, Math.max(8, window.innerHeight - 220))),
       };
       setPosition((current) =>
         current.left === next.left && current.top === next.top ? current : next,
@@ -349,47 +367,53 @@ export function ReportFilterBar({
         <>
           {!canViewTeam ? (
             <span
-              className="flex h-9 items-center gap-2 px-2 text-sm font-semibold text-[#808080]"
+              className="text-fg-disabled flex h-9 items-center gap-1.5 px-3 text-sm leading-5 font-medium"
               title="Members can view their own time entries"
             >
-              <FilterGlyph filterKey="member" /> Member is {currentMemberName}
+              <FilterGlyph filterKey="member" disabled />
+              <span className="truncate">
+                <b className="font-semibold">Member</b> is {currentMemberName}
+              </span>
             </span>
           ) : null}
-          {ordered.map(({ key, label }) => (
-            <div
-              key={key}
-              className={`flex h-9 max-w-full items-center rounded-md ${editing === key ? "bg-[#382b16] text-[#fbbf24]" : filters[key] ? "bg-[#3a3a3a] text-[#fafafa]" : "text-[#fafafa]"}`}
-            >
-              <button
-                ref={(element) => {
-                  buttons.current[key] = element;
-                }}
-                type="button"
-                disabled={loading}
-                aria-label={`${label}${filters[key] || editing === key ? `: ${chipText(key)}` : ""}`}
-                aria-haspopup="dialog"
-                aria-expanded={editing === key}
-                onClick={() => (editing === key ? close() : open(key))}
-                className={`flex h-9 min-w-0 items-center gap-2 rounded-md px-3 text-sm font-semibold hover:bg-white/5 ${focusClass}`}
+          {ordered.map(({ key, label }) => {
+            const isSet = Boolean(filters[key]) || editing === key;
+            return (
+              <div
+                key={key}
+                className={`flex h-9 max-w-full items-center rounded-lg ${isSet ? "bg-accent-muted text-accent-fg hover:bg-accent-muted-hover" : "text-fg hover:text-[#d5d5d5]"}`}
               >
-                <FilterGlyph filterKey={key} active={editing === key} />
-                <span className="max-w-48 truncate">
-                  {label}
-                  {filters[key] || editing === key ? ` ${chipText(key)}` : ""}
-                </span>
-              </button>
-              {filters[key] || editing === key ? (
                 <button
+                  ref={(element) => {
+                    buttons.current[key] = element;
+                  }}
                   type="button"
-                  aria-label={`Remove ${label} filter`}
-                  onClick={() => remove(key)}
-                  className={`mr-1 rounded p-1 hover:bg-white/10 ${focusClass}`}
+                  disabled={loading}
+                  aria-label={`${label}${isSet ? `: ${chipText(key)}` : ""}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={editing === key}
+                  onClick={() => (editing === key ? close() : open(key))}
+                  className={`flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg px-3 text-start text-sm leading-5 ${focusClass}`}
                 >
-                  <X size={15} aria-hidden="true" />
+                  <FilterGlyph filterKey={key} active={isSet} />
+                  <span className="max-w-48 truncate pr-1">
+                    <b className="font-semibold">{label}</b>
+                    {isSet ? <span className="font-medium"> {chipText(key)}</span> : null}
+                  </span>
                 </button>
-              ) : null}
-            </div>
-          ))}
+                {isSet ? (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${label} filter`}
+                    onClick={() => remove(key)}
+                    className={`hover:bg-accent-muted-active mr-1 -ml-2 grid h-6 w-7 place-items-center rounded-lg ${focusClass}`}
+                  >
+                    <X size={12} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
           <button
             ref={(element) => {
               buttons.current.add = element;
@@ -399,9 +423,9 @@ export function ReportFilterBar({
             aria-haspopup="dialog"
             aria-expanded={editing === "add"}
             onClick={() => (editing === "add" ? close() : open("add"))}
-            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold text-[#a3a3a3] hover:bg-white/5 ${focusClass}`}
+            className={`text-fg ml-2 box-border flex h-9 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm leading-5 font-semibold hover:text-[#d5d5d5] ${focusClass}`}
           >
-            <Plus size={17} aria-hidden="true" /> Add filter
+            <Plus size={14} strokeWidth={2.5} aria-hidden="true" /> Add filter
           </button>
         </>
       ) : null}
@@ -417,7 +441,7 @@ export function ReportFilterBar({
             close();
             setHideInactive(!hideInactive);
           }}
-          className={`flex h-9 items-center gap-1 rounded-md px-2 text-xs text-[#a3a3a3] hover:bg-white/5 ${focusClass}`}
+          className={`text-fg-subtle hover:bg-surface-hover hover:text-fg flex h-9 items-center gap-1 rounded-lg px-2 text-xs ${focusClass}`}
         >
           {hideInactive
             ? `Show ${available.filter((filter) => filters[filter.key]).length + (canViewTeam ? 0 : 1)} filters`
@@ -437,17 +461,22 @@ export function ReportFilterBar({
               }}
               style={{
                 ...position,
-                width: editing === "add" ? 272 : 340,
+                width: editing === "add" ? 275 : 340,
                 maxWidth: "calc(100vw - 16px)",
                 maxHeight: `calc(100dvh - ${position.top + 8}px)`,
               }}
-              className="dark-surface fixed z-50 overflow-y-auto rounded-md border border-[#3a3a3a] bg-[#1b1b1b] p-4 text-[#fafafa] shadow-[0_6px_18px_#0008] outline-none"
+              className={`dark-surface bg-surface border-stroke text-fg shadow-popover-sm fixed z-50 box-border overflow-y-auto rounded-lg border outline-none ${editing === "add" ? "p-2" : "p-4"}`}
             >
               {editing === "add" ? (
                 <>
-                  <FilterSearch value={search} onChange={setSearch} placeholder="Find filter…" />
+                  <div className="p-2">
+                    <FilterSearch
+                      value={search}
+                      onChange={setSearch}
+                      placeholder="Find filter..."
+                    />
+                  </div>
                   <div
-                    className="mt-2"
                     role="menu"
                     aria-label="Available filters"
                     onKeyDown={(event) => {
@@ -472,193 +501,200 @@ export function ReportFilterBar({
                       ),
                     ]
                       .filter((filter) => filter.label.toLowerCase().includes(search.toLowerCase()))
-                      .map(({ key, label }) => (
-                        <button
-                          key={key}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => open(key)}
-                          className={`flex h-9 w-full items-center gap-3 rounded px-2 text-left text-sm hover:bg-[#3a3a3a] ${focusClass}`}
-                        >
-                          <FilterGlyph filterKey={key} /> {label}
-                        </button>
+                      .map(({ key, label }, index, list) => (
+                        <div key={key}>
+                          {index > 0 &&
+                          !["member", "billable", "running"].includes(list[index - 1]?.key ?? "") &&
+                          ["member", "billable", "running"].includes(key) ? (
+                            <div className="my-1 h-px bg-[#4d4d4d]" aria-hidden="true" />
+                          ) : null}
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => open(key)}
+                            className={`hover:bg-surface-hover focus-visible:bg-surface-hover flex h-7 w-full items-center gap-2 rounded-lg px-3 text-left text-sm leading-5 font-medium ${focusClass}`}
+                          >
+                            <FilterGlyph filterKey={key} plain /> {label}
+                          </button>
+                        </div>
                       ))}
                   </div>
                 </>
               ) : (
-                <>
+                <div className="grid gap-4">
                   <button
                     type="button"
                     aria-label="Back to filters"
                     onClick={() => open("add")}
-                    className={`mb-5 flex items-center gap-2 rounded text-sm font-semibold ${focusClass}`}
+                    className={`hover:bg-surface-hover flex h-8 w-fit items-center gap-2 rounded-lg px-3 py-1.5 text-sm leading-5 font-semibold ${focusClass}`}
                   >
-                    <ChevronLeft size={16} aria-hidden="true" /> {activeMeta?.label}
+                    <ChevronLeft size={14} aria-hidden="true" /> {activeMeta?.label}
                   </button>
-                  <div className={`${labelClass} mb-1`}>Condition</div>
-                  {choice(
-                    "Condition",
-                    draft.condition,
-                    conditions.map((condition) => ({
-                      value: condition,
-                      label: conditionLabels[condition],
-                    })),
-                    (condition) =>
-                      setDraft({
-                        ...draft,
-                        condition: condition as ReportFilterValue["condition"],
-                      }),
-                  )}
-                  {entityKey && needsValues ? (
-                    <>
-                      <div className="mt-3">
+                  <div className="grid gap-4">
+                    <div className="grid gap-1">
+                      <label htmlFor="report-filter-condition" className={labelClass}>
+                        Condition
+                      </label>
+                      {choice(
+                        "Condition",
+                        draft.condition,
+                        conditions.map((condition) => ({
+                          value: condition,
+                          label: conditionLabels[condition],
+                        })),
+                        (condition) =>
+                          setDraft({
+                            ...draft,
+                            condition: condition as ReportFilterValue["condition"],
+                          }),
+                      )}
+                    </div>
+                    {entityKey && needsValues ? (
+                      <>
                         <FilterSearch
                           value={search}
                           onChange={setSearch}
-                          placeholder={`Find ${entityKey}…`}
+                          placeholder={
+                            entityKey === "project" ? "Filter entities" : `Find ${entityKey}...`
+                          }
                         />
-                      </div>
-                      <div className="mt-4 mb-2 flex items-center justify-between">
-                        <span className={labelClass}>
-                          {entityKey === "project" ? "My projects" : entityKey}
-                        </span>
-                        <div className="flex gap-3 text-[11px] font-semibold text-[#fbbf24]">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDraft({
-                                ...draft,
-                                values: [
-                                  ...new Set([
-                                    ...draft.values,
-                                    ...visibleOptions.map((option) => option.id),
-                                  ]),
-                                ],
-                              })
-                            }
-                            className={`rounded ${focusClass}`}
-                          >
-                            ALL
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDraft({
-                                ...draft,
-                                values: draft.values.filter(
-                                  (id) => !visibleOptions.some((option) => option.id === id),
-                                ),
-                              })
-                            }
-                            className={`rounded ${focusClass}`}
-                          >
-                            NONE
-                          </button>
-                        </div>
-                      </div>
-                      <div className="max-h-60 overflow-y-auto">
-                        {visibleOptions.map((option) => (
-                          <label
-                            key={option.id}
-                            className="flex min-h-[30px] cursor-pointer items-center gap-2 rounded px-1 text-sm hover:bg-[#3a3a3a]"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={draft.values.includes(option.id)}
-                              onChange={(event) =>
-                                setDraft({
-                                  ...draft,
-                                  values: event.target.checked
-                                    ? [...draft.values, option.id]
-                                    : draft.values.filter((id) => id !== option.id),
-                                })
-                              }
-                              className={`size-3.5 shrink-0 accent-[#fbbf24] ${focusClass}`}
-                            />
-                            {entityKey === "project" ? (
-                              <span
-                                aria-hidden="true"
-                                className="size-2 shrink-0 rounded-full"
-                                style={{ background: option.color }}
-                              />
-                            ) : null}
-                            <span>
-                              <span
-                                style={
-                                  entityKey === "project" ? { color: option.color } : undefined
+                        <div className="-mx-2 -mt-2 flex h-[35px] items-center justify-between py-1 pl-3">
+                          <span className={labelClass}>
+                            {entityKey === "project" ? "My projects" : entityKey}
+                          </span>
+                          <div className="flex">
+                            {(["All", "None"] as const).map((name) => (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() =>
+                                  setDraft({
+                                    ...draft,
+                                    values:
+                                      name === "All"
+                                        ? [
+                                            ...new Set([
+                                              ...draft.values,
+                                              ...visibleOptions.map((option) => option.id),
+                                            ]),
+                                          ]
+                                        : draft.values.filter(
+                                            (id) =>
+                                              !visibleOptions.some((option) => option.id === id),
+                                          ),
+                                  })
                                 }
+                                className={`text-accent-fg hover:text-accent-fg-hover hover:bg-surface-hover flex h-6 items-center justify-center gap-2 rounded-lg px-1.5 py-1 text-start text-[11px] leading-4 font-semibold tracking-[0.04em] uppercase ${focusClass}`}
                               >
-                                {option.name}
-                              </span>
-                              {option.client_name ? (
-                                <span className="text-[#a3a3a3]"> · {option.client_name}</span>
-                              ) : null}
-                            </span>
-                          </label>
-                        ))}
-                        {!visibleOptions.length ? (
-                          <p className="py-2 text-sm text-[#a3a3a3]">No matches</p>
-                        ) : null}
-                      </div>
-                      {entityKey !== "tag" ? (
-                        <div className="-mx-4 mt-3 flex items-center justify-between border-t border-[#3a3a3a] px-4 pt-2">
-                          <span className={labelClass}>Show</span>
-                          <div>
-                            {choice(
-                              "Show",
-                              show,
-                              [
-                                { value: "active", label: "Active" },
-                                { value: "archived", label: "Archived" },
-                                { value: "both", label: "Both" },
-                              ],
-                              setShow,
-                            )}
+                                <span>{name}</span>
+                              </button>
+                            ))}
                           </div>
                         </div>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {needsText ? (
-                    <label className="mt-4 block">
-                      <span className={labelClass}>Match criteria</span>
-                      <input
-                        value={draft.text ?? ""}
-                        onChange={(event) => setDraft({ ...draft, text: event.target.value })}
-                        className={`mt-1 h-9 w-full rounded-md border border-[#808080] bg-transparent px-3 text-sm ${focusClass}`}
-                      />
-                    </label>
-                  ) : null}
-                  {editing === "billable" || editing === "running" ? (
-                    <div className="mt-4">
-                      <div className={`${labelClass} mb-1`}>Match criteria</div>
-                      {choice(
-                        "Match criteria",
-                        draft.values[0] ?? "false",
-                        editing === "billable"
-                          ? [
-                              { value: "true", label: "Billable" },
-                              { value: "false", label: "Non-billable" },
-                            ]
-                          : [
-                              { value: "false", label: "Stopped" },
-                              { value: "true", label: "Running" },
-                            ],
-                        (value) => setDraft({ ...draft, values: [value] }),
-                      )}
-                    </div>
-                  ) : null}
-                  <div className="-mx-4 mt-4 border-t border-[#3a3a3a] px-4 pt-4">
+                        <div className="-mx-4 -mt-4 max-h-[200px] overflow-y-auto px-2">
+                          {visibleOptions.map((option) => (
+                            <label
+                              key={option.id}
+                              className="hover:bg-surface-hover flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-3 text-sm leading-5 font-medium"
+                            >
+                              <Checkbox
+                                checked={draft.values.includes(option.id)}
+                                onChange={(event) =>
+                                  setDraft({
+                                    ...draft,
+                                    values: event.target.checked
+                                      ? [...draft.values, option.id]
+                                      : draft.values.filter((id) => id !== option.id),
+                                  })
+                                }
+                              />
+                              <span className="flex min-w-0 items-center gap-2">
+                                {entityKey === "project" ? (
+                                  <span
+                                    aria-hidden="true"
+                                    className="size-2 shrink-0 rounded-full"
+                                    style={{ background: option.color }}
+                                  />
+                                ) : null}
+                                <span className="truncate">
+                                  <span
+                                    style={
+                                      entityKey === "project" ? { color: option.color } : undefined
+                                    }
+                                  >
+                                    {option.name}
+                                  </span>
+                                  {option.client_name ? (
+                                    <span className="text-fg-subtle"> {option.client_name}</span>
+                                  ) : null}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                          {!visibleOptions.length ? (
+                            <p className="text-fg-subtle flex h-[30px] items-center justify-center text-sm font-semibold">
+                              No matching items
+                            </p>
+                          ) : null}
+                        </div>
+                        {entityKey !== "tag" ? (
+                          <div className="border-stroke -mx-4 -mt-4 flex h-[46px] items-center justify-between border-y px-4">
+                            <span className={labelClass}>Show</span>
+                            <div>
+                              {choice(
+                                "Show",
+                                show,
+                                [
+                                  { value: "active", label: "Active" },
+                                  { value: "archived", label: "Archived" },
+                                  { value: "both", label: "Both" },
+                                ],
+                                setShow,
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {needsText ? (
+                      <label className="grid gap-1">
+                        <span className={labelClass}>Match criteria</span>
+                        <input
+                          value={draft.text ?? ""}
+                          onChange={(event) => setDraft({ ...draft, text: event.target.value })}
+                          className="hl-control bg-surface text-fg border-stroke-tertiary box-border h-9 w-full rounded-lg border px-3 text-sm leading-5 font-medium outline-none"
+                        />
+                      </label>
+                    ) : null}
+                    {editing === "billable" || editing === "running" ? (
+                      <div className="grid gap-1">
+                        <div className={labelClass}>Match criteria</div>
+                        {choice(
+                          "Match criteria",
+                          draft.values[0] ?? "false",
+                          editing === "billable"
+                            ? [
+                                { value: "true", label: "Billable" },
+                                { value: "false", label: "Non-billable" },
+                              ]
+                            : [
+                                { value: "false", label: "Stopped" },
+                                { value: "true", label: "Running" },
+                              ],
+                          (value) => setDraft({ ...draft, values: [value] }),
+                        )}
+                      </div>
+                    ) : null}
                     <button
                       type="button"
                       disabled={!valid || loading}
                       onClick={apply}
-                      className={`h-9 w-full rounded-md bg-[#fbbf24] text-sm font-semibold text-[#1b1b1b] hover:bg-[#fcd34d] disabled:cursor-not-allowed disabled:opacity-30 ${focusClass}`}
+                      className={`bg-accent hover:bg-accent-hover text-fg-inverted disabled:bg-accent-muted-hover box-border h-9 w-full rounded-lg px-6 py-2 text-sm leading-5 font-semibold disabled:cursor-not-allowed ${focusClass}`}
                     >
                       Add
                     </button>
                   </div>
-                </>
+                </div>
               )}
             </div>,
             document.body,
@@ -668,54 +704,49 @@ export function ReportFilterBar({
   );
 }
 
+const FILTER_ICONS: Record<ReportFilterKey, LucideIcon> = {
+  member: User,
+  client: User,
+  project: Folder,
+  tag: TagIcon,
+  description: AlignLeft,
+  billable: DollarSign,
+  running: Timer,
+};
+
+/**
+ * Toggl's chip glyph: a 18px r4 tile (#999, accent when the filter is set) with a 12px dark glyph.
+ * `plain` is the bare 14px icon used in the Add filter menu.
+ */
 function FilterGlyph({
   filterKey,
   active = false,
+  disabled = false,
+  plain = false,
 }: {
   filterKey: ReportFilterKey;
   active?: boolean;
+  disabled?: boolean;
+  plain?: boolean;
 }) {
-  const className = `shrink-0 ${active ? "text-[#fbbf24]" : "text-[#a3a3a3]"}`;
-  if (filterKey === "billable")
-    return <DollarSign size={18} className={className} aria-hidden="true" />;
-  if (filterKey === "running") return <Timer size={18} className={className} aria-hidden="true" />;
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 18 18"
-      className={className}
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <rect
-        x="1"
-        y={filterKey === "project" ? "3" : "1"}
-        width="16"
-        height={filterKey === "project" ? "14" : "16"}
-        rx="2"
+  const Icon = FILTER_ICONS[filterKey];
+  const filled = filterKey !== "description" && filterKey !== "billable" && filterKey !== "running";
+  if (plain)
+    return (
+      <Icon
+        size={14}
+        fill={filled ? "currentColor" : "none"}
+        className="shrink-0"
+        aria-hidden="true"
       />
-      {filterKey === "member" || filterKey === "client" ? (
-        <>
-          <circle cx="9" cy="6" r="2.5" fill="#1b1b1b" />
-          <path d="M4 15v-2a5 5 0 0 1 10 0v2z" fill="#1b1b1b" />
-        </>
-      ) : filterKey === "project" ? (
-        <>
-          <path d="M3 1h5l2 3H3z" />
-          <path d="M3 6h12v2H3z" fill="#1b1b1b" />
-        </>
-      ) : filterKey === "tag" ? (
-        <>
-          <path d="M4 4h5l5 5-5 5-5-5z" fill="#1b1b1b" />
-          <circle cx="6" cy="6" r="1" />
-        </>
-      ) : (
-        <text x="2.5" y="13" fill="#1b1b1b" fontSize="11" fontWeight="700">
-          Aa
-        </text>
-      )}
-    </svg>
+    );
+  return (
+    <span
+      aria-hidden="true"
+      className={`text-fg-inverted grid size-[18px] shrink-0 place-items-center rounded ${disabled ? "bg-fg-disabled" : active ? "bg-accent" : "bg-fg-subtle"}`}
+    >
+      <Icon size={12} strokeWidth={filled ? 1.5 : 2.4} fill={filled ? "currentColor" : "none"} />
+    </span>
   );
 }
 
@@ -729,23 +760,24 @@ function FilterSearch({
   placeholder: string;
 }) {
   return (
-    <div className="flex h-8 items-center gap-2 rounded-md border border-[#808080] px-2 focus-within:ring-1 focus-within:ring-[#a3a3a3]">
-      <Search size={16} className="shrink-0 text-[#a3a3a3]" aria-hidden="true" />
+    <div className="bg-surface box-border flex h-[30px] items-center gap-2 rounded-lg px-3 shadow-[0_0_0_1px_var(--color-stroke-tertiary)] focus-within:shadow-[0_0_0_2px_rgb(250_250_250/20%)]">
+      <Search size={14} className="text-fg shrink-0" aria-hidden="true" />
       <input
         aria-label={placeholder}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#a3a3a3]"
+        className="text-fg placeholder:text-fg-muted -mr-3 h-full min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+        style={{ lineHeight: "normal" }}
       />
       {value ? (
         <button
           type="button"
           aria-label="Clear search"
           onClick={() => onChange("")}
-          className={`rounded ${focusClass}`}
+          className="text-fg-subtle hover:text-fg rounded"
         >
-          <X size={14} aria-hidden="true" />
+          <X size={12} aria-hidden="true" />
         </button>
       ) : null}
     </div>
