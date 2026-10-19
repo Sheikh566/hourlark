@@ -62,8 +62,8 @@ describe("management feedback", () => {
     const user = userEvent.setup();
     mount(<ClientsPage />);
     await user.click(screen.getByRole("button", { name: "New client" }));
-    await user.click(screen.getByRole("button", { name: "Save client" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Name: This field is required.");
+    await user.click(screen.getByRole("button", { name: "Create client" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please enter a Client name");
     expect(vi.mocked(apiRequest).mock.calls.every(([, init]) => !init?.method)).toBe(true);
   });
 
@@ -116,7 +116,7 @@ describe("management feedback", () => {
     const user = userEvent.setup();
     mount(<TagsPage />);
     await user.click(screen.getByRole("button", { name: "New Tag" }));
-    await user.click(screen.getByRole("button", { name: "Save tag" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Enter a tag name.");
     const name = screen.getByRole("textbox", { name: "Tag name" });
     expect(name).toHaveAccessibleDescription("Enter a tag name.");
@@ -147,10 +147,9 @@ describe("management feedback", () => {
     await user.click(screen.getByRole("button", { name: "New client" }));
     const name = screen.getByRole("textbox", { name: "Client name" });
     await user.type(name, "Original name");
-    await user.click(screen.getByRole("button", { name: "Save client" }));
+    await user.click(screen.getByRole("button", { name: "Create client" }));
     expect(await screen.findByRole("button", { name: "Saving…" })).toBeDisabled();
     expect(name).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Close dialog" }));
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -163,11 +162,12 @@ describe("management feedback", () => {
     mount(<ClientsPage />);
     await user.click(screen.getByRole("button", { name: "New client" }));
     await user.type(screen.getByRole("textbox", { name: "Client name" }), "Client");
+    await user.click(screen.getByRole("button", { name: "Advanced options" }));
     const currency = screen.getByRole("textbox", { name: "Currency" });
     await user.clear(currency);
     await user.type(currency, "US");
     await user.type(screen.getByRole("spinbutton", { name: "Default hourly rate" }), "-1");
-    await user.click(screen.getByRole("button", { name: "Save client" }));
+    await user.click(screen.getByRole("button", { name: "Create client" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Currency: Enter a three-letter currency code.");
     expect(alert).toHaveTextContent("Default hourly rate: Enter a non-negative number.");

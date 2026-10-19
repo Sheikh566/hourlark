@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save, ShieldCheck } from "lucide-react";
-import { useEffect, useId, useState } from "react";
-import { useForm } from "react-hook-form";
+import { ShieldCheck, TriangleAlert } from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { twMerge } from "tailwind-merge";
 
 import { useMe } from "@/web/app/context";
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
@@ -15,13 +16,14 @@ import {
   Loading,
   Field,
   Input,
-  Modal,
   PageHeader,
+  Switch,
+  useToast,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
 import { FormSelect } from "@/web/components/form-select";
+import { InfoBox } from "@/web/features/management/info-box";
 import { apiRequest } from "@/web/lib/api";
-import type { Tag } from "@/web/types";
 
 interface Settings {
   app_name: string;
@@ -105,7 +107,7 @@ export function AdministrationPage() {
         title="Settings"
         description="Workspace policies, security posture, and immutable audit history."
       >
-        <nav className="flex gap-5" aria-label="Settings sections">
+        <nav className="-ml-1 flex" aria-label="Settings sections">
           {(
             [
               ["workspace", "General"],
@@ -116,19 +118,26 @@ export function AdministrationPage() {
               key={value}
               type="button"
               aria-current={tab === value ? "page" : undefined}
-              className={
-                tab === value
-                  ? "border-b-2 border-[#f59e0b] pb-0.5 text-sm font-semibold text-[#fbbf24]"
-                  : "border-b-2 border-transparent pb-0.5 text-sm font-semibold text-[#a4a4a4] hover:text-[#fafafa]"
-              }
+              className={twMerge(
+                "text-fg-subtle inline-flex h-[30px] items-center justify-center rounded-lg px-3 py-1.5 text-sm leading-5 font-semibold",
+                tab !== value && "hover:text-fg",
+              )}
               onClick={() => setTab(value)}
             >
-              {label}
+              <span
+                className={twMerge(
+                  // Toggl underlines only the label (2px) and leaves 6px of button padding.
+                  "border-b-2 [border-style:none_none_solid_none] [border-bottom-color:transparent] text-left",
+                  tab === value && "text-accent-fg [border-bottom-color:var(--color-accent-fg)]",
+                )}
+              >
+                {label}
+              </span>
             </button>
           ))}
         </nav>
       </PageHeader>
-      <div className="p-4 md:p-6">
+      <div className="p-5">
         {tab === "workspace" ? <WorkspaceSettings /> : null}
         {tab === "audit" ? <AuditLog /> : null}
       </div>
@@ -138,6 +147,7 @@ export function AdministrationPage() {
 
 function WorkspaceSettings() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const settings = useQuery({
     queryKey: ["settings"],
     queryFn: () => apiRequest<{ settings: Settings }>("/settings"),
@@ -224,6 +234,7 @@ function WorkspaceSettings() {
         queryClient.invalidateQueries({ queryKey: ["settings"] }),
         queryClient.invalidateQueries({ queryKey: ["me"] }),
       ]);
+      toast({ title: "Success", message: "Workspace settings saved." });
     },
   });
   const access = settings.data?.settings.access;
@@ -231,313 +242,315 @@ function WorkspaceSettings() {
   if (settings.error)
     return <ErrorState message={settings.error.message} onRetry={() => void settings.refetch()} />;
 
+  const fieldWidth = "w-full max-w-[270px]";
+  const inputClass = "h-[37px]";
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+    <div className="grid items-start gap-5 xl:grid-cols-[1fr_340px]">
       <form
         noValidate
-        className="panel grid gap-4 p-5 sm:grid-cols-2"
+        className="grid gap-5"
         onSubmit={form.handleSubmit((value) => mutation.mutate(value))}
       >
         <fieldset disabled={mutation.isPending} className="contents">
           <FormErrors errors={form.formState.errors} />
-          <div className="sm:col-span-2">
-            <h2 className="font-bold text-slate-900">Company workspace</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              These defaults drive entry behavior, report calculations, and exports.
-            </p>
-          </div>
-          <Field label="Application name">
-            <Input
-              aria-invalid={Boolean(form.formState.errors.app_name)}
-              {...form.register("app_name")}
-            />
-          </Field>
-          <Field label="Company name">
-            <Input
-              aria-invalid={Boolean(form.formState.errors.company_name)}
-              {...form.register("company_name")}
-            />
-          </Field>
-          <Field label="Company domain">
-            <Input
-              aria-invalid={Boolean(form.formState.errors.company_domain)}
-              {...form.register("company_domain")}
-            />
-          </Field>
-          <Field label="Workspace timezone">
-            <Input
-              aria-invalid={Boolean(form.formState.errors.timezone)}
-              {...form.register("timezone")}
-            />
-          </Field>
-          <Field label="Default currency">
-            <Input
-              maxLength={3}
-              aria-invalid={Boolean(form.formState.errors.currency)}
-              {...form.register("currency")}
-            />
-          </Field>
-          <Field label="Week starts">
-            <FormSelect
-              control={form.control}
-              name="week_start"
-              options={[
-                { value: "monday", label: "Monday" },
-                { value: "sunday", label: "Sunday" },
-              ]}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field
-              label="Allowed email domains"
-              hint="Comma-separated; enforced when provisioning members."
-            >
-              <Input
-                aria-invalid={Boolean(form.formState.errors.allowed_email_domains)}
-                {...form.register("allowed_email_domains")}
-              />
-            </Field>
-          </div>
-          <Field label="Workspace hourly rate">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              aria-invalid={Boolean(form.formState.errors.default_rate_major)}
-              {...form.register("default_rate_major")}
-            />
-          </Field>
-          <Field label="Lock entries after days" hint="Leave blank to disable locking.">
-            <Input
-              type="number"
-              min="0"
-              aria-invalid={Boolean(form.formState.errors.lock_entries_after_days)}
-              {...form.register("lock_entries_after_days")}
-            />
-          </Field>
-          <Field label="Report rounding">
-            <FormSelect
-              control={form.control}
-              name="rounding_increment_minutes"
-              options={[
-                { value: "0", label: "No rounding" },
-                { value: "1", label: "1 minute" },
-                ...["5", "6", "10", "15", "30", "60"].map((value) => ({
-                  value,
-                  label: `${value} minutes`,
-                })),
-              ]}
-            />
-          </Field>
-          <Field label="Rounding direction">
-            <FormSelect
-              control={form.control}
-              name="rounding_method"
-              options={[
-                { value: "nearest", label: "Nearest" },
-                { value: "up", label: "Up" },
-                { value: "down", label: "Down" },
-              ]}
-            />
-          </Field>
-          <fieldset className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
-            <legend className="px-1 text-sm font-semibold">Policies and report defaults</legend>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                aria-invalid={Boolean(form.formState.errors.members_can_set_billable)}
-                {...form.register("members_can_set_billable")}
-              />
-              Members may set billable status
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                aria-invalid={Boolean(form.formState.errors.report_show_descriptions)}
-                {...form.register("report_show_descriptions")}
-              />
-              Include descriptions by default
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                aria-invalid={Boolean(form.formState.errors.report_show_tags)}
-                {...form.register("report_show_tags")}
-              />
-              Include tags by default
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                aria-invalid={Boolean(form.formState.errors.report_show_members)}
-                {...form.register("report_show_members")}
-              />
-              Include member names by default
-            </label>
-          </fieldset>
+          <SettingsCard
+            title="Company workspace"
+            description="These defaults drive entry behavior, report calculations, and exports."
+          >
+            <div className="grid gap-x-5 gap-y-5 sm:grid-cols-[repeat(2,minmax(0,270px))]">
+              <div className={fieldWidth}>
+                <Field label="Application name">
+                  <Input
+                    className={inputClass}
+                    aria-invalid={Boolean(form.formState.errors.app_name)}
+                    {...form.register("app_name")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Company name">
+                  <Input
+                    className={inputClass}
+                    aria-invalid={Boolean(form.formState.errors.company_name)}
+                    {...form.register("company_name")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Company domain">
+                  <Input
+                    className={inputClass}
+                    aria-invalid={Boolean(form.formState.errors.company_domain)}
+                    {...form.register("company_domain")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Workspace timezone">
+                  <Input
+                    className={inputClass}
+                    aria-invalid={Boolean(form.formState.errors.timezone)}
+                    {...form.register("timezone")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Default currency">
+                  <Input
+                    className={inputClass}
+                    maxLength={3}
+                    aria-invalid={Boolean(form.formState.errors.currency)}
+                    {...form.register("currency")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Week starts">
+                  <FormSelect
+                    control={form.control}
+                    name="week_start"
+                    options={[
+                      { value: "monday", label: "Monday" },
+                      { value: "sunday", label: "Sunday" },
+                    ]}
+                  />
+                </Field>
+              </div>
+              <div className="sm:col-span-2 sm:max-w-[560px]">
+                <Field
+                  label="Allowed email domains"
+                  hint="Comma-separated; enforced when provisioning members."
+                >
+                  <Input
+                    className={inputClass}
+                    aria-invalid={Boolean(form.formState.errors.allowed_email_domains)}
+                    {...form.register("allowed_email_domains")}
+                  />
+                </Field>
+              </div>
+            </div>
+          </SettingsCard>
+          <SettingsCard
+            title="Rates, locking and rounding"
+            description="Defaults for billing, for locking old entries and for how reports total time."
+          >
+            <div className="grid gap-x-5 gap-y-5 sm:grid-cols-[repeat(2,minmax(0,270px))]">
+              <div className={fieldWidth}>
+                <Field label="Workspace hourly rate">
+                  <Input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    aria-invalid={Boolean(form.formState.errors.default_rate_major)}
+                    {...form.register("default_rate_major")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Lock entries after days" hint="Leave blank to disable locking.">
+                  <Input
+                    className={inputClass}
+                    type="number"
+                    min="0"
+                    aria-invalid={Boolean(form.formState.errors.lock_entries_after_days)}
+                    {...form.register("lock_entries_after_days")}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Report rounding">
+                  <FormSelect
+                    control={form.control}
+                    name="rounding_increment_minutes"
+                    options={[
+                      { value: "0", label: "No rounding" },
+                      { value: "1", label: "1 minute" },
+                      ...["5", "6", "10", "15", "30", "60"].map((value) => ({
+                        value,
+                        label: `${value} minutes`,
+                      })),
+                    ]}
+                  />
+                </Field>
+              </div>
+              <div className={fieldWidth}>
+                <Field label="Rounding direction">
+                  <FormSelect
+                    control={form.control}
+                    name="rounding_method"
+                    options={[
+                      { value: "nearest", label: "Nearest" },
+                      { value: "up", label: "Up" },
+                      { value: "down", label: "Down" },
+                    ]}
+                  />
+                </Field>
+              </div>
+            </div>
+          </SettingsCard>
+          <SettingsCard
+            title="Policies and report defaults"
+            description="What members may change and what reports include unless a filter says otherwise."
+          >
+            <div className="grid gap-5">
+              {(
+                [
+                  [
+                    "members_can_set_billable",
+                    "Members may set billable status",
+                    "Let members change the billable flag on their own time entries.",
+                  ],
+                  [
+                    "report_show_descriptions",
+                    "Include descriptions by default",
+                    "Show entry descriptions in report tables and exports.",
+                  ],
+                  [
+                    "report_show_tags",
+                    "Include tags by default",
+                    "Show entry tags in report tables and exports.",
+                  ],
+                  [
+                    "report_show_members",
+                    "Include member names by default",
+                    "Show who tracked each entry in report tables and exports.",
+                  ],
+                ] as const
+              ).map(([name, title, description]) => (
+                <Controller
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <SettingToggle
+                      title={title}
+                      description={description}
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      onBlur={field.onBlur}
+                    />
+                  )}
+                />
+              ))}
+            </div>
+          </SettingsCard>
           {mutation.error ? (
-            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
+            <p role="alert" className="text-error-fg text-sm font-medium">
               {mutation.error.message}
             </p>
           ) : null}
-          {mutation.isSuccess ? (
-            <p role="status" className="text-sm text-[#fbbf24] sm:col-span-2">
-              Workspace settings saved.
-            </p>
-          ) : null}
-          <div className="sm:col-span-2">
+          <div>
+            {/* Toggl autosaves each control; Hourlark validates the whole form, so it keeps Save. */}
             <Button type="submit" disabled={mutation.isPending}>
-              <Save size={15} /> {mutation.isPending ? "Saving…" : "Save settings"}
+              {mutation.isPending ? "Saving…" : "Save settings"}
             </Button>
           </div>
         </fieldset>
       </form>
-      <aside className="panel h-fit p-5">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="text-[#fbbf24]" />
-          <h2 className="font-bold">Cloudflare Access</h2>
-        </div>
-        <p className="mt-2 text-sm text-slate-500">
-          Production authentication is configured outside this screen and fails closed.
-        </p>
-        <dl className="mt-4 grid gap-3 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-slate-500">Status</dt>
-            <dd>
-              <Badge color={access?.configured ? "#15803D" : "#B45309"}>
-                {access?.configured ? "Configured" : "Placeholder"}
-              </Badge>
-            </dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-slate-500">Team domain</dt>
-            <dd className="truncate font-medium">{access?.team_domain ?? "Not set"}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-slate-500">Audience</dt>
-            <dd className="font-medium">{access?.audience ?? "Not set"}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-slate-500">Bootstrap variable</dt>
-            <dd className="font-medium">
-              {access?.bootstrap_admins_configured ? "Present" : "Removed"}
-            </dd>
-          </div>
-        </dl>
-        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-          Remove or restrict the bootstrap administrator variable after the first administrator has
-          successfully signed in.
-        </p>
+      <aside className="grid gap-5">
+        <SettingsCard
+          title="Cloudflare Access"
+          description="Production authentication is configured outside this screen and fails closed."
+          icon={<ShieldCheck size={16} className="text-accent-fg" aria-hidden="true" />}
+        >
+          <dl className="grid gap-3 text-sm font-medium">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-fg-subtle">Status</dt>
+              <dd>
+                <Badge color={access?.configured ? "#15803D" : "#B45309"}>
+                  {access?.configured ? "Configured" : "Placeholder"}
+                </Badge>
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-fg-subtle">Team domain</dt>
+              <dd className="truncate">{access?.team_domain ?? "Not set"}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-fg-subtle">Audience</dt>
+              <dd>{access?.audience ?? "Not set"}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-fg-subtle">Bootstrap variable</dt>
+              <dd>{access?.bootstrap_admins_configured ? "Present" : "Removed"}</dd>
+            </div>
+          </dl>
+          <InfoBox icon={TriangleAlert} className="mt-5">
+            Remove or restrict the bootstrap administrator variable after the first administrator
+            has successfully signed in.
+          </InfoBox>
+        </SettingsCard>
       </aside>
     </div>
   );
 }
 
-export function TagEditor({
-  open,
-  tag,
-  onOpenChange,
+/** Toggl settings section: #1b1b1b card with a 1px #3a3a3a ring, radius 8 and a ruled header. */
+function SettingsCard({
+  title,
+  description,
+  icon,
+  children,
 }: {
-  open: boolean;
-  tag: Tag | null;
-  onOpenChange: (open: boolean) => void;
+  title: string;
+  description?: string;
+  icon?: ReactNode;
+  children: ReactNode;
 }) {
-  const queryClient = useQueryClient();
-  const formId = useId();
-  const nameErrorId = useId();
-  const [name, setName] = useState("");
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [color, setColor] = useState("#14852B");
-  useEffect(() => {
-    setName(tag?.name ?? "");
-    setNameError(null);
-    setColor(tag?.color ?? "#14852B");
-  }, [open, tag]);
-  const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest(tag ? `/tags/${tag.id}` : "/tags", {
-        method: tag ? "PATCH" : "POST",
-        body: JSON.stringify({
-          name: name.trim(),
-          color,
-          ...(tag ? { version: tag.version } : {}),
-        }),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-      onOpenChange(false);
-    },
-  });
   return (
-    <Modal
-      open={open}
-      onOpenChange={(next) => {
-        if (!mutation.isPending) onOpenChange(next);
-      }}
-      title={tag ? "Edit tag" : "New tag"}
-      footer={
-        <>
-          <Button
-            variant="secondary"
-            disabled={mutation.isPending}
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" form={formId} disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving…" : "Save tag"}
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        noValidate
-        className="grid gap-4 sm:grid-cols-[1fr_100px]"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (mutation.isPending) return;
-          if (!name.trim()) {
-            setNameError("Enter a tag name.");
-            return;
-          }
-          setNameError(null);
-          mutation.mutate();
-        }}
-      >
-        <button type="submit" hidden />
-        <fieldset disabled={mutation.isPending} className="contents">
-          <div>
-            <Field label="Tag name">
-              <Input
-                aria-invalid={Boolean(nameError)}
-                aria-describedby={nameError ? nameErrorId : undefined}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </Field>
-            {nameError ? (
-              <span id={nameErrorId} role="alert" className="text-xs text-red-300">
-                {nameError}
-              </span>
-            ) : null}
-          </div>
-          <Field label="Color">
-            <Input
-              type="color"
-              className="p-1"
-              value={color}
-              onChange={(event) => setColor(event.target.value)}
-            />
-          </Field>
-          {mutation.error ? (
-            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
-              {mutation.error.message}
-            </p>
-          ) : null}
-        </fieldset>
-      </form>
-    </Modal>
+    <section className="bg-surface rounded-lg px-5 shadow-[0_0_0_1px_var(--color-stroke)]">
+      <header className="border-stroke border-b py-[18px]">
+        <h2 className="text-fg flex items-center gap-2 text-sm leading-[22.96px] font-semibold">
+          {icon}
+          {title}
+        </h2>
+        {description ? (
+          <p className="text-fg-subtle text-sm leading-[21.98px] font-medium">{description}</p>
+        ) : null}
+      </header>
+      <div className="py-5">{children}</div>
+    </section>
+  );
+}
+
+/** Switch with Toggl's bold title and grey description beside it. */
+function SettingToggle({
+  title,
+  description,
+  checked,
+  onCheckedChange,
+  onBlur,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  onBlur: () => void;
+}) {
+  const id = useId();
+  return (
+    <div className="flex gap-[11px]">
+      <Switch
+        className="mt-[3.5px]"
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        onBlur={onBlur}
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-description`}
+      />
+      <div className="min-w-0">
+        <p id={`${id}-title`} className="text-fg text-sm leading-[22.96px] font-semibold">
+          {title}
+        </p>
+        <p
+          id={`${id}-description`}
+          className="text-fg-subtle text-sm leading-[21.98px] font-medium"
+        >
+          {description}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -553,10 +566,10 @@ function AuditLog() {
   });
   const events = audit.data?.pages.flatMap((page) => page.events) ?? [];
   return (
-    <section className="panel overflow-hidden">
-      <div className="border-b border-slate-200 p-4">
-        <h2 className="font-bold">Immutable audit history</h2>
-        <p className="text-sm text-slate-500">
+    <section className="bg-surface overflow-hidden rounded-lg shadow-[0_0_0_1px_var(--color-stroke)]">
+      <div className="border-stroke border-b px-5 py-[18px]">
+        <h2 className="text-fg text-sm leading-[22.96px] font-semibold">Immutable audit history</h2>
+        <p className="text-fg-subtle text-sm leading-[21.98px] font-medium">
           Administrative changes and team time corrections include actor and request identifiers.
         </p>
       </div>
@@ -571,41 +584,41 @@ function AuditLog() {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
+          <table className="data-table min-w-[850px]">
+            <thead>
               <tr>
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Actor</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Entity</th>
-                <th className="px-4 py-3">Reason</th>
-                <th className="px-4 py-3">Request</th>
+                <th>When</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Reason</th>
+                <th>Request</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {events.map((event) => (
                 <tr key={event.id}>
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-500">
+                  <td className="text-fg-subtle whitespace-nowrap">
                     {new Intl.DateTimeFormat(undefined, {
                       dateStyle: "medium",
                       timeStyle: "short",
                     }).format(event.created_at)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td>
                     <div className="font-medium">{event.actor_name}</div>
-                    <div className="text-xs text-slate-400">{event.actor_email}</div>
+                    <div className="text-fg-muted text-xs">{event.actor_email}</div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">{event.action}</td>
-                  <td className="px-4 py-3">
+                  <td className="font-mono text-xs">{event.action}</td>
+                  <td>
                     {event.entity_type}
                     {event.entity_id ? (
-                      <div className="max-w-36 truncate font-mono text-xs text-slate-400">
+                      <div className="text-fg-muted max-w-36 truncate font-mono text-xs">
                         {event.entity_id}
                       </div>
                     ) : null}
                   </td>
-                  <td className="max-w-64 px-4 py-3 text-slate-500">{event.reason ?? "—"}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-400">
+                  <td className="text-fg-subtle max-w-64">{event.reason ?? "—"}</td>
+                  <td className="text-fg-muted font-mono text-xs">
                     {event.request_id.slice(0, 8)}
                   </td>
                 </tr>
@@ -615,7 +628,7 @@ function AuditLog() {
         </div>
       )}
       {audit.isFetchNextPageError ? (
-        <p role="alert" className="p-4 text-sm text-red-300">
+        <p role="alert" className="text-error-fg p-4 text-sm">
           {audit.error.message}
         </p>
       ) : null}

@@ -1,64 +1,36 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Archive, Plus, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
-import { z } from "zod";
 
-import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import { useMe } from "@/web/app/context";
 import {
   Button,
+  Checkbox,
   EmptyState,
   ErrorState,
   Loading,
-  Field,
-  Input,
-  Modal,
   PageHeader,
-  PageToolbar,
   RowMenu,
   SearchInput,
   Select,
+  useToast,
   type RowMenuItem,
 } from "@/web/components/ui";
-import { FormErrors } from "@/web/components/form-errors";
+import { BulkBar } from "@/web/features/manage/bulk-bar";
+import { ClientEditor } from "@/web/features/manage/client-editor";
 import { apiRequest } from "@/web/lib/api";
 import type { Client, Project } from "@/web/types";
-
-const clientFormSchema = z.object({
-  name: z.string().trim().min(1, "This field is required."),
-  billing_contact_name: z.string(),
-  billing_email: z
-    .string()
-    .trim()
-    .refine(
-      (value) => !value || z.email().safeParse(value).success,
-      "Enter a valid billing email address.",
-    ),
-  billing_address: z.string(),
-  tax_identifier: z.string(),
-  default_rate_major: z
-    .string()
-    .refine(
-      (value) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0),
-      "Enter a non-negative number.",
-    ),
-  currency: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z]{3}$/, "Enter a three-letter currency code."),
-  notes: z.string(),
-});
-type ClientForm = z.infer<typeof clientFormSchema>;
 
 export function ClientsPage() {
   const me = useMe();
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const manage = me.permissions.manage_workspace;
   const [status, setStatus] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
+  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   const [editing, setEditing] = useState<Client | "new" | null>(null);
   const clients = useQuery({
     queryKey: ["clients", status, search],
@@ -68,16 +40,41 @@ export function ClientsPage() {
       ),
   });
   const statusMutation = useMutation({
-    mutationFn: ({ client, next }: { client: Client; next: "archive" | "reactivate" }) =>
-      apiRequest(`/clients/${client.id}/${next}`, { method: "POST", body: "{}" }),
-    onSuccess: async () => {
+    mutationFn: async ({ items, next }: { items: Client[]; next: "archive" | "reactivate" }) => {
+      // One at a time: each call bumps the client version and the list is refreshed afterwards.
+      for (const client of items) {
+        await apiRequest(`/clients/${client.id}/${next}`, { method: "POST", body: "{}" });
+      }
+    },
+    onSuccess: async (_result, { items, next }) => {
       await queryClient.invalidateQueries();
+      setSelection(new Set());
+      const noun = items.length === 1 ? "Client" : `${items.length} clients`;
+      toast({
+        message: `${noun} ${next === "archive" ? "archived" : "restored"}.`,
+        action: {
+          label: "Undo",
+          onSelect: () =>
+            statusMutation.mutate({ items, next: next === "archive" ? "reactivate" : "archive" }),
+        },
+      });
     },
   });
   const list = clients.data?.clients ?? [];
-  const allExpanded = list.length > 0 && list.every((client) => expanded.has(client.id));
+  const expandable = list.filter((client) => (client.project_count ?? 0) > 0);
+  const allExpanded =
+    expandable.length > 0 && expandable.every((client) => expanded.has(client.id));
   const toggle = (id: string) =>
     setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selected = list.filter((client) => selection.has(client.id));
+  const allSelected = list.length > 0 && selected.length === list.length;
+  const toggleSelected = (id: string) =>
+    setSelection((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -89,25 +86,28 @@ export function ClientsPage() {
       <PageHeader
         title="Clients"
         description={
-          me.permissions.manage_workspace
+          manage
             ? "Manage billing profiles and review tracked time by client."
             : "Clients connected to projects available to you."
         }
         actions={
-          me.permissions.manage_workspace ? (
-            <Button onClick={() => setEditing("new")}>
-              <Plus size={16} /> New client
+          manage ? (
+            <Button icon={<Plus size={20} strokeWidth={1.5} />} onClick={() => setEditing("new")}>
+              New client
             </Button>
           ) : undefined
         }
       />
-      <PageToolbar>
-        {me.permissions.manage_workspace ? (
+      <div className="page-toolbar py-0">
+        {manage ? (
           <Select
-            className="w-40"
+            className="[&_svg]:text-fg h-9 w-auto border-0 bg-transparent shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)]"
             aria-label="Filter clients by status"
             value={status}
-            onValueChange={(value) => setStatus(value as typeof status)}
+            onValueChange={(value) => {
+              setStatus(value as typeof status);
+              setSelection(new Set());
+            }}
             options={[
               { value: "active", label: "Show active" },
               { value: "archived", label: "Show archived" },
@@ -115,14 +115,9 @@ export function ClientsPage() {
           />
         ) : null}
         <SearchInput label="Search clients" value={search} onChange={setSearch} />
-      </PageToolbar>
-      {statusMutation.isPending ? (
-        <p role="status" className="px-5 py-3 text-sm text-[#a4a4a4]">
-          Updating client status…
-        </p>
-      ) : null}
+      </div>
       {statusMutation.error ? (
-        <p role="alert" className="px-5 py-3 text-sm text-red-300">
+        <p role="alert" className="text-error-fg px-5 py-3 text-sm">
           {statusMutation.error.message}
         </p>
       ) : null}
@@ -135,30 +130,83 @@ export function ClientsPage() {
           title="No clients found"
           description="Create a client before adding its first project."
           action={
-            me.permissions.manage_workspace ? (
-              <Button variant="secondary" onClick={() => setEditing("new")}>
-                <Plus size={16} /> Add client
+            manage ? (
+              <Button
+                variant="outline"
+                icon={<Plus size={14} strokeWidth={1.5} />}
+                onClick={() => setEditing("new")}
+              >
+                New client
               </Button>
             ) : undefined
           }
         />
       ) : (
         <table className="data-table">
+          <colgroup>
+            <col className="w-[50px]" />
+            <col className="w-[50px]" />
+            <col />
+            <col className="w-[42px]" />
+          </colgroup>
           <thead>
+            {manage && selected.length > 0 ? (
+              <BulkBar
+                count={selected.length}
+                noun="item"
+                columns={4}
+                onClear={() => setSelection(new Set())}
+                actions={[
+                  status === "active"
+                    ? {
+                        label: "Archive",
+                        icon: <Archive size={14} strokeWidth={1.5} />,
+                        disabled: statusMutation.isPending,
+                        onSelect: () => statusMutation.mutate({ items: selected, next: "archive" }),
+                      }
+                    : {
+                        label: "Restore",
+                        icon: <RotateCcw size={14} strokeWidth={1.5} />,
+                        disabled: statusMutation.isPending,
+                        onSelect: () =>
+                          statusMutation.mutate({ items: selected, next: "reactivate" }),
+                      },
+                ]}
+              />
+            ) : null}
             <tr>
-              <th scope="col" className="w-12">
+              <th scope="col" className="h-12 pr-0 pl-5">
+                {manage ? (
+                  <Checkbox
+                    aria-label="Select all clients"
+                    checked={allSelected}
+                    indeterminate={selected.length > 0 && !allSelected}
+                    onChange={() =>
+                      setSelection(
+                        allSelected ? new Set() : new Set(list.map((client) => client.id)),
+                      )
+                    }
+                  />
+                ) : null}
+              </th>
+              <th scope="col" className="h-12 p-0">
                 <ExpandButton
                   expanded={allExpanded}
                   label={allExpanded ? "Collapse all clients" : "Expand all clients"}
                   onClick={() =>
-                    setExpanded(allExpanded ? new Set() : new Set(list.map((client) => client.id)))
+                    setExpanded(
+                      allExpanded ? new Set() : new Set(expandable.map((client) => client.id)),
+                    )
                   }
                 />
               </th>
-              <th scope="col">
-                Clients <span className="text-[#5f5f5f]">|</span> Projects
+              <th
+                scope="col"
+                className="h-12 cursor-default px-0 text-[11px] leading-4 font-semibold tracking-[0.44px] whitespace-normal"
+              >
+                Clients <span aria-hidden="true">|</span> Projects
               </th>
-              <th scope="col" className="w-16">
+              <th scope="col" className="h-12 p-0">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -168,22 +216,27 @@ export function ClientsPage() {
               <ClientRows
                 key={client.id}
                 client={client}
+                manage={manage}
+                selected={selection.has(client.id)}
+                onSelect={() => toggleSelected(client.id)}
                 expanded={expanded.has(client.id)}
                 onToggle={() => toggle(client.id)}
                 actions={
-                  me.permissions.manage_workspace
+                  manage
                     ? [
                         { label: "Edit", onSelect: () => setEditing(client) },
                         client.status === "active"
                           ? {
                               label: "Archive",
                               disabled: statusMutation.isPending,
-                              onSelect: () => statusMutation.mutate({ client, next: "archive" }),
+                              onSelect: () =>
+                                statusMutation.mutate({ items: [client], next: "archive" }),
                             }
                           : {
                               label: "Restore",
                               disabled: statusMutation.isPending,
-                              onSelect: () => statusMutation.mutate({ client, next: "reactivate" }),
+                              onSelect: () =>
+                                statusMutation.mutate({ items: [client], next: "reactivate" }),
                             },
                       ]
                     : []
@@ -203,6 +256,7 @@ export function ClientsPage() {
   );
 }
 
+/** Toggl's 32x32 chevron button: 7.5x12 pointing right, 12x7.5 pointing down when open. */
 function ExpandButton({
   expanded,
   label,
@@ -215,85 +269,144 @@ function ExpandButton({
   return (
     <button
       type="button"
-      className="grid h-7 w-7 place-items-center rounded-md text-[#fafafa] hover:bg-white/8"
+      className="text-fg grid size-8 place-items-center rounded-lg"
       aria-label={label}
       aria-expanded={expanded}
       onClick={onClick}
     >
-      {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      {expanded ? (
+        <svg
+          width="12"
+          height="7.5"
+          viewBox="0 0 12 7.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M1 1l5 5 5-5" />
+        </svg>
+      ) : (
+        <svg
+          width="7.5"
+          height="12"
+          viewBox="0 0 7.5 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M1 1l5 5-5 5" />
+        </svg>
+      )}
     </button>
   );
 }
 
 function ClientRows({
   client,
+  manage,
+  selected,
+  onSelect,
   expanded,
   onToggle,
   actions,
 }: {
   client: Client;
+  manage: boolean;
+  selected: boolean;
+  onSelect: () => void;
   expanded: boolean;
   onToggle: () => void;
   actions: RowMenuItem[];
 }) {
+  const count = client.project_count ?? 0;
   const projects = useQuery({
     queryKey: ["projects", "active", "", client.id],
     queryFn: () =>
       apiRequest<{ projects: Project[] }>(
         `/projects?${new URLSearchParams({ status: "active", client_id: client.id })}`,
       ),
-    enabled: expanded,
+    enabled: expanded && count > 0,
   });
+  const open = expanded && count > 0;
   return (
     <>
-      <tr className={expanded ? "bg-white/6" : undefined}>
-        <td>
-          <ExpandButton
-            expanded={expanded}
-            label={`${expanded ? "Collapse" : "Expand"} ${client.name}`}
-            onClick={onToggle}
-          />
+      <tr className={open ? "group/row bg-surface-hover" : "group/row"}>
+        <td className="h-12 pr-0 pl-5">
+          {manage ? (
+            <Checkbox
+              aria-label={`Select ${client.name}`}
+              checked={selected}
+              className="opacity-0 group-hover/row:opacity-100 checked:opacity-100 focus-visible:opacity-100"
+              onChange={onSelect}
+            />
+          ) : null}
         </td>
-        <td>
-          <button type="button" className="text-left font-semibold" onClick={onToggle}>
-            {client.name}
-            <span className="ml-2 font-normal text-[#a4a4a4]">({client.project_count ?? 0})</span>
-          </button>
+        <td className="h-12 p-0">
+          {count > 0 ? (
+            <ExpandButton
+              expanded={open}
+              label={`${open ? "Collapse" : "Expand"} ${client.name}`}
+              onClick={onToggle}
+            />
+          ) : null}
         </td>
-        <td className="text-right">
+        <td className="h-12 px-0">
+          {count > 0 ? (
+            <button type="button" className="flex gap-2 text-left leading-5" onClick={onToggle}>
+              <span>{client.name}</span>
+              <span className="text-fg-subtle tabular-nums">({count})</span>
+            </button>
+          ) : (
+            <div className="flex gap-2 leading-5">
+              <span>{client.name}</span>
+              <span className="text-fg-subtle tabular-nums">({count})</span>
+            </div>
+          )}
+        </td>
+        <td className="h-12 p-0 pr-3">
           <RowMenu label={`Actions for ${client.name}`} items={actions} />
         </td>
       </tr>
-      {expanded ? (
+      {open ? (
         projects.isPending ? (
-          <tr>
-            <td />
-            <td colSpan={2} className="text-[#a4a4a4]">
+          <tr className="bg-surface-secondary hover:bg-surface-secondary">
+            <td className="h-12" />
+            <td className="h-12" />
+            <td colSpan={2} className="text-fg-subtle h-12 px-0 pl-6">
               Loading projects…
             </td>
           </tr>
         ) : (projects.data?.projects ?? []).length === 0 ? (
-          <tr>
-            <td />
-            <td colSpan={2} className="text-[#a4a4a4]">
+          <tr className="bg-surface-secondary hover:bg-surface-secondary">
+            <td className="h-12" />
+            <td className="h-12" />
+            <td colSpan={2} className="text-fg-subtle h-12 px-0 pl-6">
               No active projects
             </td>
           </tr>
         ) : (
           (projects.data?.projects ?? []).map((project) => (
-            <tr key={project.id} className="bg-[#1b1b1b]">
-              <td />
-              <td colSpan={2}>
+            <tr key={project.id} className="bg-surface-secondary hover:bg-surface-secondary">
+              <td className="h-12" />
+              <td className="h-12" />
+              <td colSpan={2} className="h-12 px-0 pl-6">
                 <Link
                   to={`/projects?client_id=${encodeURIComponent(client.id)}`}
-                  className="inline-flex items-center gap-2 pl-6 font-medium hover:underline"
+                  className="flex items-center leading-5 hover:underline"
                   style={{ color: project.color }}
                 >
                   <span
-                    className="h-1.5 w-1.5 rounded-full"
-                    style={{ backgroundColor: project.color }}
+                    className="mr-[5px] font-[Arial,sans-serif] text-[26px] leading-[8px] font-bold"
                     aria-hidden="true"
-                  />
+                  >
+                    •
+                  </span>
                   {project.name}
                 </Link>
               </td>
@@ -302,177 +415,5 @@ function ClientRows({
         )
       ) : null}
     </>
-  );
-}
-
-function ClientEditor({
-  open,
-  client,
-  onOpenChange,
-}: {
-  open: boolean;
-  client: Client | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const me = useMe();
-  const queryClient = useQueryClient();
-  const form = useForm<ClientForm>({
-    resolver: zodResolver(clientFormSchema),
-    defaultValues: {
-      name: "",
-      billing_contact_name: "",
-      billing_email: "",
-      billing_address: "",
-      tax_identifier: "",
-      default_rate_major: "",
-      currency: me.workspace.currency,
-      notes: "",
-    },
-  });
-  useEffect(() => {
-    form.reset({
-      name: client?.name ?? "",
-      billing_contact_name: client?.billing_contact_name ?? "",
-      billing_email: client?.billing_email ?? "",
-      billing_address: client?.billing_address ?? "",
-      tax_identifier: client?.tax_identifier ?? "",
-      default_rate_major:
-        client?.default_rate_minor === null || client?.default_rate_minor === undefined
-          ? ""
-          : String(
-              minorToMajor(client.default_rate_minor, client.currency ?? me.workspace.currency),
-            ),
-      currency: client?.currency ?? me.workspace.currency,
-      notes: client?.notes ?? "",
-    });
-  }, [client, form, me.workspace.currency, open]);
-  const mutation = useMutation({
-    mutationFn: (values: ClientForm) => {
-      const body = {
-        name: values.name,
-        billing_contact_name: values.billing_contact_name || null,
-        billing_email: values.billing_email || null,
-        billing_address: values.billing_address || null,
-        tax_identifier: values.tax_identifier || null,
-        default_rate_minor: values.default_rate_major
-          ? majorToMinor(values.default_rate_major, values.currency)
-          : null,
-        currency: values.currency.toUpperCase(),
-        notes: values.notes || null,
-        ...(client ? { version: client.version } : {}),
-      };
-      return apiRequest(client ? `/clients/${client.id}` : "/clients", {
-        method: client ? "PATCH" : "POST",
-        body: JSON.stringify(body),
-      });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-      onOpenChange(false);
-    },
-  });
-  return (
-    <Modal
-      open={open}
-      onOpenChange={(next) => {
-        if (!mutation.isPending) onOpenChange(next);
-      }}
-      title={client ? "Edit client" : "New client"}
-      footer={
-        <>
-          <Button
-            variant="secondary"
-            disabled={mutation.isPending}
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={mutation.isPending}
-            onClick={() =>
-              void form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))()
-            }
-          >
-            {mutation.isPending ? "Saving…" : "Save client"}
-          </Button>
-        </>
-      }
-    >
-      <form
-        noValidate
-        className="grid gap-4 sm:grid-cols-2"
-        onSubmit={form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))}
-      >
-        <fieldset disabled={mutation.isPending} className="contents">
-          <FormErrors errors={form.formState.errors} />
-          <div className="sm:col-span-2">
-            <Field label="Client name">
-              <Input
-                aria-invalid={Boolean(form.formState.errors.name)}
-                {...form.register("name")}
-              />
-            </Field>
-          </div>
-          <Field label="Billing contact">
-            <Input
-              aria-invalid={Boolean(form.formState.errors.billing_contact_name)}
-              {...form.register("billing_contact_name")}
-            />
-          </Field>
-          <Field label="Billing email">
-            <Input
-              type="email"
-              aria-invalid={Boolean(form.formState.errors.billing_email)}
-              {...form.register("billing_email")}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Billing address">
-              <textarea
-                className="min-h-20 rounded-lg border border-slate-300 p-3 text-sm"
-                aria-invalid={Boolean(form.formState.errors.billing_address)}
-                {...form.register("billing_address")}
-              />
-            </Field>
-          </div>
-          <Field label="Tax / registration ID">
-            <Input
-              aria-invalid={Boolean(form.formState.errors.tax_identifier)}
-              {...form.register("tax_identifier")}
-            />
-          </Field>
-          <Field label="Currency">
-            <Input
-              maxLength={3}
-              aria-invalid={Boolean(form.formState.errors.currency)}
-              {...form.register("currency")}
-            />
-          </Field>
-          <Field label="Default hourly rate">
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              aria-invalid={Boolean(form.formState.errors.default_rate_major)}
-              {...form.register("default_rate_major")}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Notes">
-              <textarea
-                className="min-h-24 rounded-lg border border-slate-300 p-3 text-sm"
-                aria-invalid={Boolean(form.formState.errors.notes)}
-                {...form.register("notes")}
-              />
-            </Field>
-          </div>
-          {mutation.error ? (
-            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
-              {mutation.error.message}
-            </p>
-          ) : null}
-        </fieldset>
-      </form>
-    </Modal>
   );
 }

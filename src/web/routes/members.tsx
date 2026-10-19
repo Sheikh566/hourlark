@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plus, Timer, UserRoundCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Info, KeyRound, ListFilter, Plus, Timer, UserRoundCheck, X } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -9,21 +9,27 @@ import { useMe } from "@/web/app/context";
 import {
   Badge,
   Button,
+  Checkbox,
   EmptyState,
   ErrorState,
   Loading,
   Field,
   Input,
   Modal,
-  PageHeader,
-  PageToolbar,
   RowMenu,
   SearchInput,
   Select,
   SortHeader,
+  useToast,
 } from "@/web/components/ui";
 import { FormErrors } from "@/web/components/form-errors";
 import { FormSelect } from "@/web/components/form-select";
+import { InfoBox } from "@/web/features/management/info-box";
+import {
+  DEFAULT_MEMBER_STATUSES,
+  MemberStatusFilter,
+  type MemberStatus,
+} from "@/web/features/members/status-filter";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
 import type { Member, Project } from "@/web/types";
@@ -46,22 +52,21 @@ type MemberForm = z.infer<typeof memberSchema>;
 
 export function MembersPage() {
   const me = useMe();
+  const toast = useToast();
   const [search, setSearch] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Member | "new" | null>(null);
   const members = useQuery({
     queryKey: ["members"],
     queryFn: () => apiRequest<{ members: Member[] }>("/members"),
     enabled: me.permissions.view_team,
   });
-  const [status, setStatus] = useState<"active" | "inactive" | "all">("active");
+  const [statuses, setStatuses] = useState<MemberStatus[]>([...DEFAULT_MEMBER_STATUSES]);
   const [role, setRole] = useState("");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const filtered = (members.data?.members ?? [])
     .filter(
       (member) =>
-        (status === "all" ||
-          (status === "active" ? member.status !== "inactive" : member.status === "inactive")) &&
+        (statuses.length === 0 || statuses.includes(member.status)) &&
         (!role || member.role === role) &&
         `${member.display_name} ${member.email}`.toLowerCase().includes(search.toLowerCase()),
     )
@@ -74,37 +79,38 @@ export function MembersPage() {
   if (!me.permissions.view_team)
     return <ErrorState message="You do not have permission to view members." />;
 
+  const addMember = me.permissions.manage_members ? (
+    <Button
+      icon={<Plus size={20} />}
+      className="leading-[normal]"
+      onClick={() => setEditing("new")}
+    >
+      Add member
+    </Button>
+  ) : undefined;
+
   return (
     <>
-      <PageHeader
-        title="Members"
-        description="Directory, project access, weekly progress, and current timer status."
-        actions={
-          me.permissions.manage_members ? (
-            <Button onClick={() => setEditing("new")}>
-              <Plus size={16} /> Add member
-            </Button>
-          ) : undefined
-        }
-      />
-      <PageToolbar>
-        <Select
-          className="w-40"
-          aria-label="Filter members by status"
-          value={status}
-          onValueChange={(value) => setStatus(value as typeof status)}
-          options={[
-            { value: "active", label: "Show active" },
-            { value: "inactive", label: "Show inactive" },
-            { value: "all", label: "Show all" },
-          ]}
-        />
-        <span className="text-[11px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+      {/* Toggl's organization team header is 50px (the shared PageHeader is 66). */}
+      <header className="page-header page-header--compact">
+        <div className="flex min-w-0 items-center gap-6">
+          <h1 className="text-fg shrink-0 text-base leading-[20.8px] font-semibold">Members</h1>
+          <p className="sr-only">
+            Directory, project access, weekly progress, and current timer status.
+          </p>
+        </div>
+        {addMember ? <div className="flex shrink-0 flex-wrap gap-2">{addMember}</div> : null}
+      </header>
+      {/* 50px toolbar around Toggl's 38px status dropdown, 34px access chip and 36px search. */}
+      <div className="page-toolbar !gap-2 !py-1.5">
+        <MemberStatusFilter selected={statuses} onChange={setStatuses} />
+        <span className="text-fg mr-2 text-[11px] leading-[11px] font-semibold tracking-[0.4px] whitespace-nowrap uppercase">
           Filters:
         </span>
         <Select
-          className="w-36"
+          className="border-stroke-tertiary !h-[34px] !w-[110px] bg-transparent !px-2 leading-[14px] [&>svg:last-child]:hidden"
           aria-label="Filter members by access"
+          icon={<ListFilter size={18} />}
           value={role}
           onValueChange={setRole}
           options={[
@@ -114,40 +120,71 @@ export function MembersPage() {
             { value: "member", label: "Member" },
           ]}
         />
+        <button
+          type="button"
+          className="text-fg-secondary hover:bg-surface-hover inline-flex size-9 items-center justify-center gap-2 rounded-lg border border-transparent font-semibold"
+          aria-label="Clear filters"
+          onClick={() => {
+            setRole("");
+            setStatuses([...DEFAULT_MEMBER_STATUSES]);
+          }}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
         <SearchInput
-          className="ml-auto max-w-[320px]"
+          className="ml-auto w-[320px] max-w-[320px]"
           label="Search members"
           value={search}
           onChange={setSearch}
         />
-      </PageToolbar>
-      {notice ? (
-        <p role="status" className="px-5 py-3 text-sm text-[#fbbf24]">
-          {notice}
-        </p>
-      ) : null}
+      </div>
       {members.isPending ? (
         <Loading label="Loading members…" />
       ) : members.error ? (
         <ErrorState message={members.error.message} onRetry={() => void members.refetch()} />
       ) : filtered.length === 0 ? (
-        <EmptyState
-          title="No members found"
-          description="Pre-provision a company email so Cloudflare Access can bind it on first login."
-        />
+        <div className="pt-24">
+          <EmptyState
+            title="Nothing to see here..."
+            description="Try different filters or keywords to find the members you are looking for."
+            action={
+              me.permissions.manage_members ? (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setEditing("new");
+                  }}
+                >
+                  <Plus size={14} aria-hidden="true" /> Add member
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
       ) : (
         <div className="relative overflow-x-auto">
           <table className="data-table min-w-[850px]">
             <thead>
               <tr>
                 <th scope="col">
-                  <SortHeader
-                    label="Name"
-                    direction={sort}
-                    onToggle={() => setSort((value) => (value === "asc" ? "desc" : "asc"))}
-                  />
+                  {/* Toggl aligns the NAME label with the member names, past the avatar. */}
+                  <div className="pl-9">
+                    <SortHeader
+                      label="Name"
+                      direction={sort}
+                      onToggle={() => setSort((value) => (value === "asc" ? "desc" : "asc"))}
+                    />
+                  </div>
                 </th>
-                <th scope="col">Access rights</th>
+                <th scope="col">
+                  <span className="inline-flex items-center gap-1">
+                    Access rights
+                    <span title="Access rights decide what a member can see and change.">
+                      <Info size={16} className="text-fg-muted" aria-hidden="true" />
+                    </span>
+                  </span>
+                </th>
                 <th scope="col">This week</th>
                 <th scope="col">Timer</th>
                 <th scope="col">Last seen</th>
@@ -163,31 +200,30 @@ export function MembersPage() {
                   className={member.status === "inactive" ? "opacity-60" : undefined}
                 >
                   <td>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <span
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#382b16] text-[10px] font-black text-[#fbbf24]"
+                        className="bg-accent-muted text-accent-fg grid size-[26px] shrink-0 place-items-center rounded-full text-xs font-bold"
                         aria-hidden="true"
                       >
                         {initials(member.display_name)}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold">{member.display_name}</span>
-                        <span className="block truncate text-xs text-[#a4a4a4]">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate font-medium">{member.display_name}</span>
+                          {member.status === "inactive" ? <Badge>Inactive</Badge> : null}
+                          {member.status === "pending" ? <Badge>Invited</Badge> : null}
+                        </span>
+                        <span className="text-fg-muted block truncate text-xs font-normal">
                           {member.email}
-                          {member.status === "inactive"
-                            ? " · Inactive"
-                            : member.status === "pending"
-                              ? " · Invited"
-                              : ""}
                         </span>
                       </span>
                     </div>
                   </td>
-                  <td className="text-[#a4a4a4] capitalize">{member.role}</td>
+                  <td className="text-fg pl-3 font-normal capitalize">{member.role}</td>
                   <td className="font-medium tabular-nums">
                     {formatDuration(member.week_tracked_ms)}
                     {member.weekly_target_minutes ? (
-                      <span className="ml-1 text-xs text-[#a4a4a4]">
+                      <span className="text-fg-muted ml-1 text-xs">
                         / {formatDuration(member.weekly_target_minutes * 60_000)}
                       </span>
                     ) : null}
@@ -198,10 +234,10 @@ export function MembersPage() {
                         <Timer size={11} /> Running
                       </Badge>
                     ) : (
-                      <span className="text-[#a4a4a4]">Stopped</span>
+                      <span className="text-fg-muted">Stopped</span>
                     )}
                   </td>
-                  <td className="text-[#a4a4a4]">
+                  <td className="text-fg-muted">
                     {member.last_seen_at
                       ? new Intl.DateTimeFormat(undefined, {
                           dateStyle: "medium",
@@ -209,11 +245,14 @@ export function MembersPage() {
                         }).format(member.last_seen_at)
                       : "Never"}
                   </td>
-                  <td className="text-right">
-                    <RowMenu
-                      label={`Actions for ${member.display_name}`}
-                      items={[{ label: "Edit", onSelect: () => setEditing(member) }]}
-                    />
+                  <td className="!pr-[5px] text-right">
+                    <div className="flex justify-end">
+                      <RowMenu
+                        label={`Actions for ${member.display_name}`}
+                        menuClassName="w-[216px]"
+                        items={[{ label: "Edit", onSelect: () => setEditing(member) }]}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -227,7 +266,10 @@ export function MembersPage() {
         member={editing === "new" ? null : editing}
         canManageIdentity={me.permissions.manage_members}
         onBindingReset={() =>
-          setNotice("Access binding reset. The member can sign in with the new identity subject.")
+          toast({
+            title: "Success",
+            message: "Access binding reset. The member can sign in with the new identity subject.",
+          })
         }
         onOpenChange={(open) => !open && setEditing(null)}
       />
@@ -250,6 +292,7 @@ function MemberEditor({
 }) {
   const me = useMe();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [confirmReset, setConfirmReset] = useState(false);
   const projects = useQuery({
     queryKey: ["projects", "active"],
@@ -316,6 +359,10 @@ function MemberEditor({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries();
+      toast({
+        title: "Success",
+        message: member ? "Member updated successfully" : "Member added successfully",
+      });
       onOpenChange(false);
     },
   });
@@ -335,50 +382,49 @@ function MemberEditor({
     },
   });
 
+  const formId = useId();
+  const busy = mutation.isPending || resetMutation.isPending;
+  const submit = form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values));
   return (
     <Modal
+      // Toggl's invite dialog is a 360px single column opened 100px from the top; editing keeps a
+      // wider two-column form for the extra fields. Toggl titles the invite 16/600.
+      size={member ? "md" : "sm"}
+      titleSize={member ? "sm" : "md"}
+      align="top"
       open={open}
       onOpenChange={(next) => {
-        if (!(mutation.isPending || resetMutation.isPending)) onOpenChange(next);
+        if (!busy) onOpenChange(next);
       }}
       title={member ? "Member details" : "Add member"}
-      description={
-        member
-          ? "Changes are enforced by the API and recorded when security-sensitive."
-          : "Cloudflare Access handles login after this email is provisioned."
-      }
       footer={
-        <>
-          <Button
-            variant="secondary"
-            disabled={mutation.isPending || resetMutation.isPending}
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              mutation.isPending ||
-              resetMutation.isPending ||
-              projects.isPending ||
-              Boolean(projects.error)
-            }
-            onClick={() =>
-              void form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))()
-            }
-          >
-            {mutation.isPending ? "Saving…" : "Save member"}
-          </Button>
-        </>
+        <Button
+          type="submit"
+          form={formId}
+          className="w-full"
+          disabled={busy || (Boolean(member) && (projects.isPending || Boolean(projects.error)))}
+        >
+          {mutation.isPending ? "Saving…" : "Save member"}
+        </Button>
+      }
+      description={
+        member ? "Changes are enforced by the API and recorded when security-sensitive." : undefined
       }
     >
       <form
+        id={formId}
         noValidate
-        className="grid gap-4 sm:grid-cols-2"
-        onSubmit={form.handleSubmit((values) => !mutation.isPending && mutation.mutate(values))}
+        className={member ? "grid gap-4 sm:grid-cols-2" : "flex flex-col gap-4"}
+        onSubmit={submit}
       >
-        <fieldset disabled={mutation.isPending || resetMutation.isPending} className="contents">
+        <fieldset disabled={busy} className="contents">
           <FormErrors errors={form.formState.errors} />
+          {!member ? (
+            <InfoBox icon={UserRoundCheck}>
+              The account becomes usable when this exact email authenticates through Cloudflare
+              Access.
+            </InfoBox>
+          ) : null}
           <div className="sm:col-span-2">
             <Field label="Company email">
               <Input
@@ -437,77 +483,71 @@ function MemberEditor({
               />
             </Field>
           ) : null}
-          {projects.isPending ? (
-            <Loading label="Loading projects…" />
-          ) : projects.error ? (
-            <ErrorState message={projects.error.message} onRetry={() => void projects.refetch()} />
-          ) : null}
-          <fieldset className="grid max-h-48 gap-2 overflow-y-auto rounded-lg border border-slate-200 p-3 sm:col-span-2">
-            <legend className="px-1 text-sm font-semibold">Direct project assignments</legend>
-            {(projects.data?.projects ?? []).map((project) => (
-              <label key={project.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  value={project.id}
-                  aria-invalid={Boolean(form.formState.errors.project_ids)}
-                  {...form.register("project_ids")}
+          {member ? (
+            <>
+              {projects.isPending ? (
+                <Loading label="Loading projects…" />
+              ) : projects.error ? (
+                <ErrorState
+                  message={projects.error.message}
+                  onRetry={() => void projects.refetch()}
                 />
-                <span style={{ color: project.color }}>●</span> {project.name}
-                <span className="text-slate-400">· {project.client_name}</span>
-              </label>
-            ))}
-          </fieldset>
+              ) : null}
+              <fieldset className="border-stroke grid max-h-48 gap-2 overflow-y-auto rounded-lg border p-3 sm:col-span-2">
+                <legend className="text-fg-subtle px-1 text-[11px] leading-4 font-semibold tracking-[0.04em] uppercase">
+                  Direct project assignments
+                </legend>
+                {(projects.data?.projects ?? []).map((project) => (
+                  <label key={project.id} className="flex items-center gap-2 text-sm font-medium">
+                    <Checkbox
+                      value={project.id}
+                      aria-invalid={Boolean(form.formState.errors.project_ids)}
+                      {...form.register("project_ids")}
+                    />
+                    <span style={{ color: project.color }}>●</span> {project.name}
+                    <span className="text-fg-subtle">· {project.client_name}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </>
+          ) : null}
           {member && canManageIdentity ? (
-            <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 sm:col-span-2">
-              <div className="flex items-start gap-2">
-                <KeyRound className="mt-0.5 text-amber-700" size={17} />
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-amber-900">
-                    Cloudflare Access binding
-                  </h3>
-                  <p className="mt-1 text-xs text-amber-800">
-                    Reset only when the member&apos;s identity subject has legitimately changed.
-                  </p>
-                  {!confirmReset ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="mt-2 text-amber-900"
-                      onClick={() => setConfirmReset(true)}
-                    >
-                      <KeyRound size={14} /> Reset binding
-                    </Button>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="danger"
-                        disabled={resetMutation.isPending}
-                        className="max-w-full break-all"
-                        onClick={() => resetMutation.mutate()}
-                      >
-                        {resetMutation.isPending ? "Resetting…" : `Confirm ${member.email}`}
-                      </Button>
-                      <Button type="button" variant="ghost" onClick={() => setConfirmReset(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
+            <InfoBox icon={KeyRound} className="sm:col-span-2">
+              <h3 className="text-fg">Cloudflare Access binding</h3>
+              <p className="mt-1">
+                Reset only when the member&apos;s identity subject has legitimately changed.
+              </p>
+              {!confirmReset ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => setConfirmReset(true)}
+                >
+                  <KeyRound size={14} aria-hidden="true" /> Reset binding
+                </Button>
+              ) : (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="danger"
+                    disabled={resetMutation.isPending}
+                    className="h-auto min-h-9 max-w-full py-1 break-all whitespace-normal"
+                    onClick={() => resetMutation.mutate()}
+                  >
+                    {resetMutation.isPending ? "Resetting…" : `Confirm ${member.email}`}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setConfirmReset(false)}>
+                    Cancel
+                  </Button>
                 </div>
-              </div>
-            </section>
+              )}
+            </InfoBox>
           ) : null}
           {mutation.error || resetMutation.error ? (
-            <p role="alert" className="text-sm text-red-300 sm:col-span-2">
+            <p role="alert" className="text-error-fg text-sm sm:col-span-2">
               {mutation.error?.message ?? resetMutation.error?.message}
             </p>
-          ) : null}
-          {!member ? (
-            <div className="flex gap-2 rounded-lg bg-[#382b16] p-3 text-xs text-[#fafafa] sm:col-span-2">
-              <UserRoundCheck size={17} className="shrink-0" />
-              The account becomes usable when this exact email authenticates through Cloudflare
-              Access.
-            </div>
           ) : null}
         </fieldset>
       </form>

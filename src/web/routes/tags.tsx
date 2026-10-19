@@ -11,18 +11,20 @@ import {
   Loading,
   PageHeader,
   PageToolbar,
-  RowMenu,
   SearchInput,
   Select,
   SortHeader,
+  useToast,
 } from "@/web/components/ui";
-import { TagEditor } from "@/web/routes/administration";
+import { TagEditor } from "@/web/features/tags/tag-editor";
+import { TagRowMenu } from "@/web/features/tags/tag-row-menu";
 import { apiRequest } from "@/web/lib/api";
 import type { Tag } from "@/web/types";
 
 export function TagsPage() {
   const me = useMe();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [status, setStatus] = useState<"active" | "archived">("active");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
@@ -35,8 +37,20 @@ export function TagsPage() {
   const statusMutation = useMutation({
     mutationFn: ({ tag, action }: { tag: Tag; action: "archive" | "reactivate" }) =>
       apiRequest(`/tags/${tag.id}/${action}`, { method: "POST", body: "{}" }),
-    onSuccess: async () => {
+    onSuccess: async (_result, { tag, action }) => {
       await queryClient.invalidateQueries();
+      toast({
+        title: "Success",
+        message: action === "archive" ? "Tag archived successfully" : "Tag restored successfully",
+        // Archiving is reversible, so offer Toggl's UNDO (it has no tag delete confirmation).
+        action:
+          action === "archive"
+            ? {
+                label: "Undo",
+                onSelect: () => statusMutation.mutate({ tag, action: "reactivate" }),
+              }
+            : undefined,
+      });
     },
   });
   if (!me.permissions.manage_workspace) return <Navigate to="/time" replace />;
@@ -54,14 +68,19 @@ export function TagsPage() {
         title="Tags"
         description="Create and maintain reusable labels for classifying time."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus size={16} /> New Tag
+          <Button
+            icon={<Plus size={20} />}
+            className="leading-[normal]"
+            onClick={() => setEditing("new")}
+          >
+            New Tag
           </Button>
         }
       />
       <PageToolbar>
+        <SearchInput label="Search tags" value={search} onChange={setSearch} />
         <Select
-          className="w-40"
+          className="h-9 w-40"
           aria-label="Filter tags by status"
           value={status}
           onValueChange={(value) => setStatus(value as typeof status)}
@@ -70,15 +89,9 @@ export function TagsPage() {
             { value: "archived", label: "Show archived" },
           ]}
         />
-        <SearchInput label="Search tags" value={search} onChange={setSearch} />
       </PageToolbar>
-      {statusMutation.isPending ? (
-        <p role="status" className="px-5 py-3 text-sm text-[#a4a4a4]">
-          Updating tag status…
-        </p>
-      ) : null}
       {statusMutation.error ? (
-        <p role="alert" className="px-5 py-3 text-sm text-red-300">
+        <p role="alert" className="text-error-fg px-5 py-3 text-sm">
           {statusMutation.error.message}
         </p>
       ) : null}
@@ -87,68 +100,87 @@ export function TagsPage() {
       ) : tags.error ? (
         <ErrorState message={tags.error.message} onRetry={() => void tags.refetch()} />
       ) : visible.length === 0 ? (
-        <EmptyState
-          title={needle ? "No matching tags" : "No tags found"}
-          description={
-            needle ? "Try a different search." : "Create a tag to classify time entries."
-          }
-        />
+        <div className="pt-24">
+          <EmptyState
+            title="Nothing to see here..."
+            description={
+              needle || status === "archived"
+                ? "Try different filters or keywords to find the tags you are looking for."
+                : "Create a tag to classify time entries."
+            }
+            action={
+              <Button variant="outline" className="gap-2" onClick={() => setEditing("new")}>
+                <Plus size={14} aria-hidden="true" /> New tag
+              </Button>
+            }
+          />
+        </div>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col">
-                <SortHeader
-                  label="Tag"
-                  direction={sort}
-                  onToggle={() => setSort((value) => (value === "asc" ? "desc" : "asc"))}
-                />
-              </th>
-              <th scope="col" className="w-16">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((tag) => (
-              <tr key={tag.id}>
-                <td>
-                  <button
-                    type="button"
-                    className="flex min-w-0 items-center gap-2.5 text-left font-semibold hover:text-[#fbbf24]"
-                    onClick={() => setEditing(tag)}
-                  >
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: tag.color }}
-                      aria-hidden="true"
+        // Toggl's table ends 10px before the content edge (its 55px action cell holds the kebab).
+        <div className="pr-2.5">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  {/* Toggl's header leads with a select-all box; keep its 24px offset so names align. */}
+                  <div className="pl-6">
+                    <SortHeader
+                      label="Tag"
+                      direction={sort}
+                      onToggle={() => setSort((value) => (value === "asc" ? "desc" : "asc"))}
                     />
-                    <span className="truncate">{tag.name}</span>
-                  </button>
-                </td>
-                <td className="text-right">
-                  <RowMenu
-                    label={`Actions for ${tag.name}`}
-                    items={[
-                      { label: "Edit", onSelect: () => setEditing(tag) },
-                      tag.status === "active"
-                        ? {
-                            label: "Archive",
-                            disabled: statusMutation.isPending,
-                            onSelect: () => statusMutation.mutate({ tag, action: "archive" }),
-                          }
-                        : {
-                            label: "Restore",
-                            disabled: statusMutation.isPending,
-                            onSelect: () => statusMutation.mutate({ tag, action: "reactivate" }),
-                          },
-                    ]}
-                  />
-                </td>
+                  </div>
+                </th>
+                <th scope="col" className="w-[55px] !pr-[9px]">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visible.map((tag) => (
+                <tr key={tag.id}>
+                  <td>
+                    <button
+                      type="button"
+                      className="hover:text-accent-fg-hover flex min-w-0 items-center gap-[11px] text-left font-medium"
+                      onClick={() => setEditing(tag)}
+                    >
+                      <span
+                        className="grid size-3.5 shrink-0 place-items-center"
+                        aria-hidden="true"
+                      >
+                        <span
+                          className="size-2.5 rounded-full"
+                          style={{ backgroundColor: tag.color }}
+                        />
+                      </span>
+                      <span className="truncate">{tag.name}</span>
+                    </button>
+                  </td>
+                  <td className="!pr-[9px] text-right">
+                    <TagRowMenu
+                      label={`Actions for ${tag.name}`}
+                      items={[
+                        { label: "Edit", onSelect: () => setEditing(tag) },
+                        tag.status === "active"
+                          ? {
+                              label: "Archive",
+                              disabled: statusMutation.isPending,
+                              onSelect: () => statusMutation.mutate({ tag, action: "archive" }),
+                            }
+                          : {
+                              label: "Restore",
+                              disabled: statusMutation.isPending,
+                              onSelect: () => statusMutation.mutate({ tag, action: "reactivate" }),
+                            },
+                      ]}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <TagEditor
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
