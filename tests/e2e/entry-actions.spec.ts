@@ -19,12 +19,14 @@ test("entry actions, bulk delete and Undo, Continue, and mobile pickers", async 
   const original = page.locator("article").filter({ hasText: name });
   await original.getByRole("button", { name: "More actions" }).click();
   await page.keyboard.press("Escape");
-  await expect(original.getByRole("button", { name: "Duplicate", exact: true })).toBeHidden();
+  await expect(page.getByRole("menuitem", { name: "Duplicate", exact: true })).toBeHidden();
   await original.getByRole("button", { name: "More actions" }).click();
-  await original.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   const duplicateName = `${name} copy`;
-  await page.getByRole("textbox", { name: "Entry description" }).fill(duplicateName);
-  await page.getByRole("button", { name: "Save time entry" }).click();
+  // Toggl-style in-place editing: Enter in the description saves the row.
+  const duplicateDescription = page.getByRole("textbox", { name: "Entry description" });
+  await duplicateDescription.fill(duplicateName);
+  await duplicateDescription.press("Enter");
   const copy = page
     .locator("article")
     .filter({ has: page.getByRole("checkbox", { name: `Select ${duplicateName}`, exact: true }) });
@@ -53,7 +55,7 @@ test("entry actions, bulk delete and Undo, Continue, and mobile pickers", async 
     await expect(page.getByLabel(control, { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
   }
-  await page.getByRole("button", { name: "Cancel editing" }).click();
+  await page.keyboard.press("Escape");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

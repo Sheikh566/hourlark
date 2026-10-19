@@ -3,15 +3,19 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_DATES_SELECTION,
   EPOCH_START_ISO,
+  isoWeekNumber,
   isTimeEntryListCapped,
   listPeriodLabel,
   monthCalendarDays,
+  monthCalendarWeeks,
   selectionFromInclusiveDates,
   selectionFromPreset,
+  selectionWeekLabel,
   shiftSelection,
   TIME_ENTRY_LIST_LIMIT,
   timeEntryListCapMessage,
   toApiRange,
+  weekRowLabel,
 } from "@/web/features/timer/list-date-range";
 
 describe("list date range", () => {
@@ -114,5 +118,29 @@ describe("list date range", () => {
     expect(isTimeEntryListCapped(4999)).toBe(false);
     expect(isTimeEntryListCapped(TIME_ENTRY_LIST_LIMIT)).toBe(true);
     expect(timeEntryListCapMessage(TIME_ENTRY_LIST_LIMIT)).toMatch(/incomplete/i);
+  });
+
+  it("numbers ISO weeks and labels calendar rows and one-week selections", () => {
+    expect(isoWeekNumber("2026-10-05")).toBe(41);
+    expect(isoWeekNumber("2026-10-11")).toBe(41);
+    expect(isoWeekNumber("2026-01-01")).toBe(1);
+    expect(isoWeekNumber("2021-01-03")).toBe(53);
+    // Monday-first and Sunday-first rows that cover the same days agree on the label.
+    const mondayRows = monthCalendarWeeks(2026, 10, 1);
+    const sundayRows = monthCalendarWeeks(2026, 10, 0);
+    expect(mondayRows.map(weekRowLabel)).toEqual(["W40", "W41", "W42", "W43", "W44"]);
+    expect(sundayRows.map(weekRowLabel)).toEqual(["W40", "W41", "W42", "W43", "W44"]);
+    expect(mondayRows.every((week) => week.length === 7)).toBe(true);
+    // A month that spans six calendar rows keeps all six.
+    expect(monthCalendarWeeks(2026, 8, 1)).toHaveLength(6);
+
+    const now = new Date("2026-10-18T12:00:00.000Z");
+    const lastWeek = selectionFromPreset("last_week", now, "Asia/Karachi", 1);
+    expect(selectionWeekLabel(lastWeek, 1)).toBe("W41");
+    expect(selectionWeekLabel(selectionFromPreset("today", now, "Asia/Karachi", 1), 1)).toBeNull();
+    expect(selectionWeekLabel(ALL_DATES_SELECTION, 1)).toBeNull();
+    // A custom range that is not week-aligned has no week label.
+    const custom = selectionFromInclusiveDates("2026-10-06", "2026-10-12", now, "Asia/Karachi", 1);
+    expect(selectionWeekLabel(custom, 1)).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import type { ReactNode, RefObject } from "react";
 
@@ -10,10 +10,50 @@ const VIEWS: Array<{ id: TimerView; label: string }> = [
   { id: "timesheet", label: "Timesheet" },
 ];
 
+/** Toolbar total chip: 11px/600 uppercase label with a 14px/600 value, 28px high, radius 8. */
+function TotalChip({
+  label,
+  value,
+  ariaLabel,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  ariaLabel: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <span className="text-fg-subtle text-[11px] leading-[normal] font-semibold tracking-[0.4px] uppercase">
+      {label}
+      <span className="text-fg-secondary ml-2.5 inline-block text-sm leading-6 font-semibold tracking-[0.1px] tabular-nums">
+        {value}
+      </span>
+    </span>
+  );
+  const className =
+    "box-border relative top-0.5 inline-flex h-7 items-center rounded-lg px-2 py-0.5 text-left leading-[14px]";
+  if (!onClick) return <span className={className}>{content}</span>;
+  return (
+    <button
+      type="button"
+      className={twMerge(className, "hover:bg-surface-hover")}
+      onClick={onClick}
+      aria-label={ariaLabel}
+    >
+      {content}
+    </button>
+  );
+}
+
+const pieceClass =
+  "box-border flex h-9 w-9 shrink-0 items-center justify-center border border-stroke-tertiary bg-surface px-3 text-sm leading-[normal] text-fg-subtle hover:bg-surface-hover disabled:hover:bg-surface";
+
 export function TimerToolbar({
   view,
   onViewChange,
   periodLabel,
+  periodSuffix,
+  onClearPeriod,
   onPrevious,
   onNext,
   onPeriodClick,
@@ -33,6 +73,10 @@ export function TimerToolbar({
   view: TimerView;
   onViewChange: (view: TimerView) => void;
   periodLabel: string;
+  /** Grey week tag after the label, e.g. "W41" (rendered "· W41"). */
+  periodSuffix?: string | null;
+  /** When set, a "Clear and reset to default" X sits between the label and the next arrow. */
+  onClearPeriod?: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onPeriodClick?: () => void;
@@ -50,103 +94,106 @@ export function TimerToolbar({
   onWeekClick?: () => void;
 }) {
   return (
-    <section className="border-b border-[#3a3a3a] bg-[#1b1b1b]">
-      <div className="flex flex-wrap items-center gap-3 px-5 py-4 2xl:h-[68px] 2xl:flex-nowrap 2xl:py-0">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 2xl:flex-nowrap">
+    <section className="bg-surface">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-5 py-4 2xl:flex-nowrap">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5 2xl:flex-nowrap">
           <div className="relative max-w-full min-w-0 shrink-0">
             <div className="timer-date-control min-w-0">
               <button
                 type="button"
-                className="grid h-full w-9 shrink-0 place-items-center text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa] disabled:opacity-30"
+                className={twMerge(pieceClass, "rounded-l-lg [border-right-style:none]")}
                 onClick={onPrevious}
                 disabled={previousDisabled}
                 aria-label="Select previous period"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft
+                  width={11}
+                  height={14}
+                  strokeWidth={2.5}
+                  className="shrink-0"
+                  aria-hidden="true"
+                />
               </button>
+              <div className="border-stroke-tertiary bg-surface box-border flex h-9 min-w-0 flex-1 items-center justify-center border-y [border-right-style:none] [border-left-style:none] text-sm leading-[14px] 2xl:w-[250px] 2xl:flex-none">
+                <button
+                  ref={periodButtonRef}
+                  type="button"
+                  className="text-fg hover:bg-surface-hover box-border inline-flex h-full min-w-0 flex-1 items-center justify-center gap-2 pr-2 text-sm leading-[normal] font-medium"
+                  onClick={onPeriodClick}
+                  title={periodTitle ?? "Jump to current period"}
+                  aria-expanded={periodPopover ? Boolean(periodExpanded) : undefined}
+                  aria-haspopup={periodPopover ? "dialog" : undefined}
+                  aria-controls={periodPopover ? "timer-date-range-popover" : undefined}
+                >
+                  <CalendarDays size={14} className="shrink-0" aria-hidden="true" />
+                  <span className="text-center">{periodLabel}</span>
+                  {periodSuffix ? (
+                    <span className="text-fg-subtle shrink-0">· {periodSuffix}</span>
+                  ) : null}
+                </button>
+                {onClearPeriod ? (
+                  <button
+                    type="button"
+                    className="text-fg-muted hover:bg-surface-hover hover:text-fg grid h-9 w-[19px] shrink-0 place-items-center rounded-lg"
+                    onClick={onClearPeriod}
+                    aria-label="Clear and reset to default"
+                    title="Clear and reset to default"
+                  >
+                    <X size={10} strokeWidth={1.6} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
               <button
-                ref={periodButtonRef}
                 type="button"
-                className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-2 px-2 text-sm font-semibold text-[#fafafa] hover:bg-white/6 2xl:w-[248px] 2xl:flex-none"
-                onClick={onPeriodClick}
-                title={periodTitle ?? "Jump to current period"}
-                aria-expanded={periodPopover ? Boolean(periodExpanded) : undefined}
-                aria-haspopup={periodPopover ? "dialog" : undefined}
-                aria-controls={periodPopover ? "timer-date-range-popover" : undefined}
-              >
-                <CalendarDays size={16} aria-hidden />
-                <span className="truncate">{periodLabel}</span>
-              </button>
-              <button
-                type="button"
-                className="grid h-full w-9 shrink-0 place-items-center text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa] disabled:opacity-30"
+                className={twMerge(pieceClass, "rounded-r-lg [border-left-style:none]")}
                 onClick={onNext}
                 disabled={nextDisabled}
                 aria-label="Select following period"
               >
-                <ChevronRight size={16} />
+                <ChevronRight
+                  width={11}
+                  height={14}
+                  strokeWidth={2.5}
+                  className="shrink-0"
+                  aria-hidden="true"
+                />
               </button>
             </div>
             {periodPopover}
           </div>
 
-          <div className="flex min-w-0 items-center gap-4 text-xs font-medium text-[#a4a4a4]">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {showTodayTotal && todayTotal !== undefined ? (
-              onTodayClick ? (
-                <button
-                  type="button"
-                  className="whitespace-nowrap hover:text-[#fafafa]"
-                  onClick={onTodayClick}
-                  aria-label="Show today's entries"
-                >
-                  Today <span className="ml-1 text-[#fafafa] tabular-nums">{todayTotal}</span>
-                </button>
-              ) : (
-                <span className="whitespace-nowrap">
-                  Today <span className="ml-1 text-[#fafafa] tabular-nums">{todayTotal}</span>
-                </span>
-              )
+              <TotalChip
+                label="Today"
+                value={todayTotal}
+                ariaLabel="Show today's entries"
+                onClick={onTodayClick}
+              />
             ) : null}
-            {onWeekClick ? (
-              <button
-                type="button"
-                className="whitespace-nowrap hover:text-[#fafafa]"
-                onClick={onWeekClick}
-                aria-label="Show this week's entries"
-              >
-                Week total <span className="ml-1 text-[#fafafa] tabular-nums">{weekTotal}</span>
-              </button>
-            ) : (
-              <span className="whitespace-nowrap">
-                Week total <span className="ml-1 text-[#fafafa] tabular-nums">{weekTotal}</span>
-              </span>
-            )}
+            <TotalChip
+              label="Week total"
+              value={weekTotal}
+              ariaLabel="Show this week's entries"
+              onClick={onWeekClick}
+            />
           </div>
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 2xl:shrink-0 2xl:flex-nowrap">
           {trailing}
           <div className="timer-view-switch" role="radiogroup" aria-label="Timer view">
-            {VIEWS.map(({ id, label }) => {
-              const active = view === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  className={twMerge(
-                    "border-hourlark-control-border inline-flex h-full items-center border-l px-2 text-xs font-semibold whitespace-nowrap transition first:border-l-0 sm:px-3 sm:text-sm md:px-5",
-                    active
-                      ? "bg-[#382b16] text-[#fbbf24]"
-                      : "text-[#a4a4a4] hover:bg-white/6 hover:text-[#fafafa]",
-                  )}
-                  onClick={() => onViewChange(id)}
-                >
-                  {label}
-                </button>
-              );
-            })}
+            {VIEWS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={view === id}
+                onClick={() => onViewChange(id)}
+              >
+                <span>{label}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>

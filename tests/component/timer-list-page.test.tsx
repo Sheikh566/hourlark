@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToastProvider } from "@/web/components/ui";
 import type { TimeEntry } from "@/web/types";
 import { TimePage } from "@/web/routes/time";
 import { chooseOption } from "./select-helpers";
@@ -58,7 +59,9 @@ function renderPage(path = "/") {
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={queryClient}>
-        <TimePage />
+        <ToastProvider>
+          <TimePage />
+        </ToastProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -90,10 +93,9 @@ describe("timer list date range", () => {
   it("requests All dates from epoch with the public API cap and an empty-period message", async () => {
     const { view, queryClient } = renderPage();
 
-    await screen.findByText("No entries in the selected period");
-    expect(
-      screen.getAllByRole("link", { name: "View full history in reports" }).length,
-    ).toBeGreaterThan(0);
+    await screen.findByText("No entries found in the selected period");
+    // One reports link only: the empty state replaces the footer affordance.
+    expect(screen.getAllByRole("link", { name: "View full history in reports" })).toHaveLength(1);
     expect(screen.queryByText("No time recorded yet")).not.toBeInTheDocument();
 
     const listQuery = apiRequestMock.mock.calls
@@ -170,16 +172,19 @@ describe("timer actions", () => {
     renderPage();
     const menus = await screen.findAllByRole("button", { name: "More actions" });
     await user.click(menus[0] as HTMLElement);
-    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+    expect(screen.getByRole("menu")).toHaveClass("w-[170px]");
+    expect(screen.getByRole("menuitem", { name: "Duplicate" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Copy description" })).toBeVisible();
     await user.click(menus[1] as HTMLElement);
-    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(1);
+    expect(screen.getAllByRole("menuitem", { name: "Delete" })).toHaveLength(1);
     expect(menus[0]).toHaveAttribute("aria-expanded", "false");
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
     expect(menus[1]).toHaveFocus();
     await user.click(menus[0] as HTMLElement);
     await user.click(screen.getByRole("heading", { name: "Timer" }));
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
   });
 
   it("preserves partial deletion successes for Undo", async () => {
@@ -210,7 +215,7 @@ describe("timer actions", () => {
     await user.click(screen.getByRole("checkbox", { name: "Select Second" }));
     await user.click(screen.getByRole("button", { name: "Delete selected" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Second: Locked");
-    expect(screen.getByText("Entry deleted.")).toBeVisible();
+    expect(screen.getByText("The time entry was deleted.")).toBeVisible();
     expect(screen.getByRole("checkbox", { name: "Select Second" })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(restored).toEqual(["First"]));
@@ -244,7 +249,7 @@ describe("timer actions", () => {
       await screen.findByRole("checkbox", { name: "Select all entries for 2026-10-04" }),
     );
     await user.click(screen.getByRole("button", { name: "Delete selected" }));
-    await screen.findByText("2 entries deleted.");
+    await screen.findByText("2 time entries were deleted.");
     await user.click(screen.getByRole("button", { name: "Undo" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Restore unavailable");
     expect(restores).toEqual(["First", "Second"]);
@@ -254,6 +259,123 @@ describe("timer actions", () => {
       expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument(),
     );
     expect(restores).toEqual(["First", "Second", "Second"]);
+  });
+
+  it("shows the week tag and a clear control for a one-week range, and clears it", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTitle("Choose date range");
+    expect(screen.queryByRole("button", { name: "Clear and reset to default" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Select previous period" })).toBeDisabled();
+
+    await user.click(screen.getByTitle("Choose date range"));
+    await user.click(await screen.findByRole("button", { name: "This week" }));
+    const trigger = screen.getByTitle("Choose date range");
+    expect(trigger).toHaveTextContent("This week");
+    expect(trigger).toHaveTextContent("· W41");
+    expect(screen.getByRole("button", { name: "Select previous period" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "Clear and reset to default" }));
+    expect(screen.getByTitle("Choose date range")).toHaveTextContent("All dates");
+    expect(screen.queryByRole("button", { name: "Clear and reset to default" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Select previous period" })).toBeDisabled();
+  });
+
+  it("shows the bulk bar inside the affected day with an item count and clears it", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("checkbox", { name: "Select First" }));
+    const bar = screen.getByRole("group", { name: "Selected entries actions" });
+    expect(bar).toHaveTextContent("1 item selected");
+    // The bar is the first child of the day group, above the day header.
+    const day = screen.getByRole("region", { name: /Today|Sun, 4 Oct/ });
+    expect(day.firstElementChild).toBe(bar);
+    await user.click(screen.getByRole("checkbox", { name: "Select Second" }));
+    expect(bar).toHaveTextContent("2 items selected");
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.queryByRole("group", { name: "Selected entries actions" })).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Select First" })).not.toBeChecked();
+  });
+
+  it("toggles billable from the row with a minimal versioned PATCH", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const row = (await screen.findByRole("checkbox", { name: "Select First" })).closest("article");
+    await user.click(
+      within(row as HTMLElement).getByRole("button", { name: "Mark entry billable" }),
+    );
+    await waitFor(() => {
+      const patch = apiRequestMock.mock.calls.find(
+        ([path, options]) =>
+          path === "/time-entries/First" &&
+          (options as { method?: string } | undefined)?.method === "PATCH",
+      );
+      expect(JSON.parse((patch?.[1] as { body: string }).body)).toEqual({
+        version: 1,
+        billable: true,
+      });
+    });
+  });
+
+  it("copies the description from the row menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderPage();
+    const row = (await screen.findByRole("checkbox", { name: "Select First" })).closest("article");
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "More actions" }));
+    await user.click(screen.getByRole("menuitem", { name: "Copy description" }));
+    expect(writeText).toHaveBeenCalledWith("First");
+  });
+
+  it("shows the known running project and reacts to timer cache metadata and stop updates", async () => {
+    const { queryClient } = renderPage();
+    expect(screen.queryByRole("region", { name: "Running project" })).toBeNull();
+    const entry = {
+      ...sample("Active"),
+      running: true,
+      project: { id: "project-1", name: "Client work", color: "#ff6c6c" },
+    };
+    act(() => {
+      queryClient.setQueryData(["timer"], { entry });
+    });
+    const strip = await screen.findByRole("region", { name: "Running project" });
+    expect(strip).toHaveTextContent("Client work");
+    expect(strip.firstElementChild).toHaveStyle({ color: "rgb(255, 108, 108)" });
+    expect(strip.firstElementChild).toHaveClass("uppercase", "h-[30px]", "leading-[26px]");
+    act(() => {
+      queryClient.setQueryData(["timer"], { entry: { ...entry, project: null } });
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Running project" })).toBeNull(),
+    );
+    act(() => {
+      queryClient.setQueryData(["timer"], { entry });
+    });
+    expect(await screen.findByRole("region", { name: "Running project" })).toBeVisible();
+    act(() => {
+      queryClient.setQueryData(["timer"], { entry: null });
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Running project" })).toBeNull(),
+    );
+    expect(apiRequestMock.mock.calls.some(([path]) => path === "/timer")).toBe(false);
+    queryClient.clear();
+  });
+
+  it("uses relative week labels and a separate week suffix in the timesheet toolbar", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T12:00:00.000Z"));
+    try {
+      const user = userEvent.setup();
+      const { queryClient } = renderPage("/time?view=timesheet");
+      expect(screen.getByTitle("Jump to current period")).toHaveTextContent(/This week.*· W40/);
+      await user.click(screen.getByRole("button", { name: "Select previous period" }));
+      expect(screen.getByTitle("Jump to current period")).toHaveTextContent(/Last week.*· W39/);
+      queryClient.clear();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("navigates by days in calendar day view and by weeks in week view", async () => {
@@ -343,7 +465,7 @@ describe("timer list session groups", () => {
     );
   });
 
-  it("expands to real sessions, keeps an open edit visible, and marks partial selection", async () => {
+  it("expands to real sessions, closes an unchanged edit on outside click, and marks partial selection", async () => {
     const user = userEvent.setup();
     renderPage();
     const count = await screen.findByRole("button", {
@@ -364,9 +486,21 @@ describe("timer list session groups", () => {
 
     await user.click(screen.getAllByTitle("Edit description")[0] as HTMLElement);
     expect(await screen.findByRole("button", { name: "Save time entry" })).toBeVisible();
-    await user.click(count);
-    expect(screen.getByRole("button", { name: "Save time entry" })).toBeVisible();
+    // Escape leaves edit mode; the group stays expanded.
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("button", { name: "Save time entry" })).not.toBeInTheDocument();
     expect(count).toHaveAttribute("aria-expanded", "true");
+
+    // Clicking elsewhere closes an unchanged edit without saving anything.
+    await user.click(screen.getAllByTitle("Edit description")[0] as HTMLElement);
+    expect(await screen.findByRole("button", { name: "Save time entry" })).toBeVisible();
+    await user.click(count);
+    expect(screen.queryByRole("button", { name: "Save time entry" })).not.toBeInTheDocument();
+    expect(
+      apiRequestMock.mock.calls.some(
+        ([, options]) => (options as { method?: string } | undefined)?.method === "PATCH",
+      ),
+    ).toBe(false);
   });
 
   it("saves a real entry from an expanded group and then shows two singleton rows", async () => {

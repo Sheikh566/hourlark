@@ -45,7 +45,7 @@ export const LIST_DATE_PRESETS: Array<{
   { id: "all", label: "All dates" },
 ];
 
-const MONTHS = [
+export const MONTH_NAMES = [
   "January",
   "February",
   "March",
@@ -205,7 +205,7 @@ export function formatDayLabel(dateStr: string, withYear = false): string {
 }
 
 export function formatMonthTitle(year: number, month: number): string {
-  return `${MONTHS[month - 1]} ${year}`;
+  return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
 export function parseYearMonth(dateStr: string): { year: number; month: number } {
@@ -234,6 +234,55 @@ export function monthCalendarDays(
   const leading = (weekdaySunday0(first) - weekStartsOn + 7) % 7;
   const gridStart = addCalendarDays(first, -leading);
   return Array.from({ length: 42 }, (_, index) => addCalendarDays(gridStart, index));
+}
+
+/** Weeks (rows of 7 dates) that overlap the month, 4-6 rows, honoring the week start. */
+export function monthCalendarWeeks(
+  year: number,
+  month: number,
+  weekStartsOn: WeekStartsOn,
+): string[][] {
+  const prefix = yearMonthKey(year, month);
+  const days = monthCalendarDays(year, month, weekStartsOn);
+  const weeks: string[][] = [];
+  for (let index = 0; index < days.length; index += 7) {
+    const week = days.slice(index, index + 7);
+    if (week.some((day) => day.startsWith(prefix))) weeks.push(week);
+  }
+  return weeks;
+}
+
+/**
+ * ISO 8601 week number of the Mon-Sun week containing the date. Toggl labels calendar rows and
+ * week ranges "W41"; for Sunday-first rows the row's Monday-Sunday week is the one it overlaps most.
+ */
+export function isoWeekNumber(dateStr: string): number {
+  const [year, month, day] = [
+    Number(dateStr.slice(0, 4)),
+    Number(dateStr.slice(5, 7)),
+    Number(dateStr.slice(8, 10)),
+  ] as const;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const weekday = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - weekday);
+  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+  return Math.ceil(((date.getTime() - yearStart) / 86_400_000 + 1) / 7);
+}
+
+/** Week number label for a calendar row (uses the row's fourth day so both week starts agree). */
+export function weekRowLabel(week: string[]): string {
+  return `W${isoWeekNumber(week[3] ?? week[0] ?? "1970-01-01")}`;
+}
+
+/** "W41" when the selection is exactly one calendar week (this week, last week, or custom). */
+export function selectionWeekLabel(
+  selection: ListDateSelection,
+  weekStartsOn: WeekStartsOn,
+): string | null {
+  if (!selection.startDate || !selection.endDate) return null;
+  if (startOfWeekDate(selection.startDate, weekStartsOn) !== selection.startDate) return null;
+  if (addCalendarDays(selection.startDate, 6) !== selection.endDate) return null;
+  return `W${isoWeekNumber(addCalendarDays(selection.startDate, 3))}`;
 }
 
 export function isTimeEntryListCapped(count: number): boolean {

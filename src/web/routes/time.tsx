@@ -1,14 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, getISOWeek } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { Copy, MoreHorizontal, Play, RotateCcw, Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { useMe } from "@/web/app/context";
 import { overlapDuration } from "@/domain/dates/time";
-import { Button, EmptyState, ErrorState, Select } from "@/web/components/ui";
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Select,
+  useToast,
+  type RowMenuItem,
+} from "@/web/components/ui";
 import { InlineEntryEditor, type InlineEditorField } from "@/web/features/time/inline-entry-editor";
+import { EntryCheckbox, ListEntryRow } from "@/web/features/time/list-entry-row";
 import { DateRangePopover, TimeEntryListCapWarning } from "@/web/features/timer/date-range-popover";
 import {
   ALL_DATES_SELECTION,
@@ -17,6 +25,7 @@ import {
   listPeriodLabel,
   localCalendarDate,
   selectionFromPreset,
+  selectionWeekLabel,
   shiftSelection,
   startOfWeekDate,
   TIME_ENTRY_LIST_LIMIT,
@@ -31,6 +40,7 @@ import {
   sessionGroupBounds,
   sessionGroupDuration,
 } from "@/web/features/timer/session-groups";
+import { CALENDAR_MODES, type CalendarMode } from "@/web/features/time/calendar-config";
 import { CalendarView } from "@/web/routes/calendar";
 import { TimerToolbar, type TimerView } from "@/web/features/timer/timer-toolbar";
 import { TimesheetView } from "@/web/features/timer/timesheet-view";
@@ -45,255 +55,11 @@ function parseView(value: string | null): TimerView {
   return "list";
 }
 
-function ListEntryRow({
-  rowId,
-  entry,
-  timezone,
-  durationMs,
-  running,
-  startedAt,
-  stoppedAt,
-  selected,
-  indeterminate = false,
-  onToggleSelected,
-  selectLabel,
-  count,
-  expanded,
-  onToggleCount,
-  panelId,
-  onDescriptionClick,
-  onProjectClick,
-  onTagsClick,
-  onTimeClick,
-  descriptionTitle,
-  projectTitle,
-  timeTitle,
-  timeAriaLabel,
-  onContinue,
-  continueLabel,
-  continuePending,
-  actionsPending,
-  showMore,
-  moreOpen,
-  onToggleMore,
-  onDuplicate,
-  onDelete,
-  nested = false,
-}: {
-  rowId?: string;
-  entry: TimeEntry;
-  timezone: string;
-  durationMs: number;
-  running: boolean;
-  startedAt: string;
-  stoppedAt: string | null;
-  selected: boolean;
-  indeterminate?: boolean;
-  onToggleSelected: () => void;
-  selectLabel: string;
-  count?: number;
-  expanded?: boolean;
-  onToggleCount?: () => void;
-  panelId?: string;
-  onDescriptionClick: () => void;
-  onProjectClick: () => void;
-  onTagsClick: () => void;
-  onTimeClick: () => void;
-  descriptionTitle: string;
-  projectTitle: string;
-  timeTitle: string;
-  timeAriaLabel: string;
-  onContinue: () => void;
-  continueLabel: string;
-  continuePending: boolean;
-  actionsPending: boolean;
-  showMore: boolean;
-  moreOpen: boolean;
-  onToggleMore?: () => void;
-  onDuplicate?: () => void;
-  onDelete?: () => void;
-  nested?: boolean;
-}) {
-  const startLabel = formatInTimeZone(startedAt, timezone, "h:mm a");
-  const stopLabel =
-    running || !stoppedAt ? "running" : formatInTimeZone(stoppedAt, timezone, "h:mm a");
-  const matchLabel = entry.description || "time entry";
-
-  return (
-    <article
-      id={rowId}
-      className={`group grid min-h-[50px] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[#3a3a3a] px-5 py-3 transition hover:bg-white/[0.03] lg:h-[50px] lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)_minmax(190px,auto)_auto] lg:py-0 ${
-        running ? "bg-[#382b16]/35" : ""
-      } ${nested ? "bg-[#1b1b1b]/35 pl-8 lg:pl-12" : ""}`}
-    >
-      <div className="row-span-3 flex items-center gap-1.5 lg:row-span-1">
-        <input
-          type="checkbox"
-          disabled={actionsPending}
-          checked={selected}
-          ref={(node) => {
-            if (node) node.indeterminate = indeterminate;
-          }}
-          onChange={onToggleSelected}
-          aria-label={selectLabel}
-        />
-        {count != null && onToggleCount ? (
-          <button
-            type="button"
-            className="grid h-7 min-w-7 shrink-0 place-items-center rounded-md bg-[#382b16] px-1.5 text-xs font-bold text-[#fbbf24] hover:bg-[#48361b]"
-            aria-expanded={expanded}
-            aria-controls={panelId}
-            onClick={onToggleCount}
-            aria-label={
-              expanded
-                ? `Hide ${count} matching sessions for ${matchLabel}`
-                : `Show ${count} matching sessions for ${matchLabel}`
-            }
-          >
-            {count}
-          </button>
-        ) : null}
-      </div>
-      <div className="col-span-2 flex min-w-0 items-center gap-3 lg:col-span-1">
-        <button
-          type="button"
-          className={`max-w-[58%] min-w-0 shrink truncate rounded-sm text-left text-sm ${
-            entry.description
-              ? "font-medium text-[#fafafa] hover:text-[#fbbf24]"
-              : "text-[#a4a4a4] hover:text-[#fafafa]"
-          }`}
-          onClick={onDescriptionClick}
-          title={descriptionTitle}
-        >
-          {entry.description || "Add description"}
-        </button>
-        <button
-          type="button"
-          className="flex max-w-[42%] min-w-0 shrink items-center gap-2 rounded-sm text-left text-sm"
-          onClick={onProjectClick}
-          title={projectTitle}
-        >
-          <span
-            className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
-            style={entry.project?.color ? { backgroundColor: entry.project.color } : undefined}
-          />
-          <span className="min-w-0 truncate">
-            <span
-              style={
-                entry.project?.color
-                  ? { color: `color-mix(in srgb, ${entry.project.color} 45%, #fafafa)` }
-                  : undefined
-              }
-              className={entry.project?.name ? "" : "text-[#a4a4a4]"}
-            >
-              {entry.project?.name ?? "+ Add project"}
-            </span>
-            {entry.client?.name ? (
-              <span className="text-[#a4a4a4]"> {entry.client.name}</span>
-            ) : null}
-          </span>
-        </button>
-      </div>
-      <div className="col-span-2 min-w-0 lg:col-span-1">
-        {entry.tags.length ? (
-          <button
-            type="button"
-            className="max-w-full truncate text-left text-sm text-[#a4a4a4]"
-            onClick={onTagsClick}
-            aria-label={
-              count != null
-                ? `Show tags for ${count} matching sessions`
-                : `Edit tags for ${matchLabel}`
-            }
-          >
-            {entry.tags.map((tag) => tag.name).join(", ")}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="text-sm text-[#a4a4a4]/50 hover:text-[#a4a4a4]"
-            onClick={onTagsClick}
-            aria-label={
-              count != null
-                ? `Show tags for ${count} matching sessions`
-                : `Edit tags for ${matchLabel}`
-            }
-          >
-            —
-          </button>
-        )}
-      </div>
-      <button
-        type="button"
-        className="min-w-0 rounded-sm text-left text-xs text-[#a4a4a4] lg:text-right"
-        onClick={onTimeClick}
-        title={timeTitle}
-        aria-label={timeAriaLabel}
-      >
-        <span>
-          {startLabel} – {stopLabel}
-        </span>
-        <strong className={`ml-3 text-sm ${running ? "text-[#fbbf24]" : "text-[#fafafa]"}`}>
-          {formatClockDuration(durationMs)}
-        </strong>
-      </button>
-      <div className="flex justify-end gap-0.5 transition group-hover:opacity-100 focus-within:opacity-100 lg:opacity-0">
-        <Button
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          disabled={actionsPending || continuePending}
-          onClick={onContinue}
-          title="Continue"
-          aria-label={continueLabel}
-        >
-          <Play size={14} />
-        </Button>
-        {showMore ? (
-          <div className="relative" data-entry-menu={entry.id}>
-            <button
-              type="button"
-              disabled={actionsPending}
-              aria-expanded={moreOpen}
-              onClick={onToggleMore}
-              aria-label="More actions"
-              className="grid h-8 w-8 list-none place-items-center rounded-lg text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa] [&::-webkit-details-marker]:hidden"
-            >
-              <MoreHorizontal size={14} />
-              <span className="sr-only">More actions</span>
-            </button>
-            {moreOpen ? (
-              <div className="timer-popover absolute top-9 right-0 z-20 w-40 p-1">
-                {!entry.running ? (
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-[#fafafa] hover:bg-white/8"
-                    disabled={actionsPending}
-                    onClick={onDuplicate}
-                  >
-                    <Copy size={13} /> Duplicate
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-300 hover:bg-white/8"
-                  disabled={actionsPending}
-                  onClick={onDelete}
-                >
-                  <Trash2 size={13} /> Delete
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
 export function TimePage() {
   const me = useMe();
   const now = useNow();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const view = parseView(searchParams.get("view"));
   const localToday = () => localCalendarDate(zonedToday(new Date(), me.member.timezone));
@@ -303,10 +69,8 @@ export function TimePage() {
     id: string;
     field: InlineEditorField;
   } | null>(null);
-  const [undoEntries, setUndoEntries] = useState<TimeEntry[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [calendarMode, setCalendarMode] = useState<"week" | "day">("week");
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>("week");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [listSelection, setListSelection] = useState(ALL_DATES_SELECTION);
@@ -319,6 +83,7 @@ export function TimePage() {
   const weekStartDate = startOfWeekDate(anchorDate, weekStartsOn);
   const weekStart = localCalendarDate(weekStartDate);
   const todayKey = formatInTimeZone(new Date(now), me.member.timezone, "yyyy-MM-dd");
+  const currentWeekStartDate = startOfWeekDate(todayKey, weekStartsOn);
 
   const setView = (next: TimerView) => {
     const params = new URLSearchParams(searchParams);
@@ -326,7 +91,6 @@ export function TimePage() {
     else params.set("view", next);
     setSearchParams(params, { replace: true });
     setRangeOpen(false);
-    setOpenMenuId(null);
   };
 
   const listClock = new Date(now);
@@ -335,7 +99,6 @@ export function TimePage() {
   useEffect(() => {
     setSelectedIds(new Set());
     setEditingTarget(null);
-    setOpenMenuId(null);
     setExpandedGroups(new Set());
   }, [memberId, listRange.start, listRange.end]);
 
@@ -365,6 +128,14 @@ export function TimePage() {
     queryFn: () => apiRequest<{ members: Member[] }>("/members"),
     enabled: me.permissions.view_team,
   });
+  const timer = useQuery({
+    queryKey: ["timer"],
+    queryFn: () => apiRequest<{ entry: TimeEntry | null }>("/timer"),
+    enabled: false,
+  });
+  const runningEntry = timer.data ? timer.data.entry : me.active_timer;
+  const runningProject =
+    memberId === me.member.id && runningEntry?.running ? runningEntry.project : null;
   const entries = useQuery({
     queryKey: ["time-entries", "timer-list", listRange, memberId],
     queryFn: () => {
@@ -441,11 +212,6 @@ export function TimePage() {
     }
     if (succeeded.length) {
       const ids = new Set(succeeded.map((entry) => entry.id));
-      setUndoEntries((current) =>
-        restore
-          ? current.filter((entry) => !ids.has(entry.id))
-          : [...current.filter((entry) => !ids.has(entry.id)), ...succeeded],
-      );
       setSelectedIds((current) => new Set([...current].filter((id) => !ids.has(id))));
       setEditingTarget((current) => (current && ids.has(current.id) ? null : current));
       if (succeeded.some((entry) => entry.running)) broadcastTimerChange();
@@ -457,6 +223,28 @@ export function TimePage() {
           ? [queryClient.invalidateQueries({ queryKey: ["timer"] })]
           : []),
       ]);
+      if (!restore) {
+        toast({
+          message:
+            succeeded.length === 1
+              ? "The time entry was deleted."
+              : `${succeeded.length} time entries were deleted.`,
+          action: { label: "Undo", onSelect: () => restoreMutation.mutate(succeeded) },
+        });
+      }
+    }
+    if (restore && errors.length) {
+      // Keep failed restores retryable: the deleted entries are still recoverable.
+      const failed = targets.filter(
+        (entry) => !succeeded.some((restored) => restored.id === entry.id),
+      );
+      toast({
+        message:
+          failed.length === 1
+            ? "The time entry could not be restored."
+            : `${failed.length} time entries could not be restored.`,
+        action: { label: "Undo", onSelect: () => restoreMutation.mutate(failed) },
+      });
     }
     if (errors.length) setActionError(errors.join("; "));
   };
@@ -468,30 +256,6 @@ export function TimePage() {
   });
   const actionsPending = deleteMutation.isPending || restoreMutation.isPending;
 
-  useEffect(() => {
-    if (!openMenuId) return;
-    const outside = (event: PointerEvent) => {
-      if (
-        !(event.target instanceof Element) ||
-        !event.target.closest(`[data-entry-menu="${openMenuId}"]`)
-      )
-        setOpenMenuId(null);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        document
-          .querySelector<HTMLButtonElement>(`[data-entry-menu="${openMenuId}"] button`)
-          ?.focus();
-        setOpenMenuId(null);
-      }
-    };
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [openMenuId]);
   const continueMutation = useMutation({
     mutationFn: (entry: TimeEntry) =>
       apiRequest(`/time-entries/${entry.id}/continue`, {
@@ -529,6 +293,53 @@ export function TimePage() {
     },
   });
 
+  const canSetBillable = me.workspace.members_can_set_billable || me.member.role !== "member";
+  const billableMutation = useMutation({
+    mutationFn: async (entry: TimeEntry) => {
+      const path = `/time-entries/${entry.id}`;
+      const input = { version: entry.version, billable: !entry.billable };
+      try {
+        return await apiRequest(path, { method: "PATCH", body: JSON.stringify(input) });
+      } catch (error) {
+        if (!(error instanceof ApiClientError) || error.code !== "override_reason_required")
+          throw error;
+        const reason = window.prompt(
+          "This entry is locked. Enter an audit reason to override the lock:",
+        );
+        if (!reason?.trim()) throw error;
+        return apiRequest(path, {
+          method: "PATCH",
+          body: JSON.stringify({ ...input, override_reason: reason.trim() }),
+        });
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["time-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["calendar"] }),
+        queryClient.invalidateQueries({ queryKey: ["reports"] }),
+        queryClient.invalidateQueries({ queryKey: ["timer"] }),
+      ]);
+    },
+  });
+  const rowPending = actionsPending || duplicateMutation.isPending || billableMutation.isPending;
+
+  const rowMenuItems = (entry: TimeEntry): RowMenuItem[] => [
+    ...(entry.running
+      ? []
+      : [{ label: "Duplicate", onSelect: () => duplicateMutation.mutate(entry) }]),
+    {
+      label: "Copy description",
+      disabled: !entry.description,
+      onSelect: () => {
+        void navigator.clipboard.writeText(entry.description).catch(() => {
+          setActionError("Could not copy the description. Check clipboard permissions and retry.");
+        });
+      },
+    },
+    { label: "Delete", danger: true, onSelect: () => deleteMutation.mutate([entry]) },
+  ];
+
   const grouped = useMemo(
     () => groupSessionsByDay(entries.data?.entries ?? [], me.member.timezone),
     [entries.data, me.member.timezone],
@@ -552,12 +363,41 @@ export function TimePage() {
     });
   };
 
+  const calendarStartDate =
+    calendarMode === "day"
+      ? anchorDate
+      : startOfWeekDate(anchorDate, calendarMode === "workweek" ? 1 : weekStartsOn);
+  const calendarStart = localCalendarDate(calendarStartDate);
+  const calendarThisWeek = startOfWeekDate(
+    todayKey,
+    calendarMode === "workweek" ? 1 : weekStartsOn,
+  );
+  const periodSuffix =
+    view === "list"
+      ? selectionWeekLabel(listSelection, listWeekStartsOn)
+      : view === "calendar"
+        ? calendarMode === "day"
+          ? format(anchor, "EEE")
+          : `W${getISOWeek(calendarStart)}`
+        : `W${getISOWeek(weekStart)}`;
   const periodLabel =
     view === "list"
       ? listPeriodLabel(listSelection)
-      : view === "calendar" && calendarMode === "day"
-        ? format(anchor, "EEE, d MMM yyyy")
-        : `${format(weekStart, "d MMM")} – ${format(localCalendarDate(addCalendarDays(weekStartDate, 6)), "d MMM yyyy")} · W${getISOWeek(weekStart)}`;
+      : view === "calendar"
+        ? calendarMode === "day"
+          ? anchorDate === todayKey
+            ? "Today"
+            : format(anchor, "d MMM yyyy")
+          : calendarStartDate === calendarThisWeek
+            ? "This week"
+            : calendarStartDate === addCalendarDays(calendarThisWeek, -7)
+              ? "Last week"
+              : `${format(calendarStart, "d MMM")} – ${format(localCalendarDate(addCalendarDays(calendarStartDate, calendarMode === "workweek" ? 4 : 6)), "d MMM yyyy")}`
+        : weekStartDate === currentWeekStartDate
+          ? "This week"
+          : weekStartDate === addCalendarDays(currentWeekStartDate, -7)
+            ? "Last week"
+            : `${format(weekStart, "d MMM")} – ${format(localCalendarDate(addCalendarDays(weekStartDate, 6)), "d MMM yyyy")}`;
   const applyListPreset = (preset: "today" | "this_week" | "all") => {
     setListSelection(selectionFromPreset(preset, listClock, me.member.timezone, listWeekStartsOn));
     setRangeOpen(false);
@@ -606,6 +446,12 @@ export function TimePage() {
         view={view}
         onViewChange={setView}
         periodLabel={periodLabel}
+        periodSuffix={periodSuffix}
+        onClearPeriod={
+          view === "list" && listSelection.preset !== "all"
+            ? () => applyListPreset("all")
+            : undefined
+        }
         onPrevious={onPrevious}
         onNext={onNext}
         onPeriodClick={
@@ -635,6 +481,7 @@ export function TimePage() {
                 if (restoreFocus) periodButtonRef.current?.focus();
               }}
               triggerRef={periodButtonRef}
+              mode="instant"
             />
           ) : null
         }
@@ -644,19 +491,18 @@ export function TimePage() {
           <>
             {view === "calendar" ? (
               <Select
-                className="h-7 min-h-7 w-28 gap-1.5 px-2 py-0 text-xs"
+                className="[&>svg:last-child]:text-fg h-9 w-auto gap-2 border-0 bg-transparent px-3 [&>span]:whitespace-normal [&>svg:last-child]:h-[8.8px] [&>svg:last-child]:w-[14px] [&>svg:last-child]:[stroke-width:1.2]"
+                tone="accent"
+                contentClassName="h-24 w-[113.8px] min-w-0 [&_[data-radix-select-viewport]]:p-1 [&_[role=option]]:h-7 [&_[role=option]]:px-3 [&_[role=option][data-state=checked]]:bg-accent-muted-hover [&_[role=option]>span[aria-hidden=true]]:hidden"
                 value={calendarMode}
-                onValueChange={(value) => setCalendarMode(value as "week" | "day")}
+                onValueChange={(value) => setCalendarMode(value as CalendarMode)}
                 aria-label="Calendar density"
-                options={[
-                  { value: "week", label: "Week view" },
-                  { value: "day", label: "Day view" },
-                ]}
+                options={CALENDAR_MODES.map((mode) => ({ ...mode }))}
               />
             ) : null}
             {me.permissions.view_team ? (
               <Select
-                className="h-7 min-h-7 w-auto max-w-[10rem] min-w-0 gap-1.5 px-2 py-0 text-xs"
+                className="h-9 w-auto max-w-[12rem] min-w-0"
                 value={memberId}
                 onValueChange={setMemberId}
                 aria-label="Timer member"
@@ -671,50 +517,28 @@ export function TimePage() {
       />
 
       {view === "calendar" ? (
-        <CalendarView
-          weekStart={calendarMode === "day" ? anchor : weekStart}
-          memberId={memberId}
-          calendarMode={calendarMode}
-        />
+        <CalendarView weekStart={calendarStart} memberId={memberId} calendarMode={calendarMode} />
       ) : null}
       {view === "timesheet" ? (
         <TimesheetView weekStart={weekStartDate} memberId={memberId} />
       ) : null}
       {view === "list" ? (
-        <section className="min-w-0 bg-[#1b1b1b]">
-          <TimeEntryListCapWarning entryCount={entries.data?.entries.length ?? 0} />
-          {selectedIds.size > 0 ? (
-            <div
-              className="flex flex-wrap items-center gap-3 border-b border-[#3a3a3a] px-5 py-3"
-              aria-label="Selected entries actions"
-            >
-              <span className="text-sm">{selectedIds.size} selected</span>
-              <Button
-                disabled={actionsPending}
-                onClick={() =>
-                  deleteMutation.mutate(
-                    (entries.data?.entries ?? []).filter((entry) => selectedIds.has(entry.id)),
-                  )
-                }
+        <section className="bg-surface min-w-0">
+          {runningProject?.name ? (
+            <div className="px-5 py-1.5" role="region" aria-label="Running project">
+              <div
+                className="relative h-[30px] truncate text-xs leading-[26px] font-semibold uppercase after:absolute after:inset-x-0 after:bottom-0 after:h-1 after:bg-current"
+                style={runningProject.color ? { color: runningProject.color } : undefined}
               >
-                {deleteMutation.isPending ? "Deleting…" : "Delete selected"}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={actionsPending}
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Clear selection
-              </Button>
+                {runningProject.name}
+              </div>
             </div>
           ) : null}
+          <TimeEntryListCapWarning entryCount={entries.data?.entries.length ?? 0} />
           {entries.isLoading ? (
-            <div className="space-y-0">
+            <div>
               {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="h-[50px] animate-pulse border-b border-[#3a3a3a] bg-white/5"
-                />
+                <div key={item} className="h-[50px] animate-pulse bg-white/5" />
               ))}
             </div>
           ) : entries.error ? (
@@ -723,10 +547,10 @@ export function TimePage() {
             </div>
           ) : grouped.length === 0 ? (
             <EmptyState
-              title="No entries in the selected period"
-              description="Nothing was tracked in this date range. Choose a different period or view the full history in reports."
+              title="No entries found in the selected period"
+              description="Looks like there's no activity here. Try a different range or start tracking now."
               action={
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2.5">
                   {listSelection.preset !== "all" ? (
                     <Button
                       type="button"
@@ -738,7 +562,7 @@ export function TimePage() {
                   ) : null}
                   <Link
                     to="/reports"
-                    className="inline-flex h-9 items-center rounded-lg border border-[#3a3a3a] bg-[#382b16] px-3 text-sm font-semibold text-[#fbbf24] hover:bg-[#48361b]"
+                    className="bg-accent-muted text-accent-fg hover:bg-accent-muted-hover box-border inline-flex h-9 items-center rounded-lg px-5 text-sm font-medium shadow-[inset_0_0_0_1px_var(--color-accent-muted-hover)]"
                   >
                     View full history in reports
                   </Link>
@@ -750,35 +574,88 @@ export function TimePage() {
               const dayEntries = groups.flatMap((group) => group.entries);
               const dayTotal = sessionGroupDuration(dayEntries, now);
               const isToday = day === todayKey;
-              const selectedInDay = dayEntries.filter((entry) => selectedIds.has(entry.id)).length;
+              const dayEntryIds = new Set(dayEntries.map((entry) => entry.id));
+              // API order, so Undo restores entries in the order they were listed.
+              const dayEntriesSelected = (entries.data?.entries ?? []).filter(
+                (entry) => dayEntryIds.has(entry.id) && selectedIds.has(entry.id),
+              );
+              const selectedInDay = dayEntriesSelected.length;
               const allSelected = selectedInDay === dayEntries.length && dayEntries.length > 0;
               const someSelected = selectedInDay > 0 && !allSelected;
               return (
-                <section key={day} aria-labelledby={`day-${day}`}>
-                  <div className="flex h-[50px] items-center gap-3 border-y border-[#3a3a3a] bg-[#1b1b1b] px-5">
-                    <input
-                      type="checkbox"
-                      disabled={actionsPending}
-                      checked={allSelected}
-                      ref={(node) => {
-                        if (node) node.indeterminate = someSelected;
-                      }}
-                      onChange={() => {
-                        setSelectedIds((current) => {
-                          const next = new Set(current);
-                          if (allSelected) dayEntries.forEach((entry) => next.delete(entry.id));
-                          else dayEntries.forEach((entry) => next.add(entry.id));
-                          return next;
-                        });
-                      }}
-                      aria-label={`Select all entries for ${day}`}
-                    />
-                    <h2 id={`day-${day}`} className="flex-1 text-sm font-bold text-[#fafafa]">
+                <section
+                  key={day}
+                  aria-labelledby={`day-${day}`}
+                  className="border-stroke border-b-4"
+                >
+                  {selectedInDay > 0 ? (
+                    <div
+                      className="flex h-[50px] items-center px-4"
+                      role="group"
+                      aria-label="Selected entries actions"
+                    >
+                      <span className="border-stroke mr-4 box-border flex h-[30px] items-center border-r py-2 pr-7 text-sm">
+                        <span>
+                          <strong className="font-semibold">
+                            {selectedInDay} {selectedInDay === 1 ? "item" : "items"}
+                          </strong>{" "}
+                          selected
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="hover:bg-surface-hover box-border inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
+                        disabled={actionsPending}
+                        aria-label="Delete selected"
+                        onClick={() => deleteMutation.mutate(dayEntriesSelected)}
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                        {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                      </button>
+                      <button
+                        type="button"
+                        className="hover:bg-surface-hover ml-1 box-border grid h-9 w-[38px] place-items-center rounded-lg disabled:opacity-50"
+                        disabled={actionsPending}
+                        aria-label="Clear selection"
+                        onClick={() =>
+                          setSelectedIds((current) => {
+                            const next = new Set(current);
+                            dayEntries.forEach((entry) => next.delete(entry.id));
+                            return next;
+                          })
+                        }
+                      >
+                        <X size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : null}
+                  <div className="flex h-[50px] items-center pr-[84px] pl-5">
+                    <div className="flex w-[30px] shrink-0 items-center">
+                      <EntryCheckbox
+                        alwaysVisible
+                        disabled={actionsPending}
+                        checked={allSelected}
+                        indeterminate={someSelected}
+                        onChange={() => {
+                          setSelectedIds((current) => {
+                            const next = new Set(current);
+                            if (allSelected) dayEntries.forEach((entry) => next.delete(entry.id));
+                            else dayEntries.forEach((entry) => next.add(entry.id));
+                            return next;
+                          });
+                        }}
+                        label={`Select all entries for ${day}`}
+                      />
+                    </div>
+                    <h2
+                      id={`day-${day}`}
+                      className="text-fg flex-1 text-sm leading-[22.96px] font-semibold whitespace-pre-wrap"
+                    >
                       {isToday
                         ? "Today"
                         : formatInTimeZone(`${day}T12:00:00Z`, me.member.timezone, "EEE, d MMM")}
                     </h2>
-                    <span className="text-sm font-semibold text-[#fafafa] tabular-nums">
+                    <span className="text-fg box-border px-2 py-0.5 text-sm leading-[14px] font-semibold tabular-nums">
                       {formatClockDuration(dayTotal)}
                     </span>
                   </div>
@@ -803,6 +680,7 @@ export function TimePage() {
                             projects={projects.data?.projects ?? []}
                             tags={tags.data?.tags ?? []}
                             initialField={editingTarget.field}
+                            nested={nested}
                             onCancel={() => setEditingTarget(null)}
                             onSaved={() => setEditingTarget(null)}
                           />
@@ -818,6 +696,7 @@ export function TimePage() {
                           startedAt={entry.started_at}
                           stoppedAt={entry.stopped_at}
                           selected={selectedIds.has(entry.id)}
+                          selectionActive={selectedInDay > 0}
                           onToggleSelected={() => toggleSelected(entry.id)}
                           selectLabel={`Select ${entry.description || "time entry"}`}
                           onDescriptionClick={() =>
@@ -843,20 +722,14 @@ export function TimePage() {
                           onContinue={() => continueMutation.mutate(entry)}
                           continueLabel="Continue time entry"
                           continuePending={continueMutation.isPending}
-                          actionsPending={actionsPending || duplicateMutation.isPending}
-                          showMore
-                          moreOpen={openMenuId === entry.id}
-                          onToggleMore={() =>
-                            setOpenMenuId((current) => (current === entry.id ? null : entry.id))
+                          actionsPending={rowPending}
+                          menuItems={rowMenuItems(entry).map((item) => ({
+                            ...item,
+                            disabled: item.disabled || rowPending,
+                          }))}
+                          onToggleBillable={
+                            canSetBillable ? () => billableMutation.mutate(entry) : undefined
                           }
-                          onDuplicate={() => {
-                            setOpenMenuId(null);
-                            duplicateMutation.mutate(entry);
-                          }}
-                          onDelete={() => {
-                            setOpenMenuId(null);
-                            deleteMutation.mutate([entry]);
-                          }}
                           nested={nested}
                         />
                       );
@@ -889,6 +762,7 @@ export function TimePage() {
                         stoppedAt={bounds.stoppedAt}
                         selected={selectedCount === group.entries.length}
                         indeterminate={selectedCount > 0 && selectedCount < group.entries.length}
+                        selectionActive={selectedInDay > 0}
                         onToggleSelected={() => {
                           setSelectedIds((current) => {
                             const next = new Set(current);
@@ -924,8 +798,6 @@ export function TimePage() {
                         continueLabel="Continue latest matching session"
                         continuePending={continueMutation.isPending}
                         actionsPending={actionsPending}
-                        showMore={false}
-                        moreOpen={false}
                       />,
                     ];
                     if (expanded) {
@@ -937,34 +809,29 @@ export function TimePage() {
               );
             })
           )}
-          <div className="flex justify-center py-8">
-            <Link
-              to="/reports"
-              className="inline-flex h-8 items-center rounded-full border border-[#3a3a3a] bg-[#382b16] px-4 text-sm font-medium text-[#fbbf24] hover:bg-[#48361b]"
-            >
-              View full history in reports
-            </Link>
-          </div>
+          {grouped.length > 0 ? (
+            <div className="flex justify-center py-10">
+              <Link
+                to="/reports"
+                className="bg-surface text-fg hover:bg-surface-hover box-border inline-flex h-9 items-center rounded-lg px-5 text-sm font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)]"
+              >
+                View full history in reports
+              </Link>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
-      {actionError || continueMutation.error || duplicateMutation.error ? (
+      {actionError ||
+      continueMutation.error ||
+      duplicateMutation.error ||
+      billableMutation.error ? (
         <p role="alert" className="mx-4 my-3 rounded-lg bg-red-950 p-3 text-sm text-red-200">
-          {actionError ?? continueMutation.error?.message ?? duplicateMutation.error?.message}
+          {actionError ??
+            continueMutation.error?.message ??
+            duplicateMutation.error?.message ??
+            billableMutation.error?.message}
         </p>
-      ) : null}
-      {undoEntries.length > 0 ? (
-        <div className="fixed right-4 bottom-4 z-30 flex items-center gap-3 rounded-xl border border-[#3a3a3a] bg-[#1b1b1b] px-4 py-3 text-sm text-[#fafafa] shadow-xl">
-          {undoEntries.length === 1 ? "Entry deleted." : `${undoEntries.length} entries deleted.`}
-          <Button
-            variant="accent"
-            className="min-h-8 py-1"
-            disabled={actionsPending}
-            onClick={() => restoreMutation.mutate(undoEntries)}
-          >
-            <RotateCcw size={14} /> Undo
-          </Button>
-        </div>
       ) : null}
     </>
   );

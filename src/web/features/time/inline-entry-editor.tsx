@@ -1,12 +1,22 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { addSeconds } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { CalendarClock, Check, CircleDollarSign, Search, Tags, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Check, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { twMerge } from "tailwind-merge";
 
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
 import { useMe } from "@/web/app/context";
-import { Button } from "@/web/components/ui";
+import { Input } from "@/web/components/ui";
+import {
+  BillableCell,
+  entryRowClassName,
+  entryRowExtrasClassName,
+  ProjectCell,
+  TagsCell,
+  TimeCell,
+} from "@/web/features/time/list-entry-row";
+import { projectPickerTextColor } from "@/web/features/timer/project-tint";
 import {
   useDismissPopover,
   useEscapeToClose,
@@ -40,23 +50,41 @@ interface InlineEntryEditorProps {
   projects: Project[];
   tags: Tag[];
   initialField?: InlineEditorField;
+  /** Child session of an expanded group: indented 40px like the display row. */
+  nested?: boolean;
   onCancel: () => void;
   onSaved: () => void;
 }
 
 type ProjectChoice = Pick<Project, "id" | "name" | "color" | "client_name">;
 
+/**
+ * Popover surface placement shared by the three pickers. Toggl opens each popover under the
+ * clicked cell on the same 50px row; on narrow screens it centers in the viewport instead.
+ */
+const popoverPlacement =
+  "fixed top-1/2 left-1/2 z-50 max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto lg:absolute lg:top-[calc(100%+4px)] lg:max-h-none lg:translate-x-0 lg:translate-y-0 lg:overflow-visible";
+
+/**
+ * Toggl edits in place: the row keeps its 50px height, the description becomes a borderless input
+ * and project, tags and time open their own popovers. Enter or a click outside saves a changed
+ * entry (an unchanged one just closes); Escape cancels. Visually hidden Save/Cancel buttons keep
+ * the form operable by keyboard and assistive technology.
+ */
 export function InlineEntryEditor({
   entry,
   projects,
   tags,
   initialField = "description",
+  nested = false,
   onCancel,
   onSaved,
 }: InlineEntryEditorProps) {
   const me = useMe();
   const queryClient = useQueryClient();
   const mounted = useRef(true);
+  const saving = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -90,6 +118,25 @@ export function InlineEntryEditor({
   const [openField, setOpenField] = useState<InlineEditorField | null>(
     initialField === "description" ? null : initialField,
   );
+  const [initial] = useState({
+    description,
+    projectId,
+    tagIds: tagIds.join(","),
+    startedAt,
+    stoppedAt,
+    durationDraft,
+    billable,
+    rateMajor,
+  });
+  const dirty =
+    description !== initial.description ||
+    projectId !== initial.projectId ||
+    tagIds.join(",") !== initial.tagIds ||
+    startedAt !== initial.startedAt ||
+    stoppedAt !== initial.stoppedAt ||
+    durationDraft !== initial.durationDraft ||
+    billable !== initial.billable ||
+    rateMajor !== initial.rateMajor;
 
   const availableProjects = useMemo(() => {
     const merged = new Map<string, ProjectChoice>(projects.map((project) => [project.id, project]));
@@ -205,32 +252,61 @@ export function InlineEntryEditor({
         void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
       }
     },
+    onSettled: () => {
+      saving.current = false;
+    },
   });
 
+  const save = () => {
+    if (saving.current) return;
+    saving.current = true;
+    mutation.mutate();
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (!mutation.isPending) mutation.mutate();
+    save();
   };
 
-  return (
-    <form
-      className="border-b border-l-2 border-[#3a3a3a] border-l-[#f59e0b]/50 bg-white/[0.04] px-4 py-2 md:px-5"
-      aria-label={`Edit ${entry.description || "time entry"}`}
-      onSubmit={submit}
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" || openField) return;
+  // Consume the outside click until saving succeeds so another row cannot discard a failed draft.
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (formRef.current?.contains(event.target as Node)) return;
+      if (dirty || saving.current) {
         event.preventDefault();
-        onCancel();
-      }}
-    >
-      <fieldset disabled={mutation.isPending} className="min-w-0 border-0 p-0">
-        <div className="grid min-h-12 min-w-0 items-center gap-2 xl:grid-cols-[auto_minmax(280px,1fr)_minmax(120px,0.55fr)_auto_auto]">
-          <span className="h-4 w-4" aria-hidden="true" />
+        event.stopImmediatePropagation();
+        save();
+      } else onCancel();
+    };
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  });
 
-          <div className="flex min-w-0 items-center gap-3">
+  const canSetBillable = me.workspace.members_can_set_billable || me.member.role !== "member";
+
+  return (
+    <div>
+      <form
+        ref={formRef}
+        className={twMerge(entryRowClassName, "has-[[aria-expanded=true]]:bg-surface")}
+        aria-label={`Edit ${entry.description || "time entry"}`}
+        onSubmit={submit}
+        onBlur={(event) => {
+          if (!event.relatedTarget || event.currentTarget.contains(event.relatedTarget)) return;
+          if (dirty) save();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || openField) return;
+          event.preventDefault();
+          if (!saving.current) onCancel();
+        }}
+      >
+        <fieldset disabled={mutation.isPending} className="contents">
+          <span className="h-[14px]" aria-hidden="true" />
+
+          <div className={twMerge("flex min-w-0 items-center", nested && "pl-10")}>
             <input
               autoFocus={initialField === "description"}
-              className="h-9 min-w-[120px] flex-[1_1_52%] rounded-md border border-transparent bg-transparent px-1.5 text-sm font-semibold text-[#fafafa] outline-none placeholder:text-[#a4a4a4] hover:bg-black/10 focus:border-[#3a3a3a] focus:bg-[#1b1b1b]"
+              className="entry-inline-input text-fg placeholder:text-fg-subtle caret-accent field-sizing-content h-[30px] max-w-[60%] min-w-[120px] shrink-0 bg-transparent pr-2.5 text-sm font-normal"
               value={description}
               maxLength={500}
               placeholder="Add description"
@@ -251,30 +327,25 @@ export function InlineEntryEditor({
             />
           </div>
 
-          <TagPicker
-            tags={availableTags}
-            value={tagIds}
-            open={openField === "tags"}
-            onOpenChange={(next) => setOpenField(next ? "tags" : null)}
-            onChange={setTagIds}
-          />
+          <div className={entryRowExtrasClassName}>
+            <TagPicker
+              tags={availableTags}
+              value={tagIds}
+              open={openField === "tags"}
+              onOpenChange={(next) => setOpenField(next ? "tags" : null)}
+              onChange={setTagIds}
+            />
 
-          <div className="flex items-center justify-end gap-1">
-            {me.workspace.members_can_set_billable || me.member.role !== "member" ? (
-              <button
-                type="button"
-                className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition ${
-                  billable
-                    ? "bg-[#382b16] text-[#fbbf24]"
-                    : "text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]"
-                }`}
-                aria-label={billable ? "Mark entry non-billable" : "Mark entry billable"}
-                aria-pressed={billable}
-                onClick={() => setBillable((value) => !value)}
-              >
-                <CircleDollarSign size={16} />
-              </button>
-            ) : null}
+            <div className="flex h-full items-center">
+              {canSetBillable ? (
+                <BillableCell
+                  billable={billable}
+                  visible
+                  onToggle={() => setBillable((value) => !value)}
+                />
+              ) : null}
+            </div>
+
             <TimePicker
               timezone={me.member.timezone}
               running={entry.running}
@@ -306,38 +377,73 @@ export function InlineEntryEditor({
                 }
               }}
             />
-          </div>
 
-          <div className="flex justify-end gap-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-8 min-h-8 w-8 rounded-md p-0 text-[#a4a4a4] hover:text-[#fafafa]"
-              aria-label="Cancel editing"
-              onClick={onCancel}
-            >
-              <X size={16} />
-            </Button>
-            <Button
-              type="submit"
-              variant="ghost"
-              className="h-8 min-h-8 w-8 rounded-md bg-[#f59e0b] p-0 text-[#121212] hover:bg-[#fbbf24] hover:text-[#121212]"
-              aria-label="Save time entry"
-              disabled={mutation.isPending}
-            >
-              <Check size={17} />
-            </Button>
+            <div className="flex h-full items-center justify-end gap-0.5 lg:col-span-2">
+              <button
+                type="button"
+                className="text-fg-muted hover:bg-surface-hover hover:text-fg sr-only size-[30px] place-items-center rounded-lg focus:not-sr-only focus:grid"
+                aria-label="Cancel editing"
+                onClick={onCancel}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+              <button
+                type="submit"
+                className="bg-accent text-fg-inverted hover:bg-accent-hover sr-only size-[30px] place-items-center rounded-lg focus:not-sr-only focus:grid"
+                aria-label="Save time entry"
+                disabled={mutation.isPending}
+              >
+                <Check size={16} aria-hidden="true" />
+              </button>
+            </div>
           </div>
-        </div>
-      </fieldset>
+        </fieldset>
+      </form>
       {mutation.error ? (
-        <p className="mt-1 pl-7 text-xs text-red-300" role="alert">
+        <p className="text-error-fg px-5 pb-2 pl-[50px] text-xs font-medium" role="alert">
           {mutation.error instanceof ApiClientError && mutation.error.code === "entry_conflict"
             ? "This entry changed elsewhere. The latest values were reloaded; open it again to continue."
             : mutation.error.message}
         </p>
       ) : null}
-    </form>
+    </div>
+  );
+}
+
+/** Popover search field: 30px, radius 8, Toggl's focus ring. */
+function PopoverSearch({
+  value,
+  onChange,
+  placeholder,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  label: string;
+}) {
+  return (
+    <div className="border-b border-[#191919] px-[15px] pb-2.5">
+      <div className="bg-surface text-fg-muted box-border flex h-[30px] items-center gap-2.5 rounded-lg px-3 shadow-[inset_0_0_0_1px_var(--color-control)] focus-within:shadow-[0_0_0_1px_var(--color-surface),0_0_0_3px_#555,inset_0_0_0_1px_var(--color-fg-secondary)]">
+        <Search className="shrink-0" size={14} aria-hidden="true" />
+        <input
+          autoFocus
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="entry-inline-input text-fg placeholder:text-fg-subtle h-full min-w-0 flex-1 bg-transparent text-sm font-medium"
+          placeholder={placeholder}
+          aria-label={label}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PopoverHeading({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-fg px-[15px] pt-5 pb-2.5 text-[11px] leading-[14px] font-semibold tracking-[0.4px] uppercase">
+      {children}
+    </p>
   );
 }
 
@@ -394,44 +500,41 @@ function ProjectPicker({
   }, [projects, search, value]);
 
   return (
-    <div ref={root} className="relative min-w-0 flex-[1_1_42%]">
-      <button
-        ref={trigger}
-        type="button"
-        className="flex h-9 max-w-full items-center gap-2 rounded-md px-2 text-left text-sm transition hover:bg-black/10"
-        aria-label={selected ? `Project: ${selectedLabel}` : "Choose entry project"}
-        title={selectedLabel ?? "Add project"}
-        aria-expanded={open}
-        aria-haspopup="listbox"
+    <div ref={root} className="relative flex min-w-0 flex-1 items-center">
+      <ProjectCell
+        entry={{
+          project: selected
+            ? { id: selected.id, name: selected.name, color: selected.color }
+            : null,
+          client:
+            selected && selected.client_name && selected.client_name !== "No client"
+              ? { id: "", name: selected.client_name }
+              : null,
+        }}
         onClick={() => onOpenChange(!open)}
-      >
-        <span
-          className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
-          style={selected?.color ? { backgroundColor: selected.color } : undefined}
-        />
-        <span className="min-w-0 truncate">
-          <span style={selected?.color ? { color: selected.color } : undefined}>
-            {selected?.name ?? "Add project"}
-          </span>
-          {selected && selected.client_name && selected.client_name !== "No client" ? (
-            <span className="text-[#a4a4a4]"> • {selected.client_name}</span>
-          ) : null}
-        </span>
-      </button>
+        title={selectedLabel ?? "Add project"}
+        visible
+        buttonProps={{
+          ref: trigger,
+          "aria-label": selected ? `Project: ${selectedLabel}` : "Choose entry project",
+          "aria-expanded": open,
+          "aria-haspopup": "listbox",
+        }}
+      />
       {open ? (
-        <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,360px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto xl:absolute xl:top-10 xl:left-0 xl:max-h-none xl:translate-x-0 xl:translate-y-0">
-          <div className="relative border-b border-[#3a3a3a] p-2">
-            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
-            <input
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
-              placeholder="Search projects or clients"
-              aria-label="Search entry projects"
-            />
-          </div>
-          <div className="max-h-72 overflow-y-auto p-1.5">
+        <div
+          className={twMerge(
+            popoverPlacement,
+            "timer-popover w-[min(92vw,360px)] pt-[5px] lg:left-0",
+          )}
+        >
+          <PopoverSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search projects or clients"
+            label="Search entry projects"
+          />
+          <div className="max-h-[324px] overflow-y-auto pb-[5px]">
             <PickerOption
               label="No project"
               active={!value}
@@ -441,10 +544,8 @@ function ProjectPicker({
               }}
             />
             {selected && selectedVisible ? (
-              <div className="mt-2">
-                <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
-                  Selected project
-                </p>
+              <div>
+                <PopoverHeading>Selected project</PopoverHeading>
                 <PickerOption
                   label={`${selected.name}${selected.id === archivedProjectId ? " · archived" : ""}`}
                   detail={selected.client_name || "No client"}
@@ -456,10 +557,8 @@ function ProjectPicker({
             ) : null}
             {grouped.length ? (
               grouped.map(([client, clientProjects]) => (
-                <div key={client} className="mt-2 first:mt-1">
-                  <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
-                    {client}
-                  </p>
+                <div key={client}>
+                  <PopoverHeading>{client}</PopoverHeading>
                   {clientProjects.map((project) => (
                     <PickerOption
                       key={project.id}
@@ -474,7 +573,9 @@ function ProjectPicker({
                 </div>
               ))
             ) : selectedVisible ? null : (
-              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching projects</p>
+              <p className="text-fg-subtle p-4 text-center text-sm font-medium">
+                No matching projects
+              </p>
             )}
           </div>
         </div>
@@ -514,41 +615,40 @@ function TagPicker({
   const visible = tags.filter((tag) => tag.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div ref={root} className="relative min-w-0">
-      <button
-        ref={trigger}
-        type="button"
-        className={`flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs transition hover:bg-black/10 ${
-          selectedTags.length ? "text-[#a4a4a4]" : "text-[#a4a4a4]/60"
-        }`}
-        aria-label={
+    <div ref={root} className="relative h-full min-w-0">
+      <TagsCell
+        hasTags={selectedTags.length > 0}
+        visible
+        active={open}
+        onClick={() => onOpenChange(!open)}
+        label={
           selectedTags.length
             ? `Tags: ${selectedTags.map((tag) => tag.name).join(", ")}`
             : "Choose entry tags"
         }
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        onClick={() => onOpenChange(!open)}
-      >
-        <Tags className="shrink-0" size={15} />
-        <span className="truncate">
-          {selectedTags.length ? selectedTags.map((tag) => tag.name).join(", ") : "Add tags"}
-        </span>
-      </button>
+        title={selectedTags.map((tag) => tag.name).join(", ") || undefined}
+        buttonProps={{
+          ref: trigger,
+          "aria-expanded": open,
+          "aria-haspopup": "listbox",
+        }}
+      />
       {open ? (
-        <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,280px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto xl:absolute xl:top-10 xl:right-0 xl:left-auto xl:max-h-none xl:translate-x-0 xl:translate-y-0">
-          <div className="relative border-b border-[#3a3a3a] p-2">
-            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
-            <input
-              autoFocus
+        <div
+          className={twMerge(
+            popoverPlacement,
+            "timer-popover w-[min(92vw,240px)] py-[5px] lg:right-[-40px] lg:left-auto",
+          )}
+        >
+          <div className="pt-2.5">
+            <PopoverSearch
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
-              placeholder="Filter tags"
-              aria-label="Search entry tags"
+              onChange={setSearch}
+              placeholder="Add/filter tags"
+              label="Search entry tags"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto p-1.5">
+          <div className="max-h-[231px] overflow-y-auto px-[5px] pt-[5px]">
             {visible.length ? (
               visible.map((tag) => {
                 const active = value.includes(tag.id);
@@ -556,7 +656,8 @@ function TagPicker({
                   <button
                     type="button"
                     key={tag.id}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-[#fafafa] hover:bg-white/8"
+                    aria-pressed={active}
+                    className="text-fg box-border flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-sm font-medium hover:bg-[#fafafa]/5"
                     onClick={() =>
                       onChange(
                         active ? value.filter((tagId) => tagId !== tag.id) : [...value, tag.id],
@@ -564,20 +665,22 @@ function TagPicker({
                     }
                   >
                     <span
-                      className="grid h-4 w-4 place-items-center rounded border"
-                      style={{
-                        borderColor: tag.color,
-                        backgroundColor: active ? tag.color : "transparent",
-                      }}
+                      className={twMerge(
+                        "border-control bg-surface box-border grid size-[14px] shrink-0 place-items-center rounded border",
+                        active && "border-accent bg-accent",
+                      )}
+                      aria-hidden="true"
                     >
-                      {active ? <Check size={11} className="text-white" /> : null}
+                      {active ? (
+                        <Check size={10} strokeWidth={3} className="text-fg-inverted" />
+                      ) : null}
                     </span>
-                    {tag.name}
+                    <span className="min-w-0 truncate">{tag.name}</span>
                   </button>
                 );
               })
             ) : (
-              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching tags</p>
+              <p className="text-fg-subtle p-4 text-center text-sm font-medium">No matching tags</p>
             )}
           </div>
         </div>
@@ -639,34 +742,31 @@ function TimePicker({
   };
 
   return (
-    <div ref={root} className="relative">
-      <button
-        ref={trigger}
-        type="button"
-        className="flex h-9 items-center gap-3 rounded-md px-2 text-xs text-[#a4a4a4] tabular-nums transition hover:bg-black/10 hover:text-[#fafafa]"
-        aria-label="Edit entry date, time, and duration"
-        aria-expanded={open}
-        aria-haspopup="dialog"
+    <div ref={root} className="relative h-full min-w-0">
+      <TimeCell
+        range={`${displayTime(startedAt)} - ${running ? "running" : displayTime(stoppedAt)}`}
+        durationMs={durationSeconds * 1000}
+        running={running}
+        active={open}
         onClick={() => onOpenChange(!open)}
-      >
-        <span className="whitespace-nowrap">
-          {displayTime(startedAt)} – {running ? "running" : displayTime(stoppedAt)}
-        </span>
-        <strong className="text-sm whitespace-nowrap text-[#fafafa]">
-          {formatClockDuration(durationSeconds * 1000)}
-        </strong>
-      </button>
+        title="Edit date, times, and duration"
+        ariaLabel="Edit entry date, time, and duration"
+        buttonProps={{
+          ref: trigger,
+          "aria-expanded": open,
+          "aria-haspopup": "dialog",
+        }}
+      />
       {open ? (
-        <div className="timer-popover fixed top-1/2 left-1/2 z-50 max-h-[80dvh] w-[min(92vw,410px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto p-3 xl:absolute xl:top-10 xl:right-0 xl:left-auto xl:max-h-none xl:translate-x-0 xl:translate-y-0">
-          <div className="mb-3 flex items-center gap-2 border-b border-[#3a3a3a] pb-3">
-            <CalendarClock size={17} className="text-[#fbbf24]" />
-            <div>
-              <p className="text-sm font-semibold text-[#fafafa]">Date and time</p>
-              <p className="text-[11px] text-[#a4a4a4]">{timezone}</p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
+        <div
+          role="dialog"
+          aria-label="Date and time"
+          className={twMerge(
+            popoverPlacement,
+            "timer-popover w-[min(92vw,340px)] px-2.5 pt-3 pb-4 lg:right-[-61px] lg:left-auto",
+          )}
+        >
+          <div className="grid grid-cols-2 gap-x-2.5 px-[5px]">
             <DateTimeFields
               label="Start"
               value={startedAt}
@@ -680,16 +780,16 @@ function TimePicker({
               disabled={running}
             />
           </div>
+          <p className="text-fg-subtle mt-2.5 px-[15px] text-xs font-medium">{timezone}</p>
 
-          <div className="mt-3 grid items-end gap-3 border-t border-[#3a3a3a] pt-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+          <div className="mt-3 grid grid-cols-2 items-end gap-x-2.5 px-[15px]">
+            <label className="text-fg grid gap-1 text-[11px] leading-[14px] font-semibold tracking-[0.4px] uppercase">
               Duration (h:mm:ss)
-              <input
-                className={`h-9 min-w-0 rounded-md border bg-[#1b1b1b] px-2.5 text-sm text-[#fafafa] tabular-nums outline-none ${
-                  parseClockDuration(durationDraft)
-                    ? "border-[#3a3a3a] focus:border-[#f59e0b]"
-                    : "border-red-500/70"
-                }`}
+              <Input
+                className={twMerge(
+                  "h-[35px] font-medium tabular-nums",
+                  !parseClockDuration(durationDraft) && "border-error",
+                )}
                 value={durationDraft}
                 disabled={running}
                 inputMode="numeric"
@@ -698,10 +798,10 @@ function TimePicker({
               />
             </label>
             {financial && billable ? (
-              <label className="grid gap-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+              <label className="text-fg grid gap-1 text-[11px] leading-[14px] font-semibold tracking-[0.4px] uppercase">
                 Rate ({currency})
-                <input
-                  className="h-9 min-w-0 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2.5 text-right text-sm text-[#fafafa] outline-none focus:border-[#f59e0b]"
+                <Input
+                  className="h-[35px] text-right font-medium"
                   type="number"
                   min="0"
                   step="0.01"
@@ -713,7 +813,7 @@ function TimePicker({
             ) : (
               <button
                 type="button"
-                className="h-9 rounded-md border border-[#3a3a3a] text-xs font-semibold text-[#a4a4a4] hover:bg-white/7 hover:text-[#fafafa]"
+                className="border-control text-fg hover:bg-surface-hover box-border h-[35px] rounded-lg border text-sm font-semibold"
                 onClick={() => requestClose(true)}
               >
                 Done
@@ -738,25 +838,23 @@ function DateTimeFields({
   onChange: (value: string) => void;
 }) {
   return (
-    <fieldset className="min-w-0 rounded-lg border border-[#3a3a3a] bg-black/10 p-2.5 disabled:opacity-50">
-      <legend className="px-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
+    <fieldset className="grid min-w-0 gap-1 disabled:opacity-50" disabled={disabled}>
+      <legend className="text-fg float-left mb-1 w-full text-[11px] leading-[14px] font-semibold tracking-[0.4px] uppercase">
         {label}
       </legend>
       <div className="grid min-w-0 gap-2">
-        <input
-          className="h-8 min-w-0 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] outline-none focus:border-[#f59e0b]"
+        <Input
+          className="h-[35px] px-3 font-medium"
           type="date"
           value={value.slice(0, 10)}
-          disabled={disabled}
           aria-label={`${label} date`}
           onChange={(event) => onChange(replaceDate(value, event.target.value))}
         />
-        <input
-          className="h-8 min-w-0 rounded-md border border-[#3a3a3a] bg-[#1b1b1b] px-2 text-xs text-[#fafafa] tabular-nums outline-none focus:border-[#f59e0b]"
+        <Input
+          className="h-[35px] px-3 font-medium tabular-nums"
           type="time"
           step={1}
           value={value.slice(11)}
-          disabled={disabled}
           aria-label={`${label} time`}
           onChange={(event) => onChange(replaceTime(value, event.target.value))}
         />
@@ -779,25 +877,35 @@ function PickerOption({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label.replace(" · archived", "")}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm ${
-        active ? "bg-[#382b16] text-[#fbbf24]" : "text-[#fafafa] hover:bg-white/8"
-      }`}
-      onClick={onClick}
-    >
-      <span
-        className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
-        style={color ? { backgroundColor: color } : undefined}
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate">{label}</span>
-        {detail ? (
-          <span className="block truncate text-[11px] text-[#a4a4a4]">{detail}</span>
-        ) : null}
-      </span>
-      {active ? <Check size={14} /> : null}
-    </button>
+    <div className="px-1.5 py-px">
+      <button
+        type="button"
+        aria-label={label.replace(" · archived", "")}
+        className={twMerge(
+          "group hover:bg-surface-hover box-border flex h-[34px] w-full items-center gap-1 rounded-lg px-2.5 text-left text-sm font-medium",
+          active && "bg-surface-hover",
+        )}
+        onClick={onClick}
+      >
+        <span className="grid w-[9px] shrink-0 place-items-center" aria-hidden="true">
+          <span
+            className="size-2 rounded-full"
+            style={{
+              backgroundColor: color
+                ? `color-mix(in srgb, ${color} 94.5%, black)`
+                : "rgb(170 170 170)",
+            }}
+          />
+        </span>
+        <span
+          className="ml-2.5 min-w-0 flex-1 truncate leading-[30px]"
+          style={color ? { color: projectPickerTextColor(color) } : { color: "rgb(183 183 183)" }}
+        >
+          {label}
+          {detail ? <span className="text-fg-subtle ml-2 text-xs">{detail}</span> : null}
+        </span>
+        {active ? <Check size={16} className="text-fg-muted shrink-0" aria-hidden="true" /> : null}
+      </button>
+    </div>
   );
 }

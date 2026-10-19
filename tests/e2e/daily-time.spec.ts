@@ -56,10 +56,10 @@ test("member can open the timer workspace and navigate core views", async ({ pag
   const editableDescription = page.getByTitle("Edit description").first();
   if (await editableDescription.isVisible()) {
     await editableDescription.click();
-    await expect(page.getByRole("button", { name: "Save time entry" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save time entry" })).toBeAttached();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(seriousViolations(await new AxeBuilder({ page }).analyze())).toEqual([]);
-    await page.getByRole("button", { name: "Cancel editing" }).click();
+    await page.keyboard.press("Escape");
   }
   const accessibility = await new AxeBuilder({ page }).analyze();
   expect(seriousViolations(accessibility)).toEqual([]);
