@@ -493,7 +493,7 @@ function TimesheetWeek({
                       +
                     </span>
                   }
-                  className="data-[placeholder]:text-fg h-5 w-auto gap-1 border-0 bg-transparent p-0 text-center [&>svg:last-child]:hidden"
+                  className="data-[placeholder]:text-fg h-5 w-auto gap-1 border-0 bg-transparent p-0 text-center whitespace-nowrap [&_span]:whitespace-nowrap [&>svg:last-child]:hidden"
                   disabled={createMutation.isPending}
                   options={[
                     {

@@ -33,14 +33,17 @@ async function createEntry(page: Page, description: string, running = false) {
 }
 
 async function fitDialog(page: Page) {
-  const dialog = page.getByRole("dialog", { name: "Edit time entry" });
+  const dialog = page.getByRole("form", { name: "Edit calendar time entry" });
   const bounds = await dialog.boundingBox();
   expect(bounds).not.toBeNull();
   if (!bounds) throw new Error("Missing editor");
+  const viewport = page.viewportSize();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport?.width ?? 0);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport?.height ?? 0);
   expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-  const boxes = await dialog.locator('input[type="date"], input[type="time"]').evaluateAll((els) =>
+  const boxes = await dialog.locator("input:visible").evaluateAll((els) =>
     els.map((el) => {
       const r = el.getBoundingClientRect();
       const parent = (el.closest("fieldset") ?? el).getBoundingClientRect();
@@ -51,7 +54,7 @@ async function fitDialog(page: Page) {
     expect(box.left).toBeGreaterThanOrEqual(box.parentLeft);
     expect(box.right).toBeLessThanOrEqual(box.parentRight);
   }
-  await expect(dialog.getByRole("button", { name: "Save entry", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeVisible();
 }
 
 test("calendar edit fits desktop, tablet and mobile and preserves timestamps", async ({ page }) => {
@@ -71,16 +74,19 @@ test("calendar edit fits desktop, tablet and mobile and preserves timestamps", a
   expect(nine).not.toBeNull();
   if (eventY && nine) expect(Math.abs(eventY.y - nine.y)).toBeLessThan(20);
   await event.click();
-  await expect(page.getByRole("dialog", { name: "Edit time entry" })).toBeVisible();
-  await expect(page.getByLabel("Start time", { exact: true })).toHaveValue("09:00:17");
-  await expect(page.getByLabel("Stop time", { exact: true })).toHaveValue("10:00:02");
+  const editor = page.getByRole("form", { name: "Edit calendar time entry" });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("Start time", { exact: true })).toHaveValue("9:00 AM");
+  await expect(editor.getByLabel("Stop time", { exact: true })).toHaveValue("10:00 AM");
   for (const width of [1280, 768, 320]) {
     await page.setViewportSize({ width, height: 740 });
     await fitDialog(page);
   }
-  await page.getByRole("textbox", { name: "Description", exact: true }).fill(`${name} edited`);
-  await page.getByRole("button", { name: "Save entry", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await editor
+    .getByRole("textbox", { name: "Entry description", exact: true })
+    .fill(`${name} edited`);
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(editor).toBeHidden();
   const updated = (await (
     await page.request.get(
       `/api/v1/time-entries?start=${encodeURIComponent(fixture.started)}&end=${encodeURIComponent(new Date(Date.parse(fixture.stopped) + 1000).toISOString())}`,
@@ -115,7 +121,7 @@ test("calendar range creation validates times and supports nested Escape", async
   await page.mouse.up();
   const form = page.getByRole("form", { name: "Add calendar time entry" });
   await expect(form).toBeVisible();
-  await expect(form.getByLabel("Start time", { exact: true })).toHaveValue("11:00");
+  await expect(form.getByLabel("Start time", { exact: true })).toHaveValue("11:00 AM");
   await form.getByRole("button", { name: "Choose tags", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(form).toBeVisible();
@@ -132,27 +138,39 @@ test("calendar range creation validates times and supports nested Escape", async
 
 test("timesheet drafts validate, save and reopen existing entries", async ({ page }) => {
   await page.goto("/time?view=timesheet");
-  await page.getByRole("button", { name: "Add row", exact: true }).click();
-  const description = page.getByRole("textbox", { name: "Draft row description" });
-  await expect(description).toBeVisible();
-  const name = `Timesheet audit ${crypto.randomUUID().slice(0, 8)}`;
-  await description.fill(name);
-  const first = page
-    .locator("tr")
-    .filter({ has: description })
-    .locator('input[placeholder="-"]')
-    .first();
+  const me = (await (await page.request.get("/api/v1/me")).json()) as { csrf_token: string };
+  const project = `HLTEST sheet ${crypto.randomUUID().slice(0, 8)}`;
+  const created = await page.request.post("/api/v1/projects", {
+    headers: { Origin: new URL(page.url()).origin, "X-CSRF-Token": me.csrf_token },
+    data: {
+      client_id: "00000000-0000-4000-8000-000000000201",
+      name: project,
+      color: "#14852b",
+      billable_default: false,
+      currency: "USD",
+      visibility: "all",
+    },
+  });
+  expect(created.ok()).toBe(true);
+  await page.reload();
+  await chooseOption(page.getByRole("combobox", { name: "Add row", exact: true }), project);
+  const row = page.locator("tr").filter({ hasText: project });
+  const first = row.locator('input[placeholder="-"]').first();
+  await expect(first).toBeVisible();
   await first.fill("1:75");
   await first.press("Enter");
   await expect(page.getByRole("alert")).toContainText("Minutes must be 00–59");
   await first.fill("1:30");
   await first.press("Enter");
-  await expect(description).toBeHidden();
-  const row = page.locator("tr").filter({ hasText: name });
-  await row.getByRole("button").first().click();
-  await expect(page.getByRole("dialog", { name: "Edit time entry" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Description", exact: true })).toHaveValue(name);
+  const saved = row.getByRole("button", { name: new RegExp(`^Edit ${project} `) });
+  await expect(saved).toBeVisible();
+  await saved.click();
+  const editor = page.getByRole("dialog", { name: "Edit time entry" });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByLabel("Start time", { exact: true })).toHaveValue("09:00:00");
+  await expect(editor.getByLabel("Stop time", { exact: true })).toHaveValue("10:30:00");
   await page.keyboard.press("Escape");
+  await expect(editor).toBeHidden();
   await page.setViewportSize({ width: 320, height: 740 });
   expect(
     await page.evaluate(
@@ -216,8 +234,17 @@ test("calendar drag and resize persist member-local times and roll back failures
   ).entry;
   expect(formatInTimeZone(movedEntry.started_at, me.member.timezone, "HH:mm")).toBe("14:00");
   expect(formatInTimeZone(movedEntry.stopped_at, me.member.timezone, "HH:mm")).toBe("15:00");
-  await event.scrollIntoViewIfNeeded();
-  const handle = await event.locator(".fc-event-resizer-end").boundingBox();
+  await event.locator(".hl-cal-resizer-end").evaluate((handle, extra) => {
+    let scroller = handle.parentElement;
+    while (scroller && getComputedStyle(scroller).overflowY !== "auto") {
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) return;
+    const room =
+      handle.getBoundingClientRect().bottom + extra + 12 - scroller.getBoundingClientRect().bottom;
+    if (room > 0) scroller.scrollTop += room;
+  }, hourHeight / 2);
+  const handle = await event.locator(".hl-cal-resizer-end").boundingBox();
   if (!handle) throw new Error("Calendar resize handle is missing");
   const resized = patch();
   await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);

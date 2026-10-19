@@ -98,7 +98,13 @@ export function stopWithTime(
   if (startInstant && candidateInstant && candidateInstant <= startInstant) {
     const next = addLocalDays(candidate, 1);
     const nextInstant = parseLocalDateTime(next, timezone);
-    if (nextInstant && nextInstant > startInstant) return next;
+    // 11:30 PM -> 12:10 AM is the next morning. A same-day stop before the start
+    // (11:00 -> 10:00) is a 23-hour span, so it stays and save reports the error.
+    const overnight =
+      nextInstant !== null &&
+      nextInstant > startInstant &&
+      nextInstant.getTime() - startInstant.getTime() <= 12 * 3_600_000;
+    if (overnight) return next;
   }
   return candidate;
 }

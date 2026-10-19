@@ -11,7 +11,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { twMerge } from "tailwind-merge";
 
 import { Checkbox } from "@/web/components/ui";
@@ -62,21 +62,37 @@ export function EntryPopoverShell({
   const root = useRef<HTMLFormElement>(null);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
 
-  useLayoutEffect(() => {
+  const place = useCallback(() => {
     const element = root.current;
     if (!element) return;
     const width = element.offsetWidth;
     const height = element.offsetHeight;
-    const left = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(anchor.x, window.innerWidth - width - VIEWPORT_MARGIN),
+    const next = {
+      left: Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(anchor.x, window.innerWidth - width - VIEWPORT_MARGIN),
+      ),
+      top: Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(anchor.y, window.innerHeight - height - VIEWPORT_MARGIN),
+      ),
+    };
+    setPosition((current) =>
+      current?.left === next.left && current.top === next.top ? current : next,
     );
-    const top = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(anchor.y, window.innerHeight - height - VIEWPORT_MARGIN),
-    );
-    setPosition({ left, top });
   }, [anchor.x, anchor.y]);
+
+  useLayoutEffect(() => {
+    place();
+  }, [place]);
+
+  useEffect(() => {
+    const onResize = () => {
+      flushSync(() => place());
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [place]);
 
   useEffect(() => {
     if (busy) return;
@@ -116,7 +132,7 @@ export function PopoverCloseButton({ label, onClick }: { label: string; onClick:
   return (
     <button
       type="button"
-      className="text-fg-muted hover:bg-surface-hover absolute top-[-1px] right-[-1px] inline-flex size-[30px] items-center justify-center rounded-lg leading-[normal]"
+      className="text-fg-muted hover:bg-surface-hover absolute top-0 right-0 inline-flex size-[30px] items-center justify-center rounded-lg leading-[normal]"
       aria-label={label}
       onClick={onClick}
     >
@@ -802,8 +818,8 @@ export function EntryTimeRow({
   const startDate = datePart(times.startedAt);
   return (
     <div>
-      <div className="mt-[9.5px] flex h-[37px] items-start">
-        <div className="relative w-[103.9px] shrink-0">
+      <div className="hl-cal-time-row mt-[9.5px] flex h-[37px] items-start">
+        <div className="hl-cal-time-start relative w-[103.9px] shrink-0">
           <TimeTextInput
             className="w-full pr-8"
             disabled={disabled}
@@ -838,25 +854,25 @@ export function EntryTimeRow({
         </div>
         <ArrowRight
           size={15}
-          className="text-fg-muted mx-[3px] mt-[14px] ml-1 shrink-0"
+          className="hl-cal-time-arrow text-fg-muted mx-[3px] mt-[14px] ml-1 shrink-0"
           aria-hidden="true"
         />
         <TimeTextInput
-          className="w-[85.9px] shrink-0"
+          className="hl-cal-time-stop w-[85.9px] shrink-0"
           disabled={disabled || running}
           label="Stop time"
           value={running ? "" : formatClockTime(timePart(times.stoppedAt))}
           onCommit={times.commitStopText}
         />
         <TimeTextInput
-          className="mr-1 ml-1 w-[83.2px] shrink-0 border-transparent text-left"
+          className="hl-cal-time-duration mr-1 ml-1 w-[83.2px] shrink-0 border-transparent text-left"
           align="left"
           disabled={disabled || running}
           label="Duration (h:mm:ss)"
           value={duration}
           onCommit={times.commitDurationText}
         />
-        {action}
+        <div className="hl-cal-time-action contents">{action}</div>
       </div>
       {times.error ? (
         <p className="text-error-fg mt-2 text-xs leading-4 font-medium" role="alert">

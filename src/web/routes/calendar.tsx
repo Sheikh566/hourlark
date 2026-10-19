@@ -137,6 +137,12 @@ export function CalendarView({
   const queryClient = useQueryClient();
   const calendarRef = useRef<CalendarRef>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const queuedMove = useRef<{
+    entryId: string;
+    start: Date;
+    end: Date;
+    revert: () => void;
+  } | null>(null);
   const dateKey = format(weekStart, "yyyy-MM-dd");
   const inclusiveDays = calendarMode === "day" ? 0 : 6;
   const [range, setRange] = useState({
@@ -322,14 +328,23 @@ export function CalendarView({
   const moveEntry = useCallback(
     (entryId: string, start: Date | null, end: Date | null, revert: () => void) => {
       const entry = entries.find((item) => item.id === entryId);
-      if (!entry || entry.running || updateMutation.isPending || !start || !end) {
+      if (!entry || entry.running || !start || !end) {
         revert();
+        return;
+      }
+      // A resize can follow a drop before the first save and its refetch finish.
+      // Hold the latest range and send it with the refreshed version instead of dropping it.
+      if (updateMutation.isPending) {
+        queuedMove.current = { entryId, start, end, revert };
         return;
       }
       updateMutation.mutate(
         { entry, start, end },
         {
           onError: (error) => {
+            const queued = queuedMove.current;
+            queuedMove.current = null;
+            queued?.revert();
             revert();
             setMutationError(error.message);
             void queryClient.invalidateQueries({ queryKey: ["calendar"] });
@@ -339,6 +354,12 @@ export function CalendarView({
     },
     [entries, queryClient, updateMutation],
   );
+  useEffect(() => {
+    if (updateMutation.isPending || !queuedMove.current) return;
+    const next = queuedMove.current;
+    queuedMove.current = null;
+    moveEntry(next.entryId, next.start, next.end, next.revert);
+  }, [moveEntry, updateMutation.isPending]);
   const closeSelection = useCallback(() => {
     calendarRef.current?.getApi().unselect();
     setSelection(null);

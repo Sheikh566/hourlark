@@ -78,6 +78,9 @@ describe("calendar entry wall times", () => {
     expect(
       stopWithTime("2026-10-14T23:30:00", "2026-10-14T23:00:00", "00:10:00", "Asia/Karachi"),
     ).toBe("2026-10-15T00:10:00");
+    expect(
+      stopWithTime("2026-10-14T11:15:00", "2026-10-14T11:00:00", "10:00:00", "Asia/Karachi"),
+    ).toBe("2026-10-14T10:00:00");
     expect(addLocalDays("2026-12-31T23:30:00", 1)).toBe("2027-01-01T23:30:00");
     expect(parseLocalDateTime("2026-03-08T02:30:00", "America/New_York")).toBeNull();
     const stop = stopFromDuration("2026-11-01T00:30:00", 3 * 3600, "America/New_York");
