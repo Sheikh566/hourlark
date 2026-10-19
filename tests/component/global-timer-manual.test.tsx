@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { formatInTimeZone } from "date-fns-tz";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GlobalTimerBar } from "@/web/features/timer/global-timer";
@@ -76,6 +77,7 @@ describe("global timer manual mode", () => {
   });
 
   it("switches to manual mode, remembers it, and adds a completed entry", async () => {
+    const month = formatInTimeZone(Date.now(), "Asia/Karachi", "yyyy-MM");
     const user = userEvent.setup();
     const view = mount();
     await user.click(await screen.findByRole("button", { name: "Manual mode" }));
@@ -84,7 +86,9 @@ describe("global timer manual mode", () => {
     expect(window.localStorage.getItem("hourlark.timer-mode")).toBe("manual");
 
     await user.type(screen.getByRole("combobox", { name: "Timer description" }), "Planning");
-    fireEvent.change(screen.getByLabelText("Entry date"), { target: { value: "2026-10-05" } });
+    // Pick the 1st of the month shown in the calendar (the current month).
+    await user.click(screen.getByRole("button", { name: "Entry date" }));
+    await user.click(screen.getByRole("button", { name: /^Choose \w+, \w+ 1, \d{4}$/ }));
     fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "09:00" } });
     fireEvent.change(screen.getByLabelText("End time"), { target: { value: "10:15" } });
     await user.click(screen.getByRole("button", { name: "Add time entry" }));
@@ -94,8 +98,8 @@ describe("global timer manual mode", () => {
       expect(call).toBeDefined();
       expect(JSON.parse(call?.[1]?.body as string)).toMatchObject({
         description: "Planning",
-        started_at: "2026-10-05T04:00:00.000Z",
-        stopped_at: "2026-10-05T05:15:00.000Z",
+        started_at: `${month}-01T04:00:00.000Z`,
+        stopped_at: `${month}-01T05:15:00.000Z`,
       });
     });
     await waitFor(() =>

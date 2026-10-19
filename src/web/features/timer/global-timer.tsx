@@ -1,22 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
-import {
-  ArrowRight,
-  Check,
-  CircleDollarSign,
-  CirclePlay,
-  CirclePlus,
-  Folder,
-  Play,
-  Plus,
-  Search,
-  Square,
-  Tags,
-  X,
-} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
+import { useToast } from "@/web/components/toast";
+import { RowMenu } from "@/web/components/ui";
 import {
   findDescriptionCommand,
   matchesDescriptionCommand,
@@ -24,10 +12,29 @@ import {
   type DescriptionCommandKind,
 } from "@/web/features/timer/description-command";
 import {
-  useDismissPopover,
-  useEscapeToClose,
-  useRestoreFocus,
-} from "@/web/features/timer/use-dismiss-popover";
+  CommandMenu,
+  SuggestionsDropdown,
+  suggestionOptionId,
+  type DescriptionSuggestion,
+  type RecentTime,
+} from "@/web/features/timer/description-suggestions";
+import { ManualRangeFields } from "@/web/features/timer/manual-range-fields";
+import { RunningDuration } from "@/web/features/timer/running-time-popover";
+import {
+  AddGlyph,
+  AutomaticModeGlyph,
+  ManualModeGlyph,
+  PlayGlyph,
+  StopGlyph,
+} from "@/web/features/timer/timer-glyphs";
+import { useTimerDocumentTitle } from "@/web/features/timer/timer-document-title";
+import {
+  BillableButton,
+  groupProjectsByClient,
+  ProjectPicker,
+  TagPicker,
+  type ProjectChoice,
+} from "@/web/features/timer/timer-pickers";
 import { useNow } from "@/web/hooks/use-now";
 import { ApiClientError, apiRequest, idempotencyKey } from "@/web/lib/api";
 import { formatClockDuration } from "@/web/lib/format";
@@ -40,20 +47,10 @@ import {
 import { broadcastTimerChange } from "@/web/lib/timer";
 import type { Project, Tag, TimeEntry } from "@/web/types";
 
-interface RecentTime {
-  description: string;
-  project_id: string | null;
-  project_name: string | null;
-  client_name: string | null;
-}
-
 interface CommandSuggestion {
   id: string;
   kind: DescriptionCommandKind;
   label: string;
-  detail: string;
-  color: string;
-  selected: boolean;
 }
 
 interface TimerQuery {
@@ -61,14 +58,17 @@ interface TimerQuery {
   server_now: string;
 }
 
-type ProjectChoice = Pick<Project, "id" | "name" | "color" | "client_name" | "billable_default">;
-
 interface RunningMetadataPatch {
   description?: string;
   project_id?: string | null;
   tag_ids?: string[];
   billable?: boolean;
+  started_at?: string;
 }
+
+/** Colour of tags created from the timer bar (the tag editor's default). */
+const NEW_TAG_COLOR = "#14852B";
+const MAX_RECENT_SUGGESTIONS = 8;
 
 function applyEntryToCaches(queryClient: QueryClient, entry: TimeEntry) {
   queryClient.setQueryData<TimerQuery>(["timer"], (current) => ({
@@ -97,9 +97,16 @@ function isTimeEntry(value: unknown): value is TimeEntry {
   return Boolean(value && typeof value === "object" && "id" in value && "version" in value);
 }
 
+/** True when a keyboard event comes from somewhere text is typed. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
 export function GlobalTimerBar() {
   const me = useMe();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const now = useNow();
   const descriptionInput = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState("");
@@ -109,6 +116,9 @@ export function GlobalTimerBar() {
   const [descriptionCursor, setDescriptionCursor] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
   const [highlightedCommand, setHighlightedCommand] = useState(0);
+  const [descriptionFocused, setDescriptionFocused] = useState(false);
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false);
+  const [highlightedSuggestion, setHighlightedSuggestion] = useState(-1);
   const [projectId, setProjectId] = useState("");
   const [billable, setBillable] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -156,6 +166,8 @@ export function GlobalTimerBar() {
   const displayedProjectId = activeTimer ? (activeTimer.project?.id ?? "") : idleProjectId;
   const displayedTagIds = activeTimer ? activeTimer.tags.map((tag) => tag.id) : selectedTags;
   const canSetBillable = me.workspace.members_can_set_billable || me.member.role !== "member";
+  const canManage = me.member.role !== "member";
+  const weekStartsOn = me.workspace.week_start === "monday" ? 1 : 0;
   const billableForProject = (project: ProjectChoice | undefined) =>
     canSetBillable && (project?.billable_default === true || project?.billable_default === 1);
   const displayedBillable = activeTimer ? activeTimer.billable : billable;
@@ -185,43 +197,110 @@ export function GlobalTimerBar() {
     }
     return [...merged.values()];
   }, [activeTimer, tags.data?.tags]);
-  const commandSuggestions = useMemo<CommandSuggestion[]>(() => {
-    if (!descriptionCommand) return [];
-    const query = descriptionCommand.query;
-    if (descriptionCommand.kind === "project") {
-      return [...pickerProjects]
-        .filter((project) => matchesDescriptionCommand(project.name, query))
-        .sort((left, right) => left.name.localeCompare(right.name))
-        .slice(0, 10)
-        .map((project) => ({
-          id: project.id,
-          kind: "project",
-          label: project.name,
-          detail: project.client_name || "No client",
-          color: project.color,
-          selected: project.id === displayedProjectId,
-        }));
-    }
+
+  // `@project` / `#tag` command menu, listed in the order it is displayed.
+  const commandProjects = useMemo<ProjectChoice[]>(() => {
+    if (descriptionCommand?.kind !== "project") return [];
+    return groupProjectsByClient(
+      pickerProjects.filter((project) =>
+        matchesDescriptionCommand(project.name, descriptionCommand.query),
+      ),
+    ).flatMap(([, items]) => items);
+  }, [descriptionCommand, pickerProjects]);
+  const commandTags = useMemo(() => {
+    if (descriptionCommand?.kind !== "tag") return [];
     return [...pickerTags]
-      .filter((tag) => matchesDescriptionCommand(tag.name, query))
+      .filter((tag) => matchesDescriptionCommand(tag.name, descriptionCommand.query))
       .sort((left, right) => left.name.localeCompare(right.name))
-      .slice(0, 10)
-      .map((tag) => ({
-        id: tag.id,
-        kind: "tag",
-        label: tag.name,
-        detail: "Tag",
-        color: tag.color,
-        selected: displayedTagIds.includes(tag.id),
-      }));
-  }, [descriptionCommand, displayedProjectId, displayedTagIds, pickerProjects, pickerTags]);
-  const commandMenuOpen = Boolean(descriptionCommand && !commandDismissed && !activeTimer);
+      .map((tag) => ({ ...tag, selected: displayedTagIds.includes(tag.id) }));
+  }, [descriptionCommand, displayedTagIds, pickerTags]);
+  const commandSuggestions = useMemo<CommandSuggestion[]>(
+    () =>
+      descriptionCommand?.kind === "project"
+        ? [
+            ...(descriptionCommand.query
+              ? []
+              : [{ id: "", kind: "project" as const, label: "No project" }]),
+            ...commandProjects.map((project) => ({
+              id: project.id,
+              kind: "project" as const,
+              label: project.name,
+            })),
+          ]
+        : commandTags.map((tag) => ({ id: tag.id, kind: "tag" as const, label: tag.name })),
+    [commandProjects, commandTags, descriptionCommand],
+  );
+  const commandMenuOpen = Boolean(descriptionCommand && !commandDismissed);
   const commandLoading =
     descriptionCommand?.kind === "project" ? projects.isLoading : tags.isLoading;
+
+  const manualMode = mode === "manual" && !activeTimer;
+
+  // Toggl's description dropdown: previous entries (and projects while the field is empty).
+  const suggestionItems = useMemo<DescriptionSuggestion[]>(() => {
+    if (activeTimer) return [];
+    const needle = description.trim().toLowerCase();
+    const seen = new Set<string>();
+    const previous: DescriptionSuggestion[] = [];
+    for (const item of recent.data?.recent ?? []) {
+      const text = item.description.trim();
+      if (!text || (needle && !text.toLowerCase().startsWith(needle))) continue;
+      const key = `${text}\u0000${item.project_id ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const project =
+        pickerProjects.find((candidate) => candidate.id === item.project_id) ??
+        (item.project_id && item.project_name
+          ? {
+              id: item.project_id,
+              name: item.project_name,
+              color: item.project_color ?? "#64748b",
+              client_name: item.client_name ?? "No client",
+              billable_default: false,
+            }
+          : null);
+      previous.push({ kind: "recent", key: `recent:${key}`, description: text, project });
+    }
+    if (needle) return previous.slice(0, MAX_RECENT_SUGGESTIONS);
+    const projectItems: DescriptionSuggestion[] = [...pickerProjects]
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((project) => ({ kind: "project", key: `project:${project.id}`, project }));
+    return [...previous, ...projectItems];
+  }, [activeTimer, description, pickerProjects, recent.data?.recent]);
+  const suggestionsOpen =
+    !activeTimer &&
+    descriptionFocused &&
+    !suggestionsDismissed &&
+    !commandMenuOpen &&
+    suggestionItems.length > 0;
 
   useEffect(() => {
     setHighlightedCommand(0);
   }, [descriptionCommand?.kind, descriptionCommand?.query]);
+
+  useEffect(() => {
+    setHighlightedSuggestion(-1);
+  }, [description]);
+
+  useEffect(() => {
+    if (!commandMenuOpen) return;
+    const option = commandSuggestions[highlightedCommand];
+    if (!option) return;
+    const element = document.getElementById(
+      `timer-description-command-${option.kind}-${option.id}`,
+    );
+    // jsdom has no scrollIntoView.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    element?.scrollIntoView?.({ block: "nearest" });
+  }, [commandMenuOpen, commandSuggestions, highlightedCommand]);
+
+  useEffect(() => {
+    if (!suggestionsOpen || highlightedSuggestion < 0) return;
+    const element = document.getElementById(suggestionOptionId(highlightedSuggestion));
+    // jsdom has no scrollIntoView.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    element?.scrollIntoView?.({ block: "nearest" });
+  }, [suggestionsOpen, highlightedSuggestion]);
 
   useEffect(() => {
     runningDraftRef.current = runningDraft;
@@ -235,6 +314,19 @@ export function GlobalTimerBar() {
     setRejectedDraft(null);
     setPatchError(null);
   }, [activeTimer?.id]);
+
+  const titleState = useMemo(
+    () =>
+      activeTimer
+        ? {
+            startedAt: Date.parse(activeTimer.started_at),
+            description: activeTimer.description,
+            projectName: activeTimer.project?.name ?? null,
+          }
+        : null,
+    [activeTimer],
+  );
+  useTimerDocumentTitle(titleState, now);
 
   const refreshTimerSurfaces = async () => {
     broadcastTimerChange();
@@ -278,6 +370,7 @@ export function GlobalTimerBar() {
       if (patch.project_id !== undefined) body.project_id = patch.project_id;
       if (patch.tag_ids !== undefined) body.tag_ids = patch.tag_ids;
       if (patch.billable !== undefined) body.billable = patch.billable;
+      if (patch.started_at !== undefined) body.started_at = patch.started_at;
       try {
         const result = await apiRequest<{ entry: TimeEntry }>(`/time-entries/${current.id}`, {
           method: "PATCH",
@@ -423,7 +516,6 @@ export function GlobalTimerBar() {
     storeTimerMode(next);
     manualMutation.reset();
   };
-  const manualMode = mode === "manual" && !activeTimer;
 
   const timerError =
     patchError ??
@@ -431,26 +523,58 @@ export function GlobalTimerBar() {
     stopMutation.error?.message ??
     (manualMode ? manualMutation.error?.message : undefined);
   const metadataBusy = operationPending || stopMutation.isPending;
-  const selectCommandSuggestion = (suggestion: CommandSuggestion) => {
-    if (!descriptionCommand || activeTimer) return;
-    if (suggestion.kind === "project") {
-      setProjectId(suggestion.id);
-      const project = pickerProjects.find((item) => item.id === suggestion.id);
-      setBillable(billableForProject(project));
-    } else {
-      setSelectedTags((current) =>
-        current.includes(suggestion.id) ? current : [...current, suggestion.id],
-      );
-    }
 
-    const next = removeDescriptionCommand(description, descriptionCommand);
-    setDescription(next.description);
+  const chooseProject = (id: string) => {
+    setProjectId(id);
+    setBillable(
+      billableForProject(
+        pickerProjects.find((item) => item.id === id) as ProjectChoice | undefined,
+      ),
+    );
+  };
+  const selectCommandSuggestion = (suggestion: CommandSuggestion) => {
+    if (!descriptionCommand) return;
+    const next = removeDescriptionCommand(displayedDescription, descriptionCommand);
+    if (activeTimer) {
+      runningDraftRef.current = next.description;
+      setRunningDraft(next.description);
+      void patchRunningMetadata({
+        description: next.description,
+        ...(suggestion.kind === "project"
+          ? { project_id: suggestion.id || null }
+          : { tag_ids: [...new Set([...displayedTagIds, suggestion.id])] }),
+      }).catch(() => undefined);
+    } else {
+      if (suggestion.kind === "project") {
+        chooseProject(suggestion.id);
+      } else {
+        setSelectedTags((current) =>
+          current.includes(suggestion.id) ? current : [...current, suggestion.id],
+        );
+      }
+      setDescription(next.description);
+    }
     setDescriptionCursor(next.cursor);
     setCommandDismissed(false);
     window.setTimeout(() => {
       descriptionInput.current?.focus();
       descriptionInput.current?.setSelectionRange(next.cursor, next.cursor);
     }, 0);
+  };
+  const selectSuggestion = (item: DescriptionSuggestion) => {
+    if (item.kind === "recent") {
+      setDescription(item.description);
+      setDescriptionCursor(item.description.length);
+      chooseProject(
+        item.project && pickerProjects.some((project) => project.id === item.project?.id)
+          ? item.project.id
+          : "",
+      );
+    } else {
+      chooseProject(item.project.id);
+    }
+    setSuggestionsDismissed(true);
+    descriptionInput.current?.focus();
   };
   const cancelRejectedDescription = () => {
     runningDraftRef.current = null;
@@ -460,7 +584,8 @@ export function GlobalTimerBar() {
     setPatchError(null);
   };
   const handleDescriptionKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (activeTimer) {
+    if (event.nativeEvent.isComposing) return;
+    if (activeTimer && !commandMenuOpen) {
       if (event.key === "Escape") {
         event.preventDefault();
         cancelRejectedDescription();
@@ -473,8 +598,35 @@ export function GlobalTimerBar() {
       return;
     }
     if (!commandMenuOpen || !descriptionCommand) {
+      if (suggestionsOpen) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setHighlightedSuggestion((current) => Math.min(current + 1, suggestionItems.length - 1));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setHighlightedSuggestion((current) => Math.max(current - 1, -1));
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setSuggestionsDismissed(true);
+          return;
+        }
+        const highlighted = suggestionItems[highlightedSuggestion];
+        if (event.key === "Enter" && highlighted) {
+          event.preventDefault();
+          selectSuggestion(highlighted);
+          return;
+        }
+      } else if (event.key === "ArrowDown" && suggestionItems.length) {
+        event.preventDefault();
+        setSuggestionsDismissed(false);
+        return;
+      }
       // Toggl starts the timer (or adds the manual entry) when Enter is pressed in the description.
-      if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      if (event.key === "Enter") {
         event.preventDefault();
         if (manualMode) {
           if (!manualMutation.isPending) manualMutation.mutate();
@@ -531,9 +683,101 @@ export function GlobalTimerBar() {
     }
   };
 
+  /** Deletes the running entry: the API only deletes stopped entries, so stop it first. */
+  const discardRunning = async () => {
+    const entryId = activeTimer?.id;
+    if (!entryId) return;
+    try {
+      await runExclusive(async () => {
+        if (queryClient.getQueryData<TimerQuery>(["timer"])?.entry?.id !== entryId) return;
+        await apiRequest("/timer/stop", {
+          method: "POST",
+          headers: { "Idempotency-Key": idempotencyKey() },
+          body: "{}",
+        });
+        await apiRequest(`/time-entries/${entryId}`, { method: "DELETE" });
+      });
+      toast({
+        title: "Success",
+        message: "Time entry deleted successfully",
+        action: {
+          label: "UNDO",
+          onSelect: () => {
+            void apiRequest(`/time-entries/${entryId}/restore`, { method: "POST", body: "{}" })
+              .then(refreshTimerSurfaces)
+              .catch((error: unknown) =>
+                toast({
+                  message:
+                    error instanceof Error ? error.message : "The entry could not be restored.",
+                }),
+              );
+          },
+        },
+      });
+    } catch (error) {
+      setPatchError(error instanceof Error ? error.message : "The timer could not be deleted.");
+    } finally {
+      await refreshTimerSurfaces();
+    }
+  };
+
+  const createTag = async (name: string): Promise<Tag> => {
+    const result = await apiRequest<{ tag: Tag }>("/tags", {
+      method: "POST",
+      body: JSON.stringify({ name, color: NEW_TAG_COLOR }),
+    });
+    await queryClient.invalidateQueries({ queryKey: ["tags"] });
+    return result.tag;
+  };
+
+  // Toggl shortcuts: `n` starts a new timer, `s` stops the running one. Ignored while typing.
+  const shortcuts = useRef({ newTimer: () => {}, stop: () => {} });
+  useEffect(() => {
+    shortcuts.current = {
+      newTimer: () => {
+        if (!activeTimer && !startMutation.isPending) {
+          switchMode("timer");
+          setSuggestionsDismissed(true);
+          startMutation.mutate();
+        }
+        descriptionInput.current?.focus();
+      },
+      stop: () => {
+        if (activeTimer) void handleStop();
+      },
+    };
+  });
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      if (event.key === "n") {
+        event.preventDefault();
+        shortcuts.current.newTimer();
+      } else if (event.key === "s") {
+        event.preventDefault();
+        shortcuts.current.stop();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const elapsed = activeTimer
+    ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
+    : "0:00:00";
+  const manualFields = effectiveManual();
+  const menuOpenId = commandMenuOpen
+    ? "timer-description-command-menu"
+    : suggestionsOpen
+      ? "timer-description-suggestions"
+      : undefined;
+  const activeCommand = commandSuggestions[highlightedCommand];
+
   return (
-    <header className="global-timer sticky top-0 z-20 border-b border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-14 md:px-5">
-      <div className="flex min-h-[84px] w-full flex-wrap items-center gap-2 py-3 sm:h-[84px] sm:flex-nowrap sm:py-0">
+    <header className="global-timer bg-surface sticky top-0 z-20 pr-3 pl-14 leading-none shadow-[0_0_0_1px_var(--color-stroke)] md:pr-0 md:pl-0">
+      <div className="flex min-h-[84px] w-full flex-wrap items-center gap-2 py-3 sm:h-[84px] sm:flex-nowrap sm:gap-0 sm:py-0">
         <div className="relative min-w-0 flex-1 basis-full sm:basis-auto">
           <input
             ref={descriptionInput}
@@ -542,6 +786,7 @@ export function GlobalTimerBar() {
               const value = event.target.value;
               setDescriptionCursor(event.currentTarget.selectionStart ?? value.length);
               setCommandDismissed(false);
+              setSuggestionsDismissed(false);
               if (activeTimer) {
                 runningDraftRef.current = value;
                 setRunningDraft(value);
@@ -561,103 +806,74 @@ export function GlobalTimerBar() {
               )
             }
             onKeyDown={handleDescriptionKeyDown}
+            onFocus={() => {
+              setDescriptionFocused(true);
+              setSuggestionsDismissed(false);
+            }}
             onBlur={() => {
+              setDescriptionFocused(false);
               if (!activeTimer) return;
               const draft = runningDraftRef.current ?? rejectedDraftRef.current;
               if (rejectedDraftRef.current !== null && draft === rejectedDraftRef.current) return;
               void persistRunningDescription();
             }}
-            list={commandMenuOpen ? undefined : "recent-time-descriptions"}
-            placeholder={manualMode ? "What have you done?" : "What are you working on?"}
+            placeholder={
+              activeTimer
+                ? "Add a description"
+                : manualMode
+                  ? "What have you done?"
+                  : "What are you working on?"
+            }
             aria-label="Timer description"
             role="combobox"
             aria-autocomplete="list"
-            aria-expanded={commandMenuOpen}
-            aria-controls={commandMenuOpen ? "timer-description-command-menu" : undefined}
+            aria-expanded={commandMenuOpen || suggestionsOpen}
+            aria-controls={menuOpenId}
             aria-activedescendant={
-              commandMenuOpen && commandSuggestions[highlightedCommand]
-                ? `timer-description-command-${commandSuggestions[highlightedCommand].kind}-${commandSuggestions[highlightedCommand].id}`
-                : undefined
+              commandMenuOpen && activeCommand
+                ? `timer-description-command-${activeCommand.kind}-${activeCommand.id}`
+                : suggestionsOpen && highlightedSuggestion >= 0
+                  ? suggestionOptionId(highlightedSuggestion)
+                  : undefined
             }
-            className="h-12 w-full border-0 bg-transparent px-1 text-[18px] font-medium text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
+            className="timer-description text-fg caret-accent-fg placeholder:text-fg-muted h-12 w-full border-0 bg-transparent pr-[5px] pl-5 text-[18px] leading-[18px] font-semibold outline-none sm:h-[70px]"
           />
-          <datalist id="recent-time-descriptions">
-            {(recent.data?.recent ?? []).map((item) => (
-              <option key={`${item.description}:${item.project_id ?? ""}`} value={item.description}>
-                {[item.client_name, item.project_name].filter(Boolean).join(" · ")}
-              </option>
-            ))}
-          </datalist>
+          {suggestionsOpen ? (
+            <SuggestionsDropdown
+              id="timer-description-suggestions"
+              items={suggestionItems}
+              highlighted={highlightedSuggestion}
+              onHighlight={setHighlightedSuggestion}
+              onSelect={selectSuggestion}
+            />
+          ) : null}
           {commandMenuOpen && descriptionCommand ? (
-            <div
-              id="timer-description-command-menu"
-              className="timer-popover absolute top-[58px] left-0 z-50 w-[min(88vw,430px)]"
-              role="listbox"
-              aria-label={
-                descriptionCommand.kind === "project" ? "Project suggestions" : "Tag suggestions"
+            <CommandMenu
+              command={descriptionCommand}
+              projects={commandProjects}
+              tags={commandTags}
+              highlightedId={activeCommand?.id ?? null}
+              loading={commandLoading}
+              canCreate={canManage}
+              onHighlight={(id) => {
+                const index = commandSuggestions.findIndex((option) => option.id === id);
+                if (index >= 0) setHighlightedCommand(index);
+              }}
+              onSelectProject={(project) =>
+                selectCommandSuggestion({
+                  id: project?.id ?? "",
+                  kind: "project",
+                  label: project?.name ?? "No project",
+                })
               }
-            >
-              <div className="flex items-center justify-between border-b border-[#3a3a3a] px-3 py-2">
-                <p className="text-xs font-semibold text-[#fafafa]">
-                  {descriptionCommand.kind === "project" ? "Choose a project" : "Add a tag"}
-                </p>
-                <p className="text-[10px] text-[#a4a4a4]">
-                  <kbd className="rounded border border-[#3a3a3a] px-1 py-0.5">↑↓</kbd> navigate ·{" "}
-                  <kbd className="rounded border border-[#3a3a3a] px-1 py-0.5">Enter</kbd> select
-                </p>
-              </div>
-              <div className="max-h-72 overflow-y-auto p-1.5">
-                {commandLoading ? (
-                  <p className="p-4 text-center text-sm text-[#a4a4a4]">
-                    Loading {descriptionCommand.kind === "project" ? "projects" : "tags"}…
-                  </p>
-                ) : commandSuggestions.length ? (
-                  commandSuggestions.map((suggestion, index) => (
-                    <button
-                      key={`${suggestion.kind}:${suggestion.id}`}
-                      id={`timer-description-command-${suggestion.kind}-${suggestion.id}`}
-                      type="button"
-                      role="option"
-                      aria-selected={index === highlightedCommand}
-                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left ${
-                        index === highlightedCommand
-                          ? "bg-[#382b16] text-[#fbbf24]"
-                          : "text-[#fafafa] hover:bg-white/7"
-                      }`}
-                      onMouseEnter={() => setHighlightedCommand(index)}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => selectCommandSuggestion(suggestion)}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#a4a4a4]"
-                        style={{ backgroundColor: suggestion.color }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {suggestion.label}
-                        </span>
-                        <span className="block truncate text-[11px] text-[#a4a4a4]">
-                          {suggestion.detail}
-                        </span>
-                      </span>
-                      {suggestion.selected ? <Check size={14} aria-hidden /> : null}
-                    </button>
-                  ))
-                ) : (
-                  <p className="p-4 text-center text-sm text-[#a4a4a4]">
-                    No {descriptionCommand.kind === "project" ? "projects" : "tags"} start with{" "}
-                    <span className="text-[#fafafa] tabular-nums">
-                      {descriptionCommand.marker}
-                      {descriptionCommand.query}
-                    </span>
-                  </p>
-                )}
-              </div>
-            </div>
+              onSelectTag={(tag) =>
+                selectCommandSuggestion({ id: tag.id, kind: "tag", label: tag.name })
+              }
+            />
           ) : null}
           {timerError ? (
             <p
-              className="absolute bottom-0 left-0 flex max-w-full flex-wrap items-center gap-2 text-[11px] text-red-300"
+              className="text-error-fg absolute bottom-0 left-5 flex max-w-full flex-wrap items-center gap-2 text-[11px]"
               role="alert"
             >
               <span className="truncate">{timerError}</span>
@@ -665,7 +881,7 @@ export function GlobalTimerBar() {
                 <>
                   <button
                     type="button"
-                    className="shrink-0 font-semibold text-[#fbbf24] underline"
+                    className="text-accent-fg shrink-0 font-semibold underline"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => void persistRunningDescription()}
                   >
@@ -673,7 +889,7 @@ export function GlobalTimerBar() {
                   </button>
                   <button
                     type="button"
-                    className="shrink-0 font-semibold text-[#fafafa] underline"
+                    className="text-fg shrink-0 font-semibold underline"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={cancelRejectedDescription}
                   >
@@ -689,20 +905,21 @@ export function GlobalTimerBar() {
           projects={pickerProjects}
           value={displayedProjectId}
           disabled={metadataBusy}
+          canCreate={canManage}
           onChange={(value) => {
             if (activeTimer) {
               void patchRunningMetadata({ project_id: value || null }).catch(() => undefined);
               return;
             }
-            setProjectId(value);
-            const project = pickerProjects.find((item) => item.id === value);
-            setBillable(billableForProject(project));
+            chooseProject(value);
           }}
         />
         <TagPicker
           tags={pickerTags}
           value={displayedTagIds}
           disabled={metadataBusy}
+          canCreate={canManage}
+          onCreate={createTag}
           onChange={(value) => {
             if (activeTimer) {
               void patchRunningMetadata({ tag_ids: value }).catch(() => undefined);
@@ -712,13 +929,10 @@ export function GlobalTimerBar() {
           }}
         />
         {me.workspace.members_can_set_billable ? (
-          <button
-            type="button"
-            className={`timer-tool hidden sm:grid ${displayedBillable ? "timer-tool-active" : ""}`}
-            aria-label={displayedBillable ? "Mark non-billable" : "Mark billable"}
-            aria-pressed={displayedBillable}
+          <BillableButton
+            active={displayedBillable}
             disabled={metadataBusy}
-            onClick={() => {
+            onToggle={() => {
               if (activeTimer) {
                 void patchRunningMetadata({ billable: !activeTimer.billable }).catch(
                   () => undefined,
@@ -727,442 +941,127 @@ export function GlobalTimerBar() {
               }
               setBillable((value) => !value);
             }}
-          >
-            <CircleDollarSign size={19} />
-          </button>
+          />
         ) : null}
         {manualMode ? (
           <ManualRangeFields
-            date={effectiveManual().date}
-            start={effectiveManual().start}
-            end={effectiveManual().end}
+            date={manualFields.date}
+            start={manualFields.start}
+            end={manualFields.end}
+            today={nowFields().date}
+            weekStartsOn={weekStartsOn}
             disabled={manualMutation.isPending}
             onDateChange={setManualDate}
             onStartChange={setManualStart}
             onEndChange={setManualEnd}
           />
+        ) : activeTimer ? (
+          <div className="ml-auto sm:ml-[2px]">
+            <RunningDuration
+              entry={activeTimer}
+              duration={elapsed}
+              now={now}
+              timezone={timezone}
+              weekStartsOn={weekStartsOn}
+              onChangeStart={(iso) => patchRunningMetadata({ started_at: iso })}
+            />
+          </div>
         ) : (
-          <div className="ml-auto w-[95px] shrink-0 text-right text-lg font-bold text-[#fafafa] tabular-nums">
-            {activeTimer
-              ? formatClockDuration(now - new Date(activeTimer.started_at).getTime())
-              : "0:00:00"}
+          <div
+            aria-label="Time entry duration"
+            className="text-fg-muted ml-auto w-[95px] shrink-0 text-center text-lg leading-[normal] font-semibold whitespace-nowrap tabular-nums sm:ml-[2px]"
+          >
+            <span>{elapsed}</span>
           </div>
         )}
-        {activeTimer ? (
-          <button
-            type="button"
-            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-red-500 text-white transition hover:bg-red-400"
-            onClick={() => void handleStop()}
-            disabled={stopMutation.isPending}
-            aria-label="Stop timer"
-          >
-            <Square size={17} fill="currentColor" />
-          </button>
-        ) : manualMode ? (
-          <button
-            type="button"
-            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#121212] transition hover:bg-[#fbbf24]"
-            onClick={() => manualMutation.mutate()}
-            disabled={manualMutation.isPending}
-            aria-label="Add time entry"
-          >
-            <Plus size={22} strokeWidth={2.75} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-[#f59e0b] text-[#121212] transition hover:bg-[#fbbf24]"
-            onClick={() => startMutation.mutate()}
-            disabled={startMutation.isPending}
-            aria-label="Start timer"
-          >
-            <Play className="ml-0.5" size={18} fill="currentColor" />
-          </button>
-        )}
-        {activeTimer ? null : (
-          <div className="flex shrink-0 flex-col gap-0.5" role="group" aria-label="Time entry mode">
+        <div className={manualMode ? "sm:ml-6" : "sm:ml-2.5"}>
+          {activeTimer ? (
             <button
               type="button"
-              className={`grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-[#fafafa]" : "text-[#6b6b6b] hover:text-[#fafafa]"}`}
-              aria-label="Timer mode"
-              aria-pressed={mode === "timer"}
-              title="Timer mode"
-              onClick={() => switchMode("timer")}
+              className="timer-disc-button timer-tip timer-tip-end"
+              data-tip="Stop time entry"
+              onClick={() => void handleStop()}
+              disabled={stopMutation.isPending}
+              aria-label="Stop timer"
             >
-              <CirclePlay size={18} />
+              <span className="timer-disc timer-disc-stop">
+                <StopGlyph />
+              </span>
             </button>
+          ) : manualMode ? (
             <button
               type="button"
-              className={`grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-[#fafafa]" : "text-[#6b6b6b] hover:text-[#fafafa]"}`}
-              aria-label="Manual mode"
-              aria-pressed={mode === "manual"}
-              title="Manual mode"
-              onClick={() => switchMode("manual")}
+              className="timer-disc-button timer-tip timer-tip-end"
+              data-tip="Add time entry"
+              onClick={() => manualMutation.mutate()}
+              disabled={manualMutation.isPending}
+              aria-label="Add time entry"
             >
-              <CirclePlus size={18} />
+              <span className="timer-disc timer-disc-accent">
+                <AddGlyph />
+              </span>
             </button>
-          </div>
-        )}
-      </div>
-    </header>
-  );
-}
-
-function projectVisibleLabel(project: { name: string; client_name: string }): string {
-  if (!project.client_name || project.client_name === "No client") return project.name;
-  return `${project.name} • ${project.client_name}`;
-}
-
-function matchesProjectSearch(project: ProjectChoice, search: string): boolean {
-  if (!search) return true;
-  return `${project.name} ${project.client_name}`.toLowerCase().includes(search.toLowerCase());
-}
-
-function ProjectPicker({
-  projects,
-  value,
-  disabled,
-  onChange,
-}: {
-  projects: ProjectChoice[];
-  value: string;
-  disabled: boolean;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const [restoreFocus, setRestoreFocus] = useState(false);
-  const requestClose = (shouldRestore: boolean) => {
-    setRestoreFocus(shouldRestore);
-    setOpen(false);
-  };
-  useDismissPopover(root, () => requestClose(false), undefined, open);
-  useEscapeToClose(open, () => requestClose(true));
-  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
-  useEffect(() => {
-    if (open) setSearch("");
-  }, [open]);
-  const selected = projects.find((project) => project.id === value);
-  const selectedLabel = selected ? projectVisibleLabel(selected) : null;
-  const selectedVisible = Boolean(selected && matchesProjectSearch(selected, search));
-  const grouped = useMemo(() => {
-    const result = new Map<string, ProjectChoice[]>();
-    for (const project of projects) {
-      if (project.id === value || !matchesProjectSearch(project, search)) continue;
-      const client = project.client_name || "No client";
-      result.set(client, [...(result.get(client) ?? []), project]);
-    }
-    return [...result.entries()];
-  }, [projects, search, value]);
-
-  return (
-    <div
-      ref={root}
-      className={`relative min-w-0 ${selected ? "shrink basis-full sm:basis-auto" : "shrink-0"}`}
-    >
-      <button
-        ref={trigger}
-        type="button"
-        className={selected ? "timer-project-chip" : "timer-tool grid"}
-        style={
-          selected
-            ? {
-                color: `color-mix(in srgb, ${selected.color} 45%, #fafafa)`,
-                backgroundColor: `color-mix(in srgb, ${selected.color} 16%, #1b1b1b)`,
-              }
-            : undefined
-        }
-        disabled={disabled}
-        aria-label={selected ? `Project: ${selectedLabel}` : "Choose project"}
-        title={selectedLabel ?? "Choose project"}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        onClick={() => setOpen((current) => !current)}
-      >
-        {selected ? (
-          <>
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: selected.color }}
-            />
-            <span className="min-w-0 truncate text-left text-sm font-medium">
-              <span>{selected.name}</span>
-              {selected.client_name && selected.client_name !== "No client" ? (
-                <>
-                  <span className="font-normal text-[#a4a4a4]"> • </span>
-                  <span className="font-normal text-[#a4a4a4]">{selected.client_name}</span>
-                </>
-              ) : null}
-            </span>
-          </>
-        ) : (
-          <Folder size={19} />
-        )}
-      </button>
-      {open ? (
-        <div className="timer-popover absolute top-12 right-0 z-50 w-[min(88vw,360px)]">
-          <div className="relative border-b border-[#3a3a3a] p-2">
-            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
-            <input
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-3 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
-              placeholder="Search projects or clients"
-              aria-label="Search projects or clients"
-            />
-          </div>
-          <div className="max-h-72 overflow-y-auto p-1.5">
-            <PickerOption
-              label="No project"
-              active={!value}
-              disabled={disabled}
-              onClick={() => {
-                onChange("");
-                requestClose(true);
-              }}
-            />
-            {selected && selectedVisible ? (
-              <div className="mt-2">
-                <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
-                  Selected project
-                </p>
-                <PickerOption
-                  label={selected.name}
-                  detail={selected.client_name || "No client"}
-                  active
-                  color={selected.color}
-                  disabled={disabled}
-                  onClick={() => requestClose(true)}
-                />
-              </div>
-            ) : null}
-            {grouped.length ? (
-              grouped.map(([client, clientProjects]) => (
-                <div key={client} className="mt-2 first:mt-1">
-                  <p className="px-2 py-1 text-[10px] font-bold tracking-wider text-[#a4a4a4] uppercase">
-                    {client}
-                  </p>
-                  {clientProjects.map((project) => (
-                    <PickerOption
-                      key={project.id}
-                      label={project.name}
-                      disabled={disabled}
-                      color={project.color}
-                      onClick={() => {
-                        onChange(project.id);
-                        requestClose(true);
-                      }}
-                    />
-                  ))}
-                </div>
-              ))
-            ) : selectedVisible ? null : (
-              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching projects</p>
-            )}
-          </div>
+          ) : (
+            <button
+              type="button"
+              className="timer-disc-button timer-tip timer-tip-end"
+              data-tip="Start time entry"
+              onClick={() => startMutation.mutate()}
+              disabled={startMutation.isPending}
+              aria-label="Start timer"
+            >
+              <span className="timer-disc timer-disc-accent">
+                <PlayGlyph />
+              </span>
+            </button>
+          )}
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TagPicker({
-  tags,
-  value,
-  disabled,
-  onChange,
-}: {
-  tags: Tag[];
-  value: string[];
-  disabled: boolean;
-  onChange: (value: string[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const [restoreFocus, setRestoreFocus] = useState(false);
-  const requestClose = (shouldRestore: boolean) => {
-    setRestoreFocus(shouldRestore);
-    setOpen(false);
-  };
-  useDismissPopover(root, () => requestClose(false), undefined, open);
-  useEscapeToClose(open, () => requestClose(true));
-  useRestoreFocus(open, trigger, restoreFocus, () => setRestoreFocus(false));
-  useEffect(() => {
-    if (open) setSearch("");
-  }, [open]);
-  const visible = tags.filter((tag) => tag.name.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div ref={root} className="relative shrink-0">
-      <button
-        ref={trigger}
-        type="button"
-        className={`timer-tool grid ${value.length ? "timer-tool-active" : ""}`}
-        disabled={disabled}
-        aria-label={value.length ? `${value.length} timer tags selected` : "Choose timer tags"}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        onClick={() => setOpen((current) => !current)}
-      >
-        <Tags size={19} />
-        {value.length ? (
-          <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#f59e0b] px-1 text-[9px] font-bold text-[#121212]">
-            {value.length}
-          </span>
-        ) : null}
-      </button>
-      {open ? (
-        <div className="timer-popover absolute top-12 right-0 z-50 w-[min(82vw,280px)]">
-          <div className="relative border-b border-[#3a3a3a] p-2">
-            <Search className="absolute top-4 left-4 text-[#a4a4a4]" size={15} />
-            <input
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="h-9 w-full rounded-md border border-[#3a3a3a] bg-[#1b1b1b] pr-8 pl-9 text-sm text-[#fafafa] outline-none placeholder:text-[#a4a4a4]"
-              placeholder="Filter tags"
-              aria-label="Search timer tags"
-            />
-            {search ? (
+        <div className="relative flex shrink-0 justify-center px-2 sm:w-[65px] sm:px-0">
+          {activeTimer ? (
+            <fieldset className="timer-running-actions" disabled={metadataBusy}>
+              <RowMenu
+                label="Running entry actions"
+                menuClassName="w-[130px]"
+                items={[
+                  {
+                    label: "Delete",
+                    danger: true,
+                    disabled: metadataBusy,
+                    onSelect: () => void discardRunning(),
+                  },
+                ]}
+              />
+            </fieldset>
+          ) : (
+            <div
+              className="bg-surface-raised flex h-12 w-6 flex-col rounded-xl"
+              role="group"
+              aria-label="Time entry mode"
+            >
               <button
                 type="button"
-                className="absolute top-3.5 right-4 text-[#a4a4a4] hover:text-[#fafafa]"
-                onClick={() => setSearch("")}
-                aria-label="Clear tag search"
+                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-fg" : "text-fg-muted hover:text-fg"}`}
+                data-tip="Timer mode"
+                aria-label="Timer mode"
+                aria-pressed={mode === "timer"}
+                onClick={() => switchMode("timer")}
               >
-                <X size={16} />
+                <AutomaticModeGlyph />
               </button>
-            ) : null}
-          </div>
-          <div className="max-h-64 overflow-y-auto p-1.5">
-            {visible.length ? (
-              visible.map((tag) => {
-                const active = value.includes(tag.id);
-                return (
-                  <button
-                    type="button"
-                    key={tag.id}
-                    disabled={disabled}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-[#fafafa] hover:bg-white/8"
-                    onClick={() =>
-                      onChange(
-                        active ? value.filter((tagId) => tagId !== tag.id) : [...value, tag.id],
-                      )
-                    }
-                  >
-                    <span
-                      className="grid h-4 w-4 place-items-center rounded border"
-                      style={{ borderColor: tag.color, backgroundColor: active ? tag.color : "" }}
-                    >
-                      {active ? <Check size={11} className="text-white" /> : null}
-                    </span>
-                    {tag.name}
-                  </button>
-                );
-              })
-            ) : (
-              <p className="p-4 text-center text-sm text-[#a4a4a4]">No matching tags</p>
-            )}
-          </div>
+              <button
+                type="button"
+                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-fg" : "text-fg-muted hover:text-fg"}`}
+                data-tip="Manual mode"
+                aria-label="Manual mode"
+                aria-pressed={mode === "manual"}
+                onClick={() => switchMode("manual")}
+              >
+                <ManualModeGlyph />
+              </button>
+            </div>
+          )}
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PickerOption({
-  label,
-  detail,
-  active,
-  color,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  detail?: string;
-  active?: boolean;
-  color?: string;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm ${
-        active ? "bg-[#382b16] text-[#fbbf24]" : "text-[#fafafa] hover:bg-white/8"
-      }`}
-      onClick={onClick}
-    >
-      <span
-        className="h-2 w-2 shrink-0 rounded-full bg-[#a4a4a4]"
-        style={color ? { backgroundColor: color } : undefined}
-      />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate">{label}</span>
-        {detail ? (
-          <span className="block truncate text-[11px] text-[#a4a4a4]">{detail}</span>
-        ) : null}
-      </span>
-      {active ? <Check size={14} /> : null}
-    </button>
-  );
-}
-
-function ManualRangeFields({
-  date,
-  start,
-  end,
-  disabled,
-  onDateChange,
-  onStartChange,
-  onEndChange,
-}: {
-  date: string;
-  start: string;
-  end: string;
-  disabled: boolean;
-  onDateChange: (value: string) => void;
-  onStartChange: (value: string) => void;
-  onEndChange: (value: string) => void;
-}) {
-  const fieldClass =
-    "h-9 rounded-lg border border-hourlark-control-border bg-transparent px-2 text-sm text-[#fafafa] outline-none focus:border-[#f59e0b] disabled:opacity-60 [color-scheme:dark]";
-  return (
-    <div className="manual-range ml-auto flex min-w-0 items-center gap-1.5">
-      <div className="flex min-w-0 items-center gap-1">
-        <input
-          type="time"
-          className={`${fieldClass} w-[96px] min-w-0`}
-          aria-label="Start time"
-          value={start}
-          disabled={disabled}
-          onChange={(event) => onStartChange(event.target.value)}
-        />
-        <input
-          type="date"
-          className={`${fieldClass} w-[118px] min-w-0`}
-          aria-label="Entry date"
-          value={date}
-          disabled={disabled}
-          onChange={(event) => onDateChange(event.target.value)}
-        />
       </div>
-      <ArrowRight size={15} className="text-[#a4a4a4]" aria-hidden="true" />
-      <input
-        type="time"
-        className={`${fieldClass} w-[96px] min-w-0`}
-        aria-label="End time"
-        value={end}
-        disabled={disabled}
-        onChange={(event) => onEndChange(event.target.value)}
-      />
-    </div>
+    </header>
   );
 }

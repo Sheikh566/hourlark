@@ -12,9 +12,11 @@ test("project chip, picker dismissal, dates, and report navigation work at mobil
   const chip = page.getByRole("button", { name: /^Project: Internal operations/ });
   await expect(chip).toHaveText(/Internal operations.*Internal/);
   await chip.click();
-  await expect(page.getByText("Selected project", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Internal operations", exact: true }),
+  ).toHaveAttribute("aria-current", "true");
   await page.getByRole("textbox", { name: "Search projects or clients" }).fill("no such project");
-  await expect(page.getByText("No matching projects")).toBeVisible();
+  await expect(page.getByText("No matching items")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(chip).toBeFocused();
   await chip.click();
@@ -45,7 +47,7 @@ test("project chip, picker dismissal, dates, and report navigation work at mobil
   await page.getByRole("button", { name: "Select previous period" }).click();
   await expect(page.getByRole("button", { name: "Yesterday", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Yesterday", exact: true }).click();
-  await picker.getByRole("button", { name: "Reset to All dates" }).click();
+  await picker.getByRole("button", { name: "All dates", exact: true }).click();
   await expect(page.getByRole("button", { name: "Select previous period" })).toBeDisabled();
 
   await page.getByRole("button", { name: "Open navigation" }).click();
@@ -93,17 +95,18 @@ test("entry edit targets open directly and reports use inclusive member-local da
   await page.reload();
   let row = page.locator("article").filter({ hasText: description });
   await row
-    .getByRole("button", { name: `${project.name} ${project.client_name}`, exact: true })
+    .getByRole("button", { name: `${project.name} • ${project.client_name}`, exact: true })
     .click();
   await expect(page.getByRole("textbox", { name: "Search entry projects" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "Save time entry" })).toBeVisible();
-  await page.getByRole("button", { name: "Cancel editing" }).click();
+  await expect(page.getByRole("button", { name: "Save time entry" })).toBeAttached();
+  await page.keyboard.press("Escape");
   row = page.locator("article").filter({ hasText: description });
   await row.getByTitle("Edit date, times, and duration", { exact: true }).click();
   await expect(page.getByLabel("Start date", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Entry duration", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Cancel editing" }).click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
 
   await page.getByRole("link", { name: "Reports", exact: true }).click();
   await page.getByRole("button", { name: "Report date range" }).click();
@@ -122,5 +125,5 @@ test("entry edit targets open directly and reports use inclusive member-local da
   await expect(page.getByLabel("Range end date")).toHaveValue(today);
   await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: "Detailed", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "Detailed report sort" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Time entries from/ })).toBeVisible();
 });

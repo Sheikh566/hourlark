@@ -167,7 +167,10 @@ describe("global timer description commands", () => {
     expect(trigger).toHaveTextContent("IOMechs");
 
     await user.click(trigger);
-    expect(screen.getByText("Selected project")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Internal Operations" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
     const search = screen.getByRole("textbox", { name: "Search projects or clients" });
     expect(search).toHaveFocus();
     await user.type(search, "IOMechs");
@@ -176,7 +179,7 @@ describe("global timer description commands", () => {
 
     await user.clear(search);
     await user.type(search, "zzznomatch");
-    expect(screen.getByText("No matching projects")).toBeVisible();
+    expect(screen.getByText("No matching items")).toBeVisible();
 
     await user.keyboard("{Escape}");
     expect(
@@ -197,6 +200,84 @@ describe("global timer description commands", () => {
     expect(screen.getByRole("button", { name: "Choose project" })).toBeVisible();
     expect(screen.queryByText("Internal Operations")).not.toBeInTheDocument();
 
+    view.unmount();
+    queryClient.clear();
+  });
+  it("selects a projectless recent entry with arrows without retaining the old project", async () => {
+    const original = apiRequestMock.getMockImplementation();
+    if (!original) throw new Error("Missing API mock");
+    apiRequestMock.mockImplementation((path, init) =>
+      path === "/me/recent"
+        ? Promise.resolve({
+            recent: [
+              {
+                description: "Projectless work",
+                project_id: null,
+                project_name: null,
+                client_name: null,
+              },
+            ],
+          })
+        : path === "/timer/start"
+          ? Promise.resolve({})
+          : original(path, init),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup();
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <GlobalTimerBar />
+      </QueryClientProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Choose project" }));
+    await user.click(await screen.findByRole("button", { name: "External Delivery" }));
+    const description = screen.getByRole("combobox", { name: "Timer description" });
+    await user.type(description, "Projectless");
+    expect(await screen.findByRole("listbox", { name: "Description suggestions" })).toBeVisible();
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(description).toHaveValue("Projectless work");
+    expect(screen.getByRole("button", { name: "Choose project" })).toBeVisible();
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      const call = apiRequestMock.mock.calls.find(([path]) => path === "/timer/start");
+      expect(JSON.parse(call?.[1]?.body as string)).toMatchObject({
+        project_id: null,
+        billable: false,
+        description: "Projectless work",
+      });
+    });
+    view.unmount();
+    queryClient.clear();
+  });
+
+  it("dismisses suggestions with Escape and ignores shortcuts while typing", async () => {
+    const original = apiRequestMock.getMockImplementation();
+    if (!original) throw new Error("Missing API mock");
+    apiRequestMock.mockImplementation((path, init) =>
+      path === "/timer/start" ? Promise.resolve({}) : original(path, init),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup();
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <GlobalTimerBar />
+      </QueryClientProvider>,
+    );
+    const description = await screen.findByRole("combobox", { name: "Timer description" });
+    await user.click(description);
+    await screen.findByRole("listbox", { name: "Description suggestions" });
+    await user.keyboard("ns{Escape}");
+    expect(
+      screen.queryByRole("listbox", { name: "Description suggestions" }),
+    ).not.toBeInTheDocument();
+    expect(apiRequestMock.mock.calls.some(([path]) => path === "/timer/start")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Manual mode" }));
+    await user.click(document.body);
+    await user.keyboard("n");
+    await waitFor(() =>
+      expect(apiRequestMock.mock.calls.filter(([path]) => path === "/timer/start")).toHaveLength(1),
+    );
+    expect(description).toHaveFocus();
     view.unmount();
     queryClient.clear();
   });

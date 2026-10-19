@@ -203,6 +203,29 @@ describe("global timer running edits", () => {
     });
   });
 
+  it("chooses a running project through @ and saves the cleaned description in the same patch", async () => {
+    const user = userEvent.setup();
+    const { view, queryClient } = renderTimer();
+    const description = await loadedDescription();
+    await user.clear(description);
+    await user.type(description, "Review @ex");
+    await screen.findByRole("listbox", { name: "Project suggestions" });
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      const request = apiRequestMock.mock.calls.find(
+        ([path, init]) => path.endsWith(currentEntry.id) && init?.method === "PATCH",
+      );
+      expect(parseBody(request?.[1])).toMatchObject({
+        description: "Review ",
+        project_id: otherProjectId,
+        version: 1,
+      });
+    });
+    expect(description).toHaveValue("Review");
+    view.unmount();
+    queryClient.clear();
+  });
+
   it("saves a running description without touching timestamps or stopping the timer", async () => {
     const user = userEvent.setup();
     const { view, queryClient } = renderTimer();
@@ -275,7 +298,7 @@ describe("global timer running edits", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "1 timer tags selected" }));
-    await user.click(await screen.findByRole("button", { name: "R&D" }));
+    await user.click(await screen.findByRole("checkbox", { name: "R&D" }));
 
     await waitFor(() => {
       const patches = apiRequestMock.mock.calls.filter(
@@ -667,7 +690,10 @@ describe("global timer running edits", () => {
     expect(trigger).toHaveTextContent("Archived");
 
     await user.click(trigger);
-    expect(screen.getByText("Selected project")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Legacy Training" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
     await user.keyboard("{Escape}");
     expect(trigger).toHaveFocus();
     expect(
