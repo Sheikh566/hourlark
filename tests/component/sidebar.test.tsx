@@ -8,6 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +18,7 @@ import {
   SIDEBAR_COLLAPSED_KEY,
   useSidebarCollapsed,
 } from "@/web/app/sidebar-state";
+import type { TimeEntry } from "@/web/types";
 
 const meMock = vi.hoisted(() => ({
   permissions: {
@@ -29,6 +31,7 @@ const meMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@/web/lib/api", () => ({
+  apiRequest: vi.fn(),
   DEVELOPMENT_IDENTITIES: [{ email: "member@example.com", label: "Member" }],
   setDevelopmentIdentity: vi.fn(),
   signOut: vi.fn(),
@@ -48,11 +51,43 @@ vi.mock("@/web/app/context", () => ({
   }),
 }));
 
-function renderSidebar(props: Partial<Parameters<typeof Sidebar>[0]> = {}) {
+function runningEntry(startedAt: number): TimeEntry {
+  return {
+    id: "entry-1",
+    member: { id: "member-1", name: "Ada Lovelace" },
+    project: null,
+    client: null,
+    description: "Writing a report",
+    tags: [],
+    started_at: new Date(startedAt).toISOString(),
+    stopped_at: null,
+    duration_ms: 0,
+    running: true,
+    billable: false,
+    deleted_at: null,
+    created_at: new Date(startedAt).toISOString(),
+    updated_at: new Date(startedAt).toISOString(),
+    version: 1,
+  };
+}
+
+function renderSidebar(
+  props: Partial<Parameters<typeof Sidebar>[0]> = {},
+  running?: TimeEntry | null,
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+  });
+  queryClient.setQueryData(["timer"], {
+    entry: running ?? null,
+    server_now: new Date().toISOString(),
+  });
   return render(
-    <MemoryRouter initialEntries={["/projects"]}>
-      <Sidebar onNavigate={() => undefined} onToggleCollapsed={() => undefined} {...props} />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/projects"]}>
+        <Sidebar onNavigate={() => undefined} onToggleCollapsed={() => undefined} {...props} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -81,6 +116,21 @@ describe("sidebar", () => {
       "/administration",
     );
     expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows the live running duration and pencil on the Timer item while running", () => {
+    renderSidebar({}, runningEntry(Date.now() - 7000));
+    const timerLink = screen.getByRole("link", { name: /^Timer running,/ });
+    expect(within(timerLink).getByText(/^\d+:\d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(within(timerLink).queryByText("Timer")).toBeNull();
+    // Clock icon + the Toggl pencil at the right edge.
+    expect(timerLink.querySelectorAll("svg")).toHaveLength(2);
+  });
+
+  it("keeps the plain Timer label when no entry is running", () => {
+    renderSidebar({}, null);
+    expect(screen.getByRole("link", { name: "Timer" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Timer running,/ })).toBeNull();
   });
 
   it("hides entries the member cannot use", () => {

@@ -160,6 +160,12 @@ body {
   font-family: Inter, Helvetica, sans-serif;
 }
 
+/* Toggl's content column always keeps its 5px scrollbar gutter (1689px at 1920 wide), whether or
+   not the page overflows. */
+html {
+  overflow-y: scroll;
+}
+
 body {
   margin: 0;
   min-width: 0;
@@ -178,9 +184,7 @@ select:not(:disabled) {
 
 /* Toggl's keyboard focus is neutral, not accent: a 2px 20% white outline 1px outside the control.
    An outline leaves inset-ring borders (secondary buttons, search fields) intact. */
-:focus-visible,
-.timer-date-control:has(:focus-visible),
-.timer-view-switch:has(:focus-visible) {
+:focus-visible {
   outline: 2px solid rgb(250 250 250 / 20%);
   outline-offset: 1px;
 }
@@ -223,9 +227,10 @@ select:not(:disabled) {
     font-size: 0.875rem;
   }
 
+  /* Toggl draws table dividers as a 1px inset shadow, not a border. */
   .data-table th {
     height: 50px;
-    border-bottom: 1px solid #3a3a3a;
+    box-shadow: inset 0 -1px 0 0 #3a3a3a;
     padding: 0 10px;
     color: #999999;
     font-size: 11px;
@@ -238,7 +243,7 @@ select:not(:disabled) {
 
   .data-table td {
     height: 50px;
-    border-bottom: 1px solid #3a3a3a;
+    box-shadow: inset 0 -1px 0 0 #3a3a3a;
     padding: 0 10px;
     font-weight: 500;
   }
@@ -258,20 +263,11 @@ select:not(:disabled) {
   }
 }
 
-.manual-range input::-webkit-calendar-picker-indicator {
-  display: none;
-}
-
 @media (max-width: 639px) {
   .manual-range {
     order: 10;
     flex-basis: 100%;
     margin-left: 0;
-  }
-
-  .manual-range input {
-    flex: 1 1 0;
-    width: auto;
   }
 }
 
@@ -283,22 +279,20 @@ select:not(:disabled) {
   }
 }
 
+/* Timer bar icon buttons: 30px, Lucide #999 outlines that lighten to #b1b1b1 on hover (no chip). */
 .timer-tool {
   position: relative;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 0.5rem;
-  color: #a4a4a4;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease;
+  border-radius: 8px;
+  color: var(--color-fg-subtle);
+  transition: color 200ms ease;
 }
 
 .timer-tool:hover:not(:disabled) {
-  background: rgb(255 255 255 / 7%);
-  color: #fbbf24;
+  color: var(--color-fg-secondary);
 }
 
 .timer-tool:disabled {
@@ -306,20 +300,22 @@ select:not(:disabled) {
   opacity: 0.55;
 }
 
-.timer-tool-active {
-  background: #382b16;
-  color: #fbbf24;
+.timer-tool-active,
+.timer-tool-active:hover:not(:disabled) {
+  color: var(--color-accent-fg);
+  background: var(--color-accent-muted);
 }
 
+/* Project chip: project colour at 20% over the surface, 30px high, 15px side padding. */
 .timer-project-chip {
   display: inline-flex;
   max-width: min(13.5rem, 100%);
-  height: 2.25rem;
+  height: 30px;
   min-width: 0;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0 0.625rem;
-  border-radius: 0.5rem;
+  gap: 9px;
+  padding: 0 15px;
+  border-radius: 8px;
 }
 
 @media (min-width: 640px) {
@@ -338,33 +334,79 @@ select:not(:disabled) {
   }
 }
 
+/* Toggl list toolbar: three separate bordered pieces (prev | label | next), 36px high. */
 .timer-date-control {
   display: flex;
   width: min(100%, 322px);
   height: 36px;
-  overflow: hidden;
-  border: 1px solid var(--color-hourlark-control-border);
-  border-radius: 8px;
 }
 
+/* Toggl keeps the button text #999 but paints the disabled chevron #666. */
+.timer-date-control button:disabled svg {
+  color: var(--color-control);
+}
+
+/* Toggl view switch: three joined 28px buttons, each with its own inset 1px #808080 ring and a
+   1px overlap. The selected one lifts above its neighbours so its accent ring is complete. */
 .timer-view-switch {
-  display: flex;
+  display: inline-flex;
+  max-width: 100%;
   height: 28px;
-  overflow: hidden;
-  border: 1px solid var(--color-hourlark-control-border);
-  border-radius: 8px;
+  isolation: isolate;
+}
+
+.timer-view-switch button {
+  position: relative;
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 24px;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  box-shadow: inset 0 0 0 1px var(--color-stroke-tertiary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20.02px;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.timer-view-switch button + button {
+  margin-left: -1px;
+}
+
+.timer-view-switch button:hover {
+  z-index: 1;
+  background: var(--color-surface-hover);
+  box-shadow: inset 0 0 0 1px var(--color-fg-secondary);
 }
 
 .timer-view-switch button[aria-checked="true"] {
-  box-shadow: inset 0 0 0 1px #f59e0b;
+  z-index: 2;
+  background: var(--color-accent-muted);
+  color: var(--color-accent-fg);
+  box-shadow: inset 0 0 0 1px var(--color-accent-fg);
+}
+
+.timer-view-switch button[aria-checked="true"]:hover {
+  background: var(--color-accent-muted-hover);
+  color: var(--color-accent-fg-hover);
+  box-shadow: inset 0 0 0 1px var(--color-accent-fg-hover);
 }
 
 .timer-view-switch button:first-child {
-  border-radius: 7px 0 0 7px;
+  border-radius: 8px 0 0 8px;
 }
 
 .timer-view-switch button:last-child {
-  border-radius: 0 7px 7px 0;
+  border-radius: 0 8px 8px 0;
+}
+
+@media (max-width: 767px) {
+  .timer-view-switch button {
+    padding: 0 8px;
+    font-size: 12px;
+  }
 }
 
 /* Toggl checkbox: 14x14, radius 4, 1px #666 on the surface colour, accent fill with a dark tick.
@@ -489,48 +531,221 @@ select:not(:disabled) {
   background: rgb(255 255 255 / 20%);
 }
 
+/* ---- Calendar (Toggl react-big-calendar parity; FullCalendar v7 classic theme) ---- */
+/* Toggl signals focus in entry fields with the caret/fill rather than the global outline. */
+.hl-cal-popover input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .hourlark-calendar {
-  --fc-classic-background: #1b1b1b;
-  --fc-classic-muted: #121212;
-  --fc-classic-muted-foreground: #a4a4a4;
-  --fc-classic-border: #3a3a3a;
-  --fc-classic-button: #1b1b1b;
-  --fc-classic-button-border: var(--color-hourlark-control-border);
-  --fc-classic-button-strong: #48361b;
-  --fc-classic-button-strong-border: #f59e0b;
-  --fc-classic-button-foreground: #fafafa;
-  --fc-classic-today: rgb(245 158 11 / 8%);
-  --fc-classic-now: #f59e0b;
-  --fc-classic-highlight: rgb(245 158 11 / 20%);
-  --fc-classic-foreground: #fafafa;
-  color: #fafafa;
-  font-size: 0.83rem;
+  --fc-classic-background: var(--color-surface);
+  --fc-classic-muted: var(--color-surface-secondary);
+  --fc-classic-muted-foreground: var(--color-fg-subtle);
+  --fc-classic-border: var(--color-stroke);
+  --fc-classic-button: var(--color-surface);
+  --fc-classic-button-border: var(--color-stroke-tertiary);
+  --fc-classic-button-strong: var(--color-accent-muted);
+  --fc-classic-button-strong-border: var(--color-accent);
+  --fc-classic-button-foreground: var(--color-fg);
+  --fc-classic-today: transparent;
+  --fc-classic-now: var(--color-accent);
+  --fc-classic-highlight: rgb(255 255 255 / 6%);
+  --fc-classic-foreground: var(--color-fg);
+  color: var(--color-fg);
+  font-size: 14px;
+  line-height: normal;
 }
 
-.fc-event-mirror {
-  border-color: #f59e0b !important;
-  background: #48361b !important;
-  color: #ffffff !important;
+/* Header: Toggl pads 10px above / 3px below the 40px day cells. */
+.hourlark-calendar .hl-cal-header {
+  box-sizing: border-box;
+  padding: 10px 0 3px;
+  /* Toggl's header carries an effectively invisible warm top border and no side borders. */
+  border-top: 1px solid rgb(44 19 56 / 6%);
+  border-right-style: none;
+  border-bottom: 1px solid var(--color-stroke);
+  border-left-style: none;
+  background: var(--color-surface);
+  line-height: 14px;
 }
 
-.fc-event {
-  border-radius: 0.25rem;
-  padding: 2px 4px;
-  border-width: 1px;
+/* FullCalendar adds an inner divider; the header's own bottom border draws the single line. */
+.hourlark-calendar .hl-cal-header > :last-child:not([role="row"]) {
+  display: none;
 }
 
-.hourlark-cal-overlap {
-  box-shadow: inset 0 0 0 1px #f59e0b;
+.hourlark-calendar .hl-cal-day-header {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0;
+  border-width: 0;
+  background: transparent;
 }
 
-.fc-timegrid-now-indicator-line {
-  border-color: #f59e0b;
+.hourlark-calendar .hl-cal-day-inner {
+  margin: 0 0 0 2px !important;
 }
 
-.fc-timegrid-now-indicator-arrow {
-  border-top-color: transparent;
-  border-bottom-color: transparent;
-  border-left-color: #f59e0b;
+.hourlark-calendar .hl-cal-divider-header,
+.hourlark-calendar .hl-cal-divider {
+  width: 0;
+  border-width: 0;
+}
+
+.hourlark-calendar .hl-cal-slot-inner {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 !important;
+}
+
+/* Every day column draws its own 1px left border (Toggl), including the first. */
+.hourlark-calendar .hl-cal-day-lane {
+  box-sizing: border-box;
+  border-inline-start: 1px solid var(--color-stroke) !important;
+}
+
+/* Event blocks sit 1px inside the column (Toggl pads the wrapper 1px 1px 0). */
+.hourlark-calendar .hl-cal-lane-inner {
+  margin-inline: 1px !important;
+}
+
+/* Grid: every group is 60px with a solid #3a3a3a line; labels are centred on the lines. */
+.hourlark-calendar .hl-cal-slot-lane {
+  border-top-style: solid !important;
+  border-top-color: var(--color-stroke) !important;
+}
+
+.hourlark-calendar .hl-cal-slot-header {
+  position: relative;
+  top: 1px;
+  box-sizing: border-box;
+  width: 76.7px;
+  height: 60px;
+  overflow: visible;
+  flex-direction: column !important;
+  justify-content: normal;
+  align-items: normal !important;
+  border-top: 0 !important;
+  border-color: transparent !important;
+  border-bottom-width: 1px !important;
+  border-left-width: 1px !important;
+  line-height: 14px;
+}
+
+.hourlark-calendar .hl-cal-slot-label {
+  position: relative;
+  top: -8px;
+  display: block;
+  box-sizing: border-box;
+  width: max-content;
+  padding: 0 6px 0 14px;
+  color: var(--color-fg-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  line-height: 11px;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Event blocks: 20% project tint, no border, 4px/6px padding. */
+.hourlark-calendar .hl-cal-event {
+  box-sizing: border-box;
+  /* Toggl: the block starts 2px below its grid line and runs 1px over the next one. */
+  margin: 2px 0 -1px !important;
+  overflow: visible;
+  border-width: 0;
+  border-radius: 4px;
+  padding: 4px 6px 0;
+  box-shadow: none;
+  color: var(--color-fg);
+}
+
+.hourlark-calendar .hl-cal-event-inner {
+  padding: 0 !important;
+}
+
+.hourlark-calendar .hl-cal-event:hover {
+  box-shadow: inset 0 0 0 999px rgb(255 255 255 / 4.7%);
+}
+
+.hourlark-calendar .fc-event-mirror {
+  border-width: 0;
+  background: #343434 !important;
+  color: var(--color-fg) !important;
+}
+
+.hl-cal-continue {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.hl-cal-event:hover .hl-cal-continue,
+.hl-cal-continue:focus-visible {
+  opacity: 1;
+}
+
+.hl-cal-resizer {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 2;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.hl-cal-resizer-start {
+  top: -4px;
+}
+
+.hl-cal-resizer-end {
+  bottom: -4px;
+}
+
+.hl-cal-resizer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 3px;
+  border-top: 1px solid rgb(255 255 255 / 70%);
+  border-bottom: 1px solid rgb(255 255 255 / 70%);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+}
+
+.hl-cal-event:hover .hl-cal-resizer::after {
+  opacity: 1;
+}
+
+/* Now indicator: 3px accent line over today's column and a ringed play marker at its start. */
+.hourlark-calendar .hl-cal-now-line {
+  height: 3px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.hourlark-calendar .hl-cal-now-line::before {
+  content: "";
+  position: absolute;
+  top: -5.5px;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath fill='%23f59e0b' d='M3.4 2.4 7 5 3.4 7.6z'/%3E%3C/svg%3E")
+      center / 100% 100% no-repeat,
+    var(--color-surface);
+}
+
+.hourlark-calendar .hl-cal-now-arrow {
+  display: none;
 }
 
 /* Toggl dialog fields (New client dialog): surface fill, 1px #808080 border, and a 2px
@@ -563,4 +778,166 @@ select:not(:disabled) {
 
 .hl-modal textarea.hl-control[aria-invalid="true"] {
   border-color: var(--color-error) !important;
+}
+
+/* Members page: Toggl's organization team header is 50px tall (Tags/Settings use 66). */
+@layer components {
+  .page-header--compact {
+    min-height: 50px;
+    padding-top: 7px;
+    padding-bottom: 6px;
+  }
+}
+
+/* Projects and clients: the Toggl project-name field has no focus ring (the fill is the cue). */
+.hl-name-field:focus-visible {
+  outline: none;
+}
+
+/* ---- Timer bar (Toggl parity) ---- */
+
+/* Toggl tooltip: 14/500 on the popover surface, 15px padding, 8px below the control. */
+.timer-tip {
+  position: relative;
+}
+
+.timer-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 70;
+  translate: -50% 0;
+  padding: 15px;
+  border: 1px solid var(--color-stroke);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-fg);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.timer-tip:not([data-tip])::after,
+.timer-tip[aria-expanded="true"]::after,
+.timer-tip:disabled::after {
+  content: none;
+}
+
+.timer-tip:hover::after,
+.timer-tip:focus-visible::after {
+  opacity: 1;
+  transition-delay: 400ms;
+}
+
+.timer-tip-end::after {
+  right: 0;
+  left: auto;
+  translate: none;
+}
+
+@media (hover: none) {
+  .timer-tip::after {
+    display: none;
+  }
+}
+
+/* 42px button around a 36px disc with a 16% halo (scaled ::before in Toggl). */
+.timer-disc-button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border-radius: 9999px;
+}
+
+.timer-disc-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.timer-disc {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 9999px;
+  color: var(--color-fg-inverted);
+  transition: background-color 200ms ease;
+}
+
+.timer-disc-accent {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3.6px rgb(245 158 11 / 16%);
+}
+
+.timer-disc-button:hover:not(:disabled) .timer-disc-accent {
+  background: var(--color-accent-hover);
+}
+
+.timer-disc-stop {
+  background: var(--color-stop);
+  box-shadow: 0 0 0 5.9px rgb(232 113 97 / 16%);
+}
+
+.timer-disc-button:hover:not(:disabled) .timer-disc-stop {
+  background: #c86c60;
+}
+
+/* Toggl's timer bar fields and popover rows show focus through fill/ring, never an outline. */
+.timer-description:focus-visible,
+.manual-range input:focus-visible,
+.timer-popover input:focus-visible,
+.timer-row:focus-visible {
+  outline: none;
+}
+
+.timer-row:focus-visible {
+  background: var(--color-surface-hover);
+}
+
+/* Popover search keeps its grey inset ring on focus. */
+.timer-search {
+  box-shadow: inset 0 0 0 1px var(--color-stroke-tertiary);
+}
+
+.timer-calendar-nav {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-stroke-tertiary);
+  color: var(--color-fg-subtle);
+}
+
+.timer-calendar-nav:hover {
+  background: var(--color-surface-hover);
+}
+
+/* List editing keeps the field in its row; its caret and open picker provide the focus cue. */
+.entry-inline-input,
+.entry-inline-input:focus-visible {
+  border: 0;
+  outline: none;
+}
+
+/* Toggl's timer-bar running menu shows horizontal 16x4 dots; the shared RowMenu draws them 4x16
+   vertical, so rotate just the trigger inside the timer bar (portal menu is unaffected). */
+.timer-running-actions svg {
+  rotate: 90deg;
+}
+
+/* Report cards: Toggl draws the 1px #3a3a3a card outline as a single ring box-shadow. Tailwind's
+   `shadow-card` utility expands to a multi-layer computed value, so reports set it directly. */
+.report-surface {
+  box-shadow: 0 0 0 1px var(--color-stroke);
 }

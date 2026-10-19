@@ -1,25 +1,57 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   BriefcaseBusiness,
   Building2,
   Clock3,
   LogOut,
+  Pencil,
   Settings,
   Tags,
   Users,
 } from "lucide-react";
-import { useRef, useState, type ComponentType } from "react";
+import { useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link, NavLink } from "react-router";
 
 import { AuthMode } from "@/domain/auth";
 import { useMe } from "@/web/app/context";
 import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-dismiss-popover";
-import { DEVELOPMENT_IDENTITIES, setDevelopmentIdentity, signOut } from "@/web/lib/api";
+import { useNow } from "@/web/hooks/use-now";
+import { apiRequest, DEVELOPMENT_IDENTITIES, setDevelopmentIdentity, signOut } from "@/web/lib/api";
+import { formatClockDuration } from "@/web/lib/format";
+import type { TimeEntry } from "@/web/types";
 
 interface NavigationItem {
   to: string;
   label: string;
   icon: ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
+  /** Right-aligned element such as the running timer's pencil (Toggl's Timer item). */
+  trailing?: ReactNode;
+  /** Accessible name when the visible label is not the item name (running timer). */
+  ariaLabel?: string;
+}
+
+/** Same payload as the timer bar's `["timer"]` query (read-only here). */
+interface TimerQuery {
+  entry: TimeEntry | null;
+  server_now: string;
+}
+
+/**
+ * Toggl's sidebar "Timer" item shows the live duration while an entry is running.
+ * Reads the timer bar's own query so the two surfaces never disagree.
+ */
+function useRunningTimer(): { duration: string } | null {
+  const now = useNow();
+  const timer = useQuery({
+    queryKey: ["timer"],
+    queryFn: () => apiRequest<TimerQuery>("/timer"),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  const entry = timer.data?.entry ?? null;
+  if (!entry) return null;
+  return { duration: formatClockDuration(now - new Date(entry.started_at).getTime()) };
 }
 
 export const SIDEBAR_WIDTH = 226;
@@ -46,7 +78,19 @@ export function Sidebar({
   onNavigate: () => void;
 }) {
   const me = useMe();
-  const track: NavigationItem[] = [{ to: "/time", label: "Timer", icon: Clock3 }];
+  const runningTimer = useRunningTimer();
+  // Toggl replaces the "Timer" label with the live duration plus a pencil icon while running.
+  const track: NavigationItem[] = [
+    runningTimer
+      ? {
+          to: "/time",
+          label: runningTimer.duration,
+          icon: Clock3,
+          ariaLabel: `Timer running, ${runningTimer.duration}`,
+          trailing: <Pencil size={14} aria-hidden className="shrink-0" />,
+        }
+      : { to: "/time", label: "Timer", icon: Clock3 },
+  ];
   const analyze: NavigationItem[] = [{ to: "/reports", label: "Reports", icon: BarChart3 }];
   const manage: NavigationItem[] = [
     { to: "/projects", label: "Projects", icon: BriefcaseBusiness },
@@ -76,16 +120,31 @@ export function Sidebar({
       >
         <WorkspaceMenu collapsed={collapsed} onNavigate={onNavigate} />
         <nav
-          className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto py-6"
+          className="flex min-h-0 flex-1 flex-col gap-6 overflow-x-clip overflow-y-auto py-6"
           aria-label="Primary navigation"
         >
-          <NavigationGroup label="Track" items={track} onNavigate={onNavigate} />
-          <NavigationGroup label="Analyze" items={analyze} onNavigate={onNavigate} />
-          <NavigationGroup label="Manage" items={manage} onNavigate={onNavigate} />
+          <NavigationGroup
+            label="Track"
+            items={track}
+            onNavigate={onNavigate}
+            className="w-[188px]"
+          />
+          <NavigationGroup
+            label="Analyze"
+            items={analyze}
+            onNavigate={onNavigate}
+            className="w-[188px]"
+          />
+          <NavigationGroup
+            label="Manage"
+            items={manage}
+            onNavigate={onNavigate}
+            className="w-[188px]"
+          />
         </nav>
         {admin.length ? (
           <div className="pt-3 pb-[15px]">
-            <NavigationGroup label="Admin" items={admin} onNavigate={onNavigate} inset="admin" />
+            <NavigationGroup label="Admin" items={admin} onNavigate={onNavigate} />
           </div>
         ) : (
           <div className="pb-[15px]" />
@@ -279,10 +338,12 @@ function ProfileMenu({ onNavigate }: { onNavigate: () => void }) {
         aria-expanded={open}
         aria-label="Profile"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-[33px] flex-col items-center gap-1 py-1.5"
+        className="text-fg-muted flex w-[33px] flex-col items-center gap-1 py-1.5 leading-[14px]"
       >
         <Avatar name={me.member.displayName} size={26} />
-        <span className="text-fg-muted text-[8px] leading-2 font-medium uppercase">Profile</span>
+        <span className="text-fg-muted text-left text-[8px] leading-2 font-medium uppercase">
+          Profile
+        </span>
       </button>
       {open ? (
         <div
@@ -356,33 +417,40 @@ function NavigationGroup({
   label,
   items,
   onNavigate,
-  inset = "main",
+  className,
 }: {
   label: string;
   items: NavigationItem[];
   onNavigate: () => void;
-  inset?: "main" | "admin";
+  /** Main groups are 188px wide like Toggl's overflowing nav sections; Admin stays 179px. */
+  className?: string;
 }) {
   return (
-    <section>
+    <section className={className}>
       <h2 className="text-fg-muted mb-2 px-4 text-[11px] leading-4 font-semibold tracking-[0.04em] uppercase">
         {label}
       </h2>
       <div className="flex flex-col gap-0.5">
-        {items.map(({ to, label: itemLabel, icon: Icon }) => (
-          <NavLink key={to} to={to} onClick={onNavigate} className="text-fg-muted block">
+        {items.map(({ to, label: itemLabel, icon: Icon, trailing, ariaLabel }) => (
+          <NavLink
+            key={to}
+            to={to}
+            onClick={onNavigate}
+            aria-label={ariaLabel}
+            className="text-fg-muted block leading-[14px]"
+          >
             {({ isActive }) => (
               <span
                 className={[
-                  "ml-2.5 flex h-7 items-center gap-3 rounded-md px-1.5 text-sm leading-5 font-medium",
-                  inset === "admin" ? "mr-2.5" : "mr-px",
+                  "mx-2.5 flex h-7 items-center gap-3 rounded-md px-1.5 text-sm leading-5 font-medium",
                   isActive
                     ? "bg-nav-selected text-accent-fg-active"
                     : "text-fg-muted hover:bg-sidenav-hover hover:text-fg-soft",
                 ].join(" ")}
               >
                 <Icon size={14} aria-hidden />
-                {itemLabel}
+                <span className="flex-1">{itemLabel}</span>
+                {trailing}
               </span>
             )}
           </NavLink>
