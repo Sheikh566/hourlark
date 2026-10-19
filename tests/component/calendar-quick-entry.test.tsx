@@ -118,38 +118,63 @@ describe("calendar quick entry", () => {
 
     const tagsButton = await screen.findByRole("button", { name: "Choose tags" });
     await user.click(tagsButton);
-    expect(screen.getByRole("button", { name: "Discussion" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Discussion" })).toBeVisible();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("button", { name: "Discussion" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Discussion" })).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(tagsButton).toHaveFocus();
 
     await user.click(tagsButton);
-    expect(screen.getByRole("button", { name: "Discussion" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "Discussion" })).toBeVisible();
     fireEvent.pointerDown(document.body);
-    expect(screen.queryByRole("button", { name: "Discussion" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Discussion" })).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
 
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("does not throw on blank times and shows stop-after-start before submit", async () => {
+  it("preserves invalid clock drafts and prevents saving an old valid time", async () => {
     const user = userEvent.setup();
     renderQuickEntry();
-
-    fireEvent.change(await screen.findByLabelText("Start time"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("Stop time"), { target: { value: "" } });
+    const start = await screen.findByLabelText("Start time");
+    await user.clear(start);
+    await user.type(start, "invalid");
     await user.click(screen.getByRole("button", { name: "Add" }));
-    expect(await screen.findByText("Enter a valid start and stop time.")).toBeInTheDocument();
+    expect(start).toHaveValue("invalid");
+    expect(start).toHaveAttribute("aria-invalid", "true");
     expect(apiRequestMock).not.toHaveBeenCalled();
-
-    fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "21:00" } });
-    fireEvent.change(screen.getByLabelText("Stop time"), { target: { value: "20:00" } });
+    const stop = screen.getByLabelText("Stop time");
+    await user.clear(stop);
+    await user.type(stop, "10pm");
     await user.click(screen.getByRole("button", { name: "Add" }));
-    expect(await screen.findByText("Stop must be after start.")).toBeInTheDocument();
     expect(apiRequestMock).not.toHaveBeenCalled();
+    await user.clear(start);
+    await user.type(start, "8pm");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(apiRequestMock).toHaveBeenCalledTimes(1));
+    expect(parseBody(apiRequestMock.mock.calls[0]?.[1])).toMatchObject({
+      started_at: "2026-07-30T15:00:00.000Z",
+      stopped_at: "2026-07-30T17:00:00.000Z",
+    });
+  });
+
+  it("accepts a stop time across midnight in the member timezone", async () => {
+    const user = userEvent.setup();
+    renderQuickEntry({
+      start: new Date("2026-07-30T18:00:00Z"),
+      stop: new Date("2026-07-30T18:30:00Z"),
+    });
+    const stop = await screen.findByLabelText("Stop time");
+    await user.clear(stop);
+    await user.type(stop, "12:10am");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(apiRequestMock).toHaveBeenCalledTimes(1));
+    expect(parseBody(apiRequestMock.mock.calls[0]?.[1])).toMatchObject({
+      started_at: "2026-07-30T18:00:00.000Z",
+      stopped_at: "2026-07-30T19:10:00.000Z",
+    });
   });
 
   it("submits once on Enter and derives billable from the project only when permitted", async () => {
@@ -163,7 +188,7 @@ describe("calendar quick entry", () => {
     );
     renderQuickEntry();
 
-    await chooseOption(user, await screen.findByLabelText("New entry project"), /^Helix3D/);
+    await chooseOption(user, await screen.findByLabelText("Select project"), /^Helix3D/);
     expect(screen.getByRole("button", { name: "Mark non-billable" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -190,7 +215,7 @@ describe("calendar quick entry", () => {
     renderQuickEntry();
 
     expect(screen.queryByRole("button", { name: /billable/i })).not.toBeInTheDocument();
-    await chooseOption(user, await screen.findByLabelText("New entry project"), /^Helix3D/);
+    await chooseOption(user, await screen.findByLabelText("Select project"), /^Helix3D/);
     await user.type(screen.getByLabelText("New entry description"), "Member work{Enter}");
 
     await waitFor(() => expect(apiRequestMock).toHaveBeenCalled());

@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { Plus, X } from "lucide-react";
+import { ArrowUp, Tags, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { overlapDuration } from "@/domain/dates/time";
 import { useMe } from "@/web/app/context";
-import { Button, EmptyState, ErrorState, Modal, Select } from "@/web/components/ui";
+import { Button, ErrorState, Modal, Select } from "@/web/components/ui";
+import { projectTextColor } from "@/web/features/time/calendar-config";
 import { EntryEditor } from "@/web/features/time/entry-editor";
 import {
   addCalendarDays,
@@ -69,6 +70,7 @@ function TimesheetWeek({
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [choosingEntries, setChoosingEntries] = useState<TimeEntry[]>([]);
   const pending = useRef(false);
+  const [sortAscending, setSortAscending] = useState(true);
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addCalendarDays(startDate, index)),
     [startDate],
@@ -151,7 +153,7 @@ function TimesheetWeek({
     for (const entry of entries.data?.entries ?? []) {
       const projectId = entry.project?.id ?? null;
       const description = entry.description.trim();
-      const key = `${projectId ?? "none"}::${description}`;
+      const key = projectId ?? "none";
       const startedAt = Date.parse(entry.started_at);
       const stoppedAt = entry.running
         ? now
@@ -180,9 +182,7 @@ function TimesheetWeek({
       }
       if (existing.byDay.size > 0) map.set(key, existing);
     }
-    const fromEntries = [...map.values()].sort((left, right) =>
-      left.projectName.localeCompare(right.projectName),
-    );
+    const fromEntries = [...map.values()];
     const drafts: TimesheetRow[] = draftRows.map((draft) => {
       const project = projects.data?.projects.find((item) => item.id === draft.projectId);
       return {
@@ -195,8 +195,10 @@ function TimesheetWeek({
         totalMs: 0,
       };
     });
-    return [...fromEntries, ...drafts];
-  }, [draftRows, entries.data?.entries, dayRanges, now, projects.data?.projects]);
+    return [...fromEntries, ...drafts].sort(
+      (left, right) => (sortAscending ? 1 : -1) * left.projectName.localeCompare(right.projectName),
+    );
+  }, [draftRows, entries.data?.entries, dayRanges, now, projects.data?.projects, sortAscending]);
 
   const dayTotals = useMemo(() => {
     const totals = new Map<string, number>();
@@ -236,7 +238,7 @@ function TimesheetWeek({
     try {
       const startedAt = fromZonedTime(`${day}T09:00:00`, timezone);
       await createMutation.mutateAsync({
-        description: row.description,
+        description: "",
         project_id: row.projectId,
         started_at: startedAt.toISOString(),
         stopped_at: new Date(startedAt.getTime() + ms).toISOString(),
@@ -272,22 +274,18 @@ function TimesheetWeek({
   }
 
   return (
-    <section className="min-h-[calc(100vh-220px)] max-w-full min-w-0 bg-[#1b1b1b] px-4 py-4 md:px-5">
-      {rows.length === 0 ? (
-        <EmptyState
-          title="No timesheet rows this week"
-          description="Add a row and enter hours for each weekday."
-        />
-      ) : null}
-
+    <section
+      aria-label="Weekly timesheet view"
+      className="bg-surface min-h-[calc(100vh-220px)] max-w-full min-w-0"
+    >
       {(entries.data?.entries.length ?? 0) >= TIME_ENTRY_LIST_LIMIT ? (
-        <p role="status" className="mb-3 text-sm text-amber-300">
+        <p role="status" className="p-3 text-sm text-amber-300">
           This week reached the 5,000-entry limit. Totals may be incomplete; use reports for the
           full history.
         </p>
       ) : null}
       {projects.error || tags.error ? (
-        <p role="alert" className="mb-3 text-sm text-red-300">
+        <p role="alert" className="text-error-fg p-3 text-sm">
           {projects.error?.message ?? tags.error?.message}
         </p>
       ) : null}
@@ -297,205 +295,253 @@ function TimesheetWeek({
         role="region"
         aria-label="Weekly timesheet"
       >
-        <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+        <table className="bg-surface w-full min-w-[1000px] table-fixed border-separate border-spacing-0 text-sm leading-[14px] [box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+          <colgroup>
+            <col className="w-[25.75%]" />
+            <col className="w-[12.875%]" />
+            {weekDays.map((day) => (
+              <col key={day} />
+            ))}
+            <col className="w-[116.3px]" />
+            <col className="w-[58px]" />
+          </colgroup>
           <thead>
-            <tr className="text-[10px] font-bold tracking-[0.12em] text-slate-500 uppercase">
-              <th className="sticky left-0 z-10 bg-[#1b1b1b] px-2 py-2 text-left">Project</th>
+            <tr className="text-fg-subtle text-[11px] leading-[11px] font-semibold uppercase [&>th]:h-[50px] [&>th]:cursor-default [&>th]:px-[10px] [&>th]:py-0 [&>th]:font-semibold [&>th]:[box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+              <th
+                className="!pl-5 text-left"
+                aria-sort={sortAscending ? "ascending" : "descending"}
+              >
+                <button
+                  type="button"
+                  aria-label="Sort by project"
+                  className="text-accent-fg hover:bg-surface-hover -ml-1.5 flex items-center gap-1 rounded-lg px-1 py-0.5 text-left font-semibold tracking-[0.44px] uppercase"
+                  onClick={() => setSortAscending((value) => !value)}
+                >
+                  <span className="text-fg-subtle leading-[16.06px]">Project</span>
+                  <ArrowUp
+                    width={16}
+                    height={12}
+                    className={sortAscending ? "" : "rotate-180"}
+                    aria-hidden="true"
+                  />
+                </button>
+              </th>
+              <th className="text-center" aria-label="Entry details" />
               {weekDays.map((day) => (
-                <th key={day} className="px-1 py-2 text-center tabular-nums">
+                <th key={day} className="text-center">
                   {dayLabel(day)}
                 </th>
               ))}
-              <th className="px-2 py-2 text-right">Total</th>
+              <th className="text-right">Total</th>
+              <th className="text-center" aria-label="Row actions" />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.key} className="group">
-                <td className="sticky left-0 z-10 border-b border-white/8 bg-[#1b1b1b] px-2 py-2">
-                  {draftRows.some((draft) => draft.key === row.key) ? (
-                    <div className="flex min-w-48 items-start gap-2">
-                      <div className="space-y-1">
-                        <Select
-                          aria-label="Draft row project"
-                          disabled={createMutation.isPending}
-                          className="h-8 min-h-8 rounded-md px-2 py-0 text-sm"
-                          value={row.projectId ?? ""}
-                          onValueChange={(projectId) =>
-                            setDraftRows((current) =>
-                              current.map((draft) =>
-                                draft.key === row.key ? { ...draft, projectId } : draft,
-                              ),
-                            )
-                          }
-                          options={[
-                            { value: "", label: "Without project" },
-                            ...(projects.data?.projects ?? []).map((project) => ({
-                              value: project.id,
-                              label: project.name,
-                              color: project.color,
-                            })),
-                          ]}
-                        />
-                        <input
-                          aria-label="Draft row description"
-                          maxLength={500}
-                          disabled={createMutation.isPending}
-                          placeholder="Description"
-                          className="h-8 w-full rounded border border-white/12 bg-[#1b1b1b] px-2 text-slate-200"
-                          value={row.description}
-                          onChange={(event) =>
-                            setDraftRows((current) =>
-                              current.map((draft) =>
-                                draft.key === row.key
-                                  ? { ...draft, description: event.target.value }
-                                  : draft,
-                              ),
-                            )
-                          }
-                        />
+            {rows.map((row) => {
+              const isDraft = draftRows.some((draft) => draft.key === row.key);
+              const rowEntries = [
+                ...new Map(
+                  [...row.byDay.values()]
+                    .flatMap((bucket) => bucket.entries)
+                    .map((entry) => [entry.id, entry]),
+                ).values(),
+              ];
+              const editDetails = () =>
+                rowEntries.length === 1
+                  ? setEditingEntry(rowEntries[0] ?? null)
+                  : setChoosingEntries(rowEntries);
+              return (
+                <tr key={row.key} className="group hover:bg-surface-hover">
+                  <td className="h-[50px] py-0 pr-[10px] pl-5 [box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+                    <div className="flex min-w-0 items-center gap-[10px]">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: row.projectColor ?? "#666" }}
+                      />
+                      <span
+                        className="truncate text-sm font-medium"
+                        style={{
+                          color: row.projectColor ? projectTextColor(row.projectColor) : "#666",
+                        }}
+                      >
+                        {row.projectName}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="h-[50px] px-[10px] py-0 [box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+                    {!isDraft ? (
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                        <button
+                          type="button"
+                          className="text-fg-secondary hover:bg-surface-hover grid size-[30px] place-items-center rounded-lg"
+                          aria-label={`Edit tags for ${row.projectName}`}
+                          onClick={editDetails}
+                        >
+                          <Tags size={17} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          className="text-fg-secondary hover:bg-surface-hover grid size-[30px] place-items-center rounded-lg"
+                          aria-label={`Edit billing for ${row.projectName}`}
+                          onClick={editDetails}
+                        >
+                          $
+                        </button>
                       </div>
-                      <Button
-                        variant="ghost"
+                    ) : null}
+                  </td>
+                  {weekDays.map((day) => {
+                    const dayKey = day;
+                    const bucket = row.byDay.get(dayKey);
+                    const value = bucket?.ms ? formatCompactDuration(bucket.ms) : "";
+                    return (
+                      <td
+                        key={dayKey}
+                        className="h-[50px] px-[10px] py-0 text-center [box-shadow:inset_0_-1px_0_var(--color-stroke)]"
+                      >
+                        {bucket?.entries.length ? (
+                          <button
+                            type="button"
+                            className="border-control bg-surface-raised text-fg box-border h-6 w-[65px] rounded-lg border px-2 text-center text-sm leading-5 font-medium tabular-nums focus:bg-[#555] focus-visible:shadow-none focus-visible:outline-none"
+                            aria-label={`Edit ${row.projectName} ${dayLabel(day)} ${bucket.entries.length} ${bucket.entries.length === 1 ? "entry" : "entries"}`}
+                            onClick={() =>
+                              bucket.entries.length === 1
+                                ? setEditingEntry(bucket.entries[0] ?? null)
+                                : setChoosingEntries(bucket.entries)
+                            }
+                          >
+                            {value}
+                          </button>
+                        ) : (
+                          <input
+                            className="border-control bg-surface-raised text-fg box-border h-6 w-[65px] rounded-lg border px-2 text-center text-sm leading-5 font-medium tabular-nums outline-none placeholder:text-transparent focus:bg-[#555] focus-visible:shadow-none focus-visible:outline-none"
+                            value={cellValues[`${row.key}:${dayKey}`] ?? ""}
+                            onChange={(event) =>
+                              setCellValues((current) => ({
+                                ...current,
+                                [`${row.key}:${dayKey}`]: event.target.value,
+                              }))
+                            }
+                            placeholder="-"
+                            aria-label={`${row.projectName} ${dayLabel(day)}`}
+                            aria-invalid={Boolean(cellErrors[`${row.key}:${dayKey}`])}
+                            aria-describedby={
+                              cellErrors[`${row.key}:${dayKey}`]
+                                ? `error-${encodeURIComponent(row.key)}-${dayKey}`
+                                : undefined
+                            }
+                            disabled={createMutation.isPending}
+                            onBlur={(event) => void commitCell(row, day, event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") event.currentTarget.blur();
+                              if (event.key === "Escape") {
+                                setCellValues((current) => ({
+                                  ...current,
+                                  [`${row.key}:${dayKey}`]: "",
+                                }));
+                                setCellErrors((current) => ({
+                                  ...current,
+                                  [`${row.key}:${dayKey}`]: "",
+                                }));
+                              }
+                            }}
+                          />
+                        )}
+                        {cellErrors[`${row.key}:${dayKey}`] ? (
+                          <p
+                            id={`error-${encodeURIComponent(row.key)}-${dayKey}`}
+                            role="alert"
+                            className="mt-1 max-w-36 text-xs text-red-300"
+                          >
+                            {cellErrors[`${row.key}:${dayKey}`]}
+                          </p>
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                  <td className="bg-surface-raised text-fg h-[50px] px-[10px] py-0 text-right text-sm font-medium whitespace-nowrap tabular-nums [box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+                    {formatHoursLabel(row.totalMs)}
+                  </td>
+                  <td className="h-[50px] px-[10px] py-0 [box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+                    {isDraft ? (
+                      <button
+                        type="button"
                         aria-label="Remove draft row"
                         disabled={createMutation.isPending}
+                        className="text-fg-secondary grid size-[30px] place-items-center rounded-lg opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                         onClick={() =>
                           setDraftRows((current) =>
                             current.filter((draft) => draft.key !== row.key),
                           )
                         }
                       >
-                        <X size={14} />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex min-w-48 items-center gap-2">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-slate-600"
-                        style={row.projectColor ? { backgroundColor: row.projectColor } : undefined}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-slate-100">{row.projectName}</p>
-                        {row.description ? (
-                          <p className="truncate text-xs text-slate-500">{row.description}</p>
-                        ) : null}
-                      </div>
-                    </div>
-                  )}
-                </td>
-                {weekDays.map((day) => {
-                  const dayKey = day;
-                  const bucket = row.byDay.get(dayKey);
-                  const value = bucket?.ms ? formatCompactDuration(bucket.ms) : "";
-                  return (
-                    <td key={dayKey} className="border-b border-white/8 px-1 py-1.5">
-                      {bucket?.entries.length ? (
-                        <button
-                          type="button"
-                          className="h-9 w-full rounded-md border border-white/12 bg-[#1b1b1b] px-2 text-center text-sm text-slate-200 tabular-nums hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-slate-400"
-                          aria-label={`Edit ${row.projectName} ${dayLabel(day)} ${bucket.entries.length} ${bucket.entries.length === 1 ? "entry" : "entries"}`}
-                          onClick={() =>
-                            bucket.entries.length === 1
-                              ? setEditingEntry(bucket.entries[0] ?? null)
-                              : setChoosingEntries(bucket.entries)
-                          }
-                        >
-                          {value}
-                        </button>
-                      ) : (
-                        <input
-                          className="h-9 w-full rounded-md border border-white/12 bg-[#1b1b1b] px-2 text-center text-sm text-slate-200 tabular-nums outline-none placeholder:text-slate-600 focus:border-slate-400"
-                          value={cellValues[`${row.key}:${dayKey}`] ?? ""}
-                          onChange={(event) =>
-                            setCellValues((current) => ({
-                              ...current,
-                              [`${row.key}:${dayKey}`]: event.target.value,
-                            }))
-                          }
-                          placeholder="-"
-                          aria-label={`${row.projectName} ${dayLabel(day)}`}
-                          aria-invalid={Boolean(cellErrors[`${row.key}:${dayKey}`])}
-                          aria-describedby={
-                            cellErrors[`${row.key}:${dayKey}`]
-                              ? `error-${encodeURIComponent(row.key)}-${dayKey}`
-                              : undefined
-                          }
-                          disabled={createMutation.isPending}
-                          onBlur={(event) => void commitCell(row, day, event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") event.currentTarget.blur();
-                            if (event.key === "Escape") {
-                              setCellValues((current) => ({
-                                ...current,
-                                [`${row.key}:${dayKey}`]: "",
-                              }));
-                              setCellErrors((current) => ({
-                                ...current,
-                                [`${row.key}:${dayKey}`]: "",
-                              }));
-                            }
-                          }}
-                        />
-                      )}
-                      {cellErrors[`${row.key}:${dayKey}`] ? (
-                        <p
-                          id={`error-${encodeURIComponent(row.key)}-${dayKey}`}
-                          role="alert"
-                          className="mt-1 max-w-36 text-xs text-red-300"
-                        >
-                          {cellErrors[`${row.key}:${dayKey}`]}
-                        </p>
-                      ) : null}
-                    </td>
-                  );
-                })}
-                <td className="border-b border-white/8 px-2 py-2 text-right text-slate-300 tabular-nums">
-                  {formatHoursLabel(row.totalMs)}
-                </td>
-              </tr>
-            ))}
+                        <X size={14} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr>
+              <td className="h-[50px] py-0 pr-[5px] pl-5 leading-[normal] [box-shadow:inset_0_-1px_0_var(--color-stroke)]">
+                <Select
+                  aria-label="Add row"
+                  value=""
+                  placeholder="Add row"
+                  icon={
+                    <span className="text-accent-fg text-center font-semibold whitespace-nowrap">
+                      +
+                    </span>
+                  }
+                  className="data-[placeholder]:text-fg h-5 w-auto gap-1 border-0 bg-transparent p-0 text-center [&>svg:last-child]:hidden"
+                  disabled={createMutation.isPending}
+                  options={[
+                    {
+                      value: "none",
+                      label: "Without project",
+                      disabled: rows.some((row) => row.projectId === null),
+                    },
+                    ...(projects.data?.projects ?? []).map((project) => ({
+                      value: project.id,
+                      label: project.name,
+                      color: project.color,
+                      disabled: rows.some((row) => row.projectId === project.id),
+                    })),
+                  ]}
+                  onValueChange={(value) =>
+                    setDraftRows((current) => [
+                      ...current,
+                      {
+                        key: `draft-${crypto.randomUUID()}`,
+                        projectId: value === "none" ? "" : value,
+                        description: "",
+                      },
+                    ])
+                  }
+                />
+              </td>
+              <td className="[box-shadow:inset_0_-1px_0_var(--color-stroke)]" />
+              {weekDays.map((day) => (
+                <td key={day} className="[box-shadow:inset_0_-1px_0_var(--color-stroke)]" />
+              ))}
+              <td className="bg-surface-raised [box-shadow:inset_0_-1px_0_var(--color-stroke)]" />
+              <td className="[box-shadow:inset_0_-1px_0_var(--color-stroke)]" />
+            </tr>
           </tbody>
           <tfoot>
-            <tr>
-              <td className="sticky left-0 bg-[#1b1b1b] px-2 py-3 text-xs font-bold tracking-wider text-slate-400 uppercase">
-                Total
-              </td>
-              {weekDays.map((day) => {
-                const dayKey = day;
-                return (
-                  <td
-                    key={dayKey}
-                    className="px-1 py-3 text-center text-xs text-slate-400 tabular-nums"
-                  >
-                    {formatHoursLabel(dayTotals.get(dayKey) ?? 0)}
-                  </td>
-                );
-              })}
-              <td className="px-2 py-3 text-right text-sm font-bold text-slate-200 tabular-nums">
-                {formatHoursLabel(grandTotal)}
-              </td>
+            <tr className="bg-surface-raised text-fg text-sm leading-[normal] font-medium [&>td]:h-[50px] [&>td]:px-[10px] [&>td]:py-0">
+              <td />
+              <td className="text-right uppercase">Total</td>
+              {weekDays.map((day) => (
+                <td key={day} className="text-center tabular-nums">
+                  {dayTotals.get(day) ? formatHoursLabel(dayTotals.get(day) ?? 0) : "-"}
+                </td>
+              ))}
+              <td className="text-right tabular-nums">{formatHoursLabel(grandTotal)}</td>
+              <td />
             </tr>
           </tfoot>
         </table>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          variant="secondary"
-          className="min-h-8"
-          onClick={() =>
-            setDraftRows((current) => [
-              ...current,
-              {
-                key: `draft-${crypto.randomUUID()}`,
-                projectId: projects.data?.projects[0]?.id ?? "",
-                description: "",
-              },
-            ])
-          }
-        >
-          <Plus size={14} /> Add row
-        </Button>
       </div>
       <Modal
         open={choosingEntries.length > 0}

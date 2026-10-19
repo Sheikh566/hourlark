@@ -92,6 +92,23 @@ afterEach(() => {
 });
 
 describe("Timesheet workflows", () => {
+  it("sorts project rows in both directions", async () => {
+    listedEntries = [
+      entry,
+      { ...entry, id: "entry-z", project: { ...project, id: "project-z", name: "Zebra" } },
+    ];
+    const user = userEvent.setup();
+    const { container } = mount();
+    await screen.findByRole("button", { name: "Edit Zebra Mon 1 entry" });
+    const names = () =>
+      [...container.querySelectorAll("tbody tr")]
+        .slice(0, 2)
+        .map((row) => row.querySelector("td")?.textContent);
+    expect(names()).toEqual(["Research", "Zebra"]);
+    await user.click(screen.getByRole("button", { name: "Sort by project" }));
+    expect(names()).toEqual(["Zebra", "Research"]);
+  });
+
   it("excludes archived clients from new rows and honors the project billable default", async () => {
     listedProjects = [
       { ...project, id: "unavailable", name: "Archived client project", client_status: "archived" },
@@ -99,10 +116,9 @@ describe("Timesheet workflows", () => {
     ];
     const user = userEvent.setup();
     mount();
-    await screen.findByRole("button", { name: /Add row/ });
+    await screen.findByRole("combobox", { name: "Add row" });
     await waitFor(() => expect(apiRequest).toHaveBeenCalledWith("/projects?status=active"));
-    await user.click(screen.getByRole("button", { name: /Add row/ }));
-    await user.click(screen.getByRole("combobox", { name: "Draft row project" }));
+    await user.click(screen.getByRole("combobox", { name: "Add row" }));
     const research = await screen.findByRole("option", { name: "Research" });
     expect(
       screen.queryByRole("option", { name: "Archived client project" }),
@@ -117,41 +133,34 @@ describe("Timesheet workflows", () => {
     );
   });
 
-  it("keeps every draft editable/removable and clears drafts on week changes", async () => {
+  it("adds only the chosen project, prevents duplicate rows, and clears drafts on week changes", async () => {
     const user = userEvent.setup();
     const { rerender, client } = mount();
-    await user.click(await screen.findByRole("button", { name: /Add row/ }));
-    await user.click(screen.getByRole("button", { name: /Add row/ }));
-    const descriptions = screen.getAllByRole("textbox", { name: "Draft row description" });
-    await user.type(itemAt(descriptions, 0), "First draft");
-    await user.type(itemAt(descriptions, 1), "Second draft");
-    await chooseOption(
-      user,
-      itemAt(screen.getAllByRole("combobox", { name: "Draft row project" }), 0),
-      "Without project",
+    await chooseOption(user, await screen.findByRole("combobox", { name: "Add row" }), "Research");
+    expect(screen.getByRole("textbox", { name: "Research Mon" })).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Add row" }));
+    expect(screen.getByRole("option", { name: "Research" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
-    expect(descriptions[0]).toHaveValue("First draft");
-    expect(descriptions[1]).toHaveValue("Second draft");
+    await user.click(screen.getByRole("option", { name: "Without project" }));
     await user.click(itemAt(screen.getAllByRole("button", { name: "Remove draft row" }), 0));
-    expect(screen.getByRole("textbox", { name: "Draft row description" })).toHaveValue(
-      "Second draft",
-    );
+    expect(screen.queryByRole("textbox", { name: "Research Mon" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Without project Mon" })).toBeInTheDocument();
     rerender(
       <QueryClientProvider client={client}>
         <TimesheetView weekStart="2026-10-05" memberId="member-1" />
       </QueryClientProvider>,
     );
-    await screen.findByRole("button", { name: /Add row/ });
-    expect(
-      screen.queryByRole("textbox", { name: "Draft row description" }),
-    ).not.toBeInTheDocument();
+    await screen.findByRole("combobox", { name: "Add row" });
+    expect(screen.queryByRole("button", { name: "Remove draft row" })).not.toBeInTheDocument();
   });
 
   it("rejects malformed hours and preserves input after failed creation", async () => {
     const user = userEvent.setup();
     post = vi.fn().mockRejectedValue(new Error("Save unavailable"));
     mount();
-    await user.click(await screen.findByRole("button", { name: /Add row/ }));
+    await chooseOption(user, await screen.findByRole("combobox", { name: "Add row" }), "Research");
     const duration = screen.getByRole("textbox", { name: "Research Mon" });
     await user.type(duration, "1:99{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("Minutes must be 00–59");
@@ -160,7 +169,7 @@ describe("Timesheet workflows", () => {
     await user.type(duration, "1.5{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("Save unavailable");
     expect(duration).toHaveValue("1.5");
-    expect(screen.getByRole("textbox", { name: "Draft row description" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove draft row" })).toBeInTheDocument();
     expect(post).toHaveBeenCalledWith(
       expect.objectContaining({
         member_id: "member-1",
@@ -185,7 +194,7 @@ describe("Timesheet workflows", () => {
         }),
     );
     mount();
-    await user.click(await screen.findByRole("button", { name: /Add row/ }));
+    await chooseOption(user, await screen.findByRole("combobox", { name: "Add row" }), "Research");
     const duration = screen.getByRole("textbox", { name: "Research Mon" });
     await user.type(duration, "1:30");
     fireEvent.blur(duration);
@@ -194,9 +203,7 @@ describe("Timesheet workflows", () => {
     expect(duration).toBeDisabled();
     finish({});
     await waitFor(() =>
-      expect(
-        screen.queryByRole("textbox", { name: "Draft row description" }),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByRole("button", { name: "Remove draft row" })).not.toBeInTheDocument(),
     );
   });
 
@@ -207,6 +214,7 @@ describe("Timesheet workflows", () => {
       {
         ...entry,
         id: "entry-2",
+        description: "Different description",
         started_at: "2026-09-28T06:00:00Z",
         stopped_at: "2026-09-28T07:00:00Z",
       },
@@ -279,7 +287,7 @@ describe("Timesheet workflows", () => {
       within(footer)
         .getAllByRole("cell")
         .map((cell) => cell.textContent.trim()),
-    ).toEqual(["Total", "2 h", "2 h", "0 h", "0 h", "0 h", "0 h", "1 h", "5 h"]);
+    ).toEqual(["", "Total", "2 h", "2 h", "-", "-", "-", "-", "1 h", "5 h", ""]);
     expect(screen.queryByText("Outside")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Edit Research Tue 1 entry" }));
     expect(screen.getByRole("dialog", { name: "Entry editor" })).toHaveTextContent("overnight");
@@ -310,6 +318,6 @@ describe("Timesheet workflows", () => {
     ).toHaveTextContent("25:00");
     const footer = container.querySelector("tfoot");
     if (!footer) throw new Error("Missing totals");
-    expect(within(footer).getAllByRole("cell").at(-1)).toHaveTextContent("25 h");
+    expect(within(footer).getAllByRole("cell").at(-2)).toHaveTextContent("25 h");
   });
 });
