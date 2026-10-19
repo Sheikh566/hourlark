@@ -68,6 +68,32 @@ describe("Modal", () => {
     // plus the footer margin and 21px dialog padding give the measured 187px height.
     expect(screen.getByLabelText("Tag name").parentElement).toHaveClass("mt-[14.12px]", "pb-[5px]");
   });
+
+  it("supports Toggl's borderless project dialog, its 80px right offset and a close-icon colour", () => {
+    render(
+      <Modal
+        open
+        onOpenChange={() => undefined}
+        title="Create new project"
+        size="md"
+        align="top"
+        borderless
+        offsetX={80}
+        closeIconClassName="text-[#b2b2b2]"
+      >
+        <Input aria-label="Project name" />
+      </Modal>,
+    );
+    const dialog = screen.getByRole("dialog");
+    // The 1px #3a3a3a edge becomes a shadow ring, keeping the panel's inner offsets.
+    expect(dialog).toHaveClass("border-0", "px-5", "pt-4", "pb-5");
+    expect(dialog).not.toHaveClass("border-stroke");
+    // 520-wide panel centred 80px right of the viewport centre on desktop (Toggl x780 at 1920).
+    expect(dialog).toHaveClass("md:left-[calc(50%_+_var(--modal-offset-x,0px))]");
+    expect(dialog.style.getPropertyValue("--modal-offset-x")).toBe("80px");
+    expect(dialog.style.boxShadow).toContain("0 0 0 1px var(--color-stroke)");
+    expect(screen.getByRole("button", { name: "Close dialog" })).toHaveClass("text-[#b2b2b2]");
+  });
 });
 
 describe("RowMenu", () => {
@@ -139,6 +165,28 @@ describe("RowMenu", () => {
     } finally {
       delete (document.documentElement as unknown as Record<string, unknown>).clientWidth;
     }
+  });
+});
+
+describe("RowMenu density", () => {
+  it("uses Toggl's 28px rows with a 1px gap in compact mode", async () => {
+    const user = userEvent.setup();
+    render(
+      <RowMenu
+        label="Row actions"
+        density="compact"
+        items={[
+          { label: "Edit", onSelect: () => undefined },
+          { label: "Archive", onSelect: () => undefined, separatorBefore: true },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Row actions" }));
+    const menu = screen.getByRole("menu");
+    expect(menu).toHaveClass("gap-px", "p-1");
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveClass("h-7", "px-3");
+    expect(screen.getByRole("separator")).toHaveClass("border-t");
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
   });
 });
 
@@ -289,6 +337,29 @@ describe("Select", () => {
     expect(await screen.findByRole("option", { name: "Alpha" })).toHaveClass(
       "data-[state=checked]:bg-accent-muted",
     );
+  });
+
+  it("supports Toggl's compact 28px items with a 1px gap and no check mark", async () => {
+    const user = userEvent.setup();
+    render(
+      <Select
+        value="a"
+        density="compact"
+        onValueChange={() => undefined}
+        options={[
+          { value: "a", label: "Alpha" },
+          { value: "b", label: "Beta" },
+        ]}
+        aria-label="Pick"
+      />,
+    );
+    await user.click(screen.getByRole("combobox", { name: "Pick" }));
+    const option = await screen.findByRole("option", { name: "Alpha" });
+    expect(option).toHaveClass("h-7", "px-3");
+    expect(option).not.toHaveClass("pr-8");
+    // Toggl's compact menus mark the selected row with colour only, not a check glyph.
+    expect(option.querySelector("svg")).toBeNull();
+    expect(option.parentElement).toHaveClass("p-1");
   });
 });
 

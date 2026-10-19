@@ -51,8 +51,12 @@ export function TagEditor({
   });
   return (
     <Modal
-      // Toggl's tag dialog: 360x187 with its 16px title. Compact's default title is 16/600.
+      // Toggl's tag dialog: 360x187, 14px/600 title and a #b2b2b2 close glyph. The body margin
+      // keeps the 36px inputs 64px under the dialog top after the smaller title line box.
       size="compact"
+      titleSize="sm"
+      closeIconClassName="text-[#b2b2b2]"
+      bodyClassName="mt-[17px]"
       open={open}
       onOpenChange={(next) => {
         if (!mutation.isPending) onOpenChange(next);

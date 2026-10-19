@@ -75,10 +75,16 @@ export function parseMemberIds(value: string | undefined): string[] {
 export function ProjectEditor({
   open,
   project,
+  initialSection = "details",
   onOpenChange,
 }: {
   open: boolean;
   project: Project | null;
+  /**
+   * `members` is the row menu's "Add member": Toggl only assigns members to private projects, so
+   * the dialog opens with the privacy switch on and its member panel expanded.
+   */
+  initialSection?: "details" | "members";
   onOpenChange: (open: boolean) => void;
 }) {
   const me = useMe();
@@ -134,13 +140,13 @@ export function ProjectEditor({
         project?.budget_minutes === null || project?.budget_minutes === undefined
           ? ""
           : String(project.budget_minutes / 60),
-      visibility: project?.visibility ?? "all",
+      visibility: initialSection === "members" ? "assigned" : (project?.visibility ?? "all"),
       notes: project?.notes ?? "",
       member_ids: parseMemberIds(project?.member_ids_json),
     });
     setAdvanced(false);
-    setMembersOpen(project?.visibility === "assigned");
-  }, [form, me.workspace.currency, open, project]);
+    setMembersOpen(project?.visibility === "assigned" || initialSection === "members");
+  }, [form, initialSection, me.workspace.currency, open, project]);
   const mutation = useMutation({
     mutationFn: async (values: ProjectForm) => {
       const body = {
@@ -201,7 +207,11 @@ export function ProjectEditor({
   delete otherErrors.name;
   delete otherErrors.client_id;
   const hasAdvancedErrors = Boolean(
-    errors.currency ?? errors.hourly_rate_major ?? errors.budget_hours ?? errors.notes,
+    errors.client_id ??
+    errors.currency ??
+    errors.hourly_rate_major ??
+    errors.budget_hours ??
+    errors.notes,
   );
   useEffect(() => {
     if (hasAdvancedErrors) setAdvanced(true);
@@ -217,6 +227,8 @@ export function ProjectEditor({
       }}
       size="md"
       align="top"
+      borderless
+      offsetX={80}
       title={project ? "Edit project" : "Create new project"}
       footer={
         <Button
@@ -265,37 +277,6 @@ export function ProjectEditor({
             <Loading label="Loading clients…" />
           ) : clients.error ? (
             <ErrorState message={clients.error.message} onRetry={() => void clients.refetch()} />
-          ) : null}
-          <OptionCard
-            icon={<Contact size={14} strokeWidth={1.5} />}
-            label="Client"
-            className="pl-3.5"
-          >
-            <div className="min-w-0 flex-1">
-              <FormSelect
-                control={form.control}
-                name="client_id"
-                placeholder="Select a client"
-                aria-label="Client"
-                className="h-10"
-                options={[
-                  ...(project &&
-                  !clients.isPending &&
-                  !clients.data?.clients.some((client) => client.id === project.client_id)
-                    ? [{ value: project.client_id, label: `${project.client_name} (archived)` }]
-                    : []),
-                  ...(clients.data?.clients ?? []).map((client) => ({
-                    value: client.id,
-                    label: client.name,
-                  })),
-                ]}
-              />
-            </div>
-          </OptionCard>
-          {errors.client_id ? (
-            <p role="alert" className="-mt-1.5 px-[28px] text-xs font-medium text-[#e32817]">
-              Please select a Client
-            </p>
           ) : null}
           <div>
             <OptionCard
@@ -387,6 +368,38 @@ export function ProjectEditor({
           />
           {advanced ? (
             <div id={advancedId} className="grid gap-3">
+              {/* Toggl keeps the Client picker under "Advanced Options", not in the main dialog. */}
+              <OptionCard
+                icon={<Contact size={14} strokeWidth={1.5} />}
+                label="Client"
+                className="pl-3.5"
+              >
+                <div className="min-w-0 flex-1">
+                  <FormSelect
+                    control={form.control}
+                    name="client_id"
+                    placeholder="Select a client"
+                    aria-label="Client"
+                    className="h-10"
+                    options={[
+                      ...(project &&
+                      !clients.isPending &&
+                      !clients.data?.clients.some((client) => client.id === project.client_id)
+                        ? [{ value: project.client_id, label: `${project.client_name} (archived)` }]
+                        : []),
+                      ...(clients.data?.clients ?? []).map((client) => ({
+                        value: client.id,
+                        label: client.name,
+                      })),
+                    ]}
+                  />
+                </div>
+              </OptionCard>
+              {errors.client_id ? (
+                <p role="alert" className="-mt-1.5 px-[28px] text-xs font-medium text-[#e32817]">
+                  Please select a Client
+                </p>
+              ) : null}
               <OptionCard
                 icon={<CircleDollarSign size={14} strokeWidth={1.5} />}
                 label="Rate"

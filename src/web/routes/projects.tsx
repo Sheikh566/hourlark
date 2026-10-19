@@ -65,6 +65,13 @@ export function ProjectsPage() {
   const [memberIds, setMemberIds] = useState<ReadonlySet<string>>(() => new Set());
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [editing, setEditing] = useState<Project | "new" | null>(null);
+  // "Add member" opens the same dialog with the Privacy member panel expanded (Toggl only
+  // assigns members to private projects).
+  const [editorSection, setEditorSection] = useState<"details" | "members">("details");
+  const openEditor = (project: Project | "new", section: "details" | "members" = "details") => {
+    setEditorSection(section);
+    setEditing(project);
+  };
   const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set());
   const closeFilter = useCallback(() => setOpenFilter(null), []);
   const toggleFilter = (key: FilterKey) => {
@@ -201,7 +208,7 @@ export function ProjectsPage() {
         description="Organize tracked work, access, rates, and budget targets."
         actions={
           manage ? (
-            <Button icon={<Plus size={20} strokeWidth={1.5} />} onClick={() => setEditing("new")}>
+            <Button icon={<Plus size={20} strokeWidth={1.5} />} onClick={() => openEditor("new")}>
               New project
             </Button>
           ) : undefined
@@ -294,7 +301,7 @@ export function ProjectsPage() {
               <Button
                 variant="outline"
                 icon={<Plus size={14} strokeWidth={1.5} />}
-                onClick={() => setEditing("new")}
+                onClick={() => openEditor("new")}
               >
                 New project
               </Button>
@@ -441,7 +448,7 @@ export function ProjectsPage() {
                           className="max-w-72 truncate text-left font-medium hover:underline disabled:no-underline"
                           style={{ color: projectPageNameColor(project.color) }}
                           disabled={!manage}
-                          onClick={() => setEditing(project)}
+                          onClick={() => openEditor(project)}
                         >
                           {project.name}
                         </button>
@@ -473,29 +480,44 @@ export function ProjectsPage() {
                       <div className="opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100">
                         <RowMenu
                           label={`Actions for ${project.name}`}
+                          menuClassName="w-[133px]"
                           items={
                             manage
                               ? [
-                                  { label: "Edit project", onSelect: () => setEditing(project) },
-                                  !archived
-                                    ? {
-                                        label: "Archive",
-                                        disabled: statusMutation.isPending,
-                                        onSelect: () =>
-                                          statusMutation.mutate({
-                                            items: [project],
-                                            next: "archive",
-                                          }),
-                                      }
-                                    : {
-                                        label: "Restore",
-                                        disabled: statusMutation.isPending,
-                                        onSelect: () =>
-                                          statusMutation.mutate({
-                                            items: [project],
-                                            next: "reactivate",
-                                          }),
-                                      },
+                                  {
+                                    label: "Edit project",
+                                    onSelect: () => openEditor(project),
+                                  },
+                                  {
+                                    label: "Add member",
+                                    onSelect: () => openEditor(project, "members"),
+                                  },
+                                  // Toggl groups the archive/delete actions behind a divider.
+                                  ...(!archived
+                                    ? [
+                                        {
+                                          label: "Archive",
+                                          separatorBefore: true,
+                                          disabled: statusMutation.isPending,
+                                          onSelect: () =>
+                                            statusMutation.mutate({
+                                              items: [project],
+                                              next: "archive",
+                                            }),
+                                        },
+                                      ]
+                                    : [
+                                        {
+                                          label: "Restore",
+                                          separatorBefore: true,
+                                          disabled: statusMutation.isPending,
+                                          onSelect: () =>
+                                            statusMutation.mutate({
+                                              items: [project],
+                                              next: "reactivate",
+                                            }),
+                                        },
+                                      ]),
                                 ]
                               : []
                           }
@@ -510,9 +532,10 @@ export function ProjectsPage() {
         </div>
       )}
       <ProjectEditor
-        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
+        key={`${editing === "new" ? "new" : (editing?.id ?? "closed")}:${editorSection}`}
         open={editing !== null}
         project={editing === "new" ? null : editing}
+        initialSection={editorSection}
         onOpenChange={(open) => !open && setEditing(null)}
       />
     </>

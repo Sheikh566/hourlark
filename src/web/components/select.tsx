@@ -36,6 +36,12 @@ export type SelectProps = {
    * (accent-muted fill and accent text, used by Toggl's calendar mode menu).
    */
   tone?: "neutral" | "accent";
+  /**
+   * Item geometry. `default` is Toggl's 30px items with no gap (most menus); `compact` is its
+   * 28px items with a 1px gap, 4px padding and no checked check-mark (calendar mode menu, report
+   * breakdown menu, tag row menu).
+   */
+  density?: "default" | "compact";
   className?: string;
   contentClassName?: string;
   onBlur?: () => void;
@@ -56,6 +62,7 @@ export function Select({
   icon,
   labelPrefix,
   tone = "neutral",
+  density = "default",
   className,
   contentClassName,
   onBlur,
@@ -114,7 +121,9 @@ export function Select({
           <SelectPrimitive.ScrollUpButton className="text-fg-subtle flex h-6 items-center justify-center">
             <Chevron up />
           </SelectPrimitive.ScrollUpButton>
-          <SelectPrimitive.Viewport className="p-[5px]">
+          <SelectPrimitive.Viewport
+            className={density === "compact" ? "p-1 [&>*+*]:mt-px" : "p-[5px]"}
+          >
             {options.map((option) => (
               <SelectPrimitive.Item
                 key={option.value}
@@ -124,7 +133,8 @@ export function Select({
                   option.textValue ?? (typeof option.label === "string" ? option.label : undefined)
                 }
                 className={twMerge(
-                  "hourlark-select-item data-[disabled]:text-fg-disabled relative flex h-[30px] cursor-pointer items-center gap-2 rounded-lg pr-8 pl-2.5 outline-none select-none data-[disabled]:cursor-not-allowed",
+                  "hourlark-select-item data-[disabled]:text-fg-disabled relative flex cursor-pointer items-center gap-2 rounded-lg outline-none select-none data-[disabled]:cursor-not-allowed",
+                  density === "compact" ? "h-7 px-3" : "h-[30px] pr-8 pl-2.5",
                   tone === "accent"
                     ? "data-[highlighted]:bg-accent-muted-hover data-[state=checked]:bg-accent-muted data-[state=checked]:text-accent-fg"
                     : "data-[highlighted]:bg-surface-hover data-[state=checked]:bg-surface-hover",
@@ -132,9 +142,11 @@ export function Select({
               >
                 {option.color ? <Swatch color={option.color} /> : null}
                 <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
-                <SelectPrimitive.ItemIndicator className="absolute right-2.5 flex items-center">
-                  <Check size={14} aria-hidden="true" />
-                </SelectPrimitive.ItemIndicator>
+                {density === "compact" ? null : (
+                  <SelectPrimitive.ItemIndicator className="absolute right-2.5 flex items-center">
+                    <Check size={14} aria-hidden="true" />
+                  </SelectPrimitive.ItemIndicator>
+                )}
               </SelectPrimitive.Item>
             ))}
           </SelectPrimitive.Viewport>

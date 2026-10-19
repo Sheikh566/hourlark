@@ -446,6 +446,7 @@ function MemberEditor({
             <FormSelect
               control={form.control}
               name="role"
+              className="h-9"
               disabled={!canManageIdentity}
               options={[
                 { value: "member", label: "Member" },

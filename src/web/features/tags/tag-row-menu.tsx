@@ -103,7 +103,8 @@ export function TagRowMenu({ label, items }: { label: string; items: RowMenuItem
               role="menu"
               style={{ top: position.top, right: position.right }}
               onKeyDown={moveFocus}
-              className="border-stroke bg-surface dark-surface fixed z-[70] min-w-[134.8px] rounded-lg border p-1 text-sm font-medium shadow-[0_2px_8px_rgb(0_0_0/50%)]"
+              // Toggl's tag menu: 28px rows with a 1px gap (29px pitch) on a 4px inset.
+              className="border-stroke bg-surface dark-surface fixed z-[70] flex min-w-[134.8px] flex-col gap-px rounded-lg border p-1 text-sm font-medium shadow-[0_2px_8px_rgb(0_0_0/50%)]"
             >
               {items.map((item) => (
                 <button

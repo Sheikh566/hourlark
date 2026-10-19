@@ -71,11 +71,12 @@ test("client and project creation, editing, search and archive recovery", async 
   await expect(page.getByRole("dialog")).toBeHidden();
   await page.getByRole("link", { name: "Projects", exact: true }).click();
   await page.getByRole("button", { name: "New project", exact: true }).click();
+  // Toggl keeps the Client picker under "Advanced Options".
+  await page.getByRole("button", { name: "Advanced options", exact: true }).click();
   await chooseOption(page.getByRole("combobox", { name: "Client", exact: true }), client);
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Please enter a Project name");
   await page.getByRole("textbox", { name: "Project name", exact: true }).fill(project);
-  await page.getByRole("button", { name: "Advanced options", exact: true }).click();
   await page.getByRole("spinbutton", { name: "Hourly rate", exact: true }).fill("25");
   await page.getByRole("spinbutton", { name: "Budget hours", exact: true }).fill("10");
   await page.getByRole("switch", { name: "Billable by default", exact: true }).click();

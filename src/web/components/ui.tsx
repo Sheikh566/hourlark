@@ -1,12 +1,14 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertCircle, CheckCircle2, LoaderCircle, Search, X } from "lucide-react";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type InputHTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
@@ -150,6 +152,9 @@ export function Modal({
   align = "center",
   titleSize = size === "compact" ? "md" : "sm",
   bodyClassName,
+  borderless = false,
+  offsetX = 0,
+  closeIconClassName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -164,6 +169,15 @@ export function Modal({
   titleSize?: keyof typeof modalTitleSizes;
   /** Body spacing overrides, e.g. Toggl's invite dialog starts its body 16px under the title. */
   bodyClassName?: string;
+  /**
+   * Toggl's New project dialog has no CSS border: its 1px #3a3a3a edge is a shadow ring. Opt-in,
+   * with the same inner offsets as the bordered panel (the 1px border folds into the padding).
+   */
+  borderless?: boolean;
+  /** Shifts the centred panel right, e.g. Toggl's project dialog sits 80px right of centre. */
+  offsetX?: number;
+  /** Close-icon colour override, e.g. Toggl's tag dialog uses #b2b2b2. */
+  closeIconClassName?: string;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -179,12 +193,24 @@ export function Modal({
             preferred.focus();
           }}
           className={twMerge(
-            "dark-surface hl-modal border-stroke bg-surface text-fg shadow-popover fixed left-1/2 z-50 flex -translate-x-1/2 flex-col rounded-lg border",
+            "dark-surface hl-modal bg-surface text-fg shadow-popover fixed left-1/2 z-50 flex -translate-x-1/2 flex-col rounded-lg",
             modalSizes[size].panel,
+            borderless ? "border-0 px-5 pt-4 pb-5" : "border-stroke border",
+            // Toggl's project dialog is centred 80px right of the viewport centre on desktop; the
+            // offset is dropped on narrow screens so the panel stays fully in view.
+            offsetX ? "md:left-[calc(50%_+_var(--modal-offset-x,0px))]" : null,
             align === "top"
               ? "top-[100px] max-h-[calc(100dvh-116px)]"
               : "top-1/2 max-h-[calc(100dvh-32px)] -translate-y-1/2",
           )}
+          style={
+            {
+              ...(borderless
+                ? { boxShadow: "0 0 0 1px var(--color-stroke), var(--shadow-popover)" }
+                : {}),
+              ...(offsetX ? { "--modal-offset-x": `${offsetX}px` } : {}),
+            } as CSSProperties
+          }
         >
           <div className="min-w-0 shrink-0 pr-7">
             <Dialog.Title className={twMerge("text-fg font-semibold", modalTitleSizes[titleSize])}>
@@ -215,6 +241,7 @@ export function Modal({
             className={twMerge(
               "text-fg hover:text-fg-soft absolute grid place-items-center rounded-lg",
               size === "md" ? "top-0 right-0 size-[50px]" : "top-[7.5px] right-[6.5px] size-[37px]",
+              closeIconClassName,
             )}
             aria-label="Close dialog"
           >
@@ -375,6 +402,8 @@ export interface RowMenuItem {
   onSelect: () => void;
   danger?: boolean;
   disabled?: boolean;
+  /** Draws Toggl's 1px divider above the item (its grouped row menus). */
+  separatorBefore?: boolean;
 }
 
 /** Gap between the kebab and its menu (Toggl: menu top sits 5px below the 30px trigger). */
@@ -384,11 +413,17 @@ export function RowMenu({
   label,
   items,
   menuClassName,
+  density = "default",
 }: {
   label: string;
   items: RowMenuItem[];
   /** Width/size overrides per surface, e.g. Toggl's list menu is 170px and the timer menu 130px. */
   menuClassName?: string;
+  /**
+   * `default` is Toggl's 30px rows on a 5px inset; `compact` is its 28px rows with a 1px gap on
+   * a 4px inset (the tag row menu).
+   */
+  density?: "default" | "compact";
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
@@ -475,27 +510,41 @@ export function RowMenu({
               style={{ top: position.top, right: position.right }}
               onKeyDown={moveFocus}
               className={twMerge(
-                "timer-popover dark-surface fixed z-[70] min-w-32 p-[5px] text-sm font-medium",
+                "timer-popover dark-surface fixed z-[70] min-w-32 text-sm font-medium",
+                density === "compact" ? "flex flex-col gap-px p-1" : "p-[5px]",
                 menuClassName,
               )}
             >
               {items.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  role="menuitem"
-                  disabled={item.disabled}
-                  className={twMerge(
-                    "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover disabled:text-fg-disabled flex h-[30px] w-full items-center rounded-lg px-2.5 text-left leading-[30px] whitespace-nowrap disabled:cursor-not-allowed disabled:hover:bg-transparent",
-                    item.danger && "text-error-fg",
-                  )}
-                  onClick={() => {
-                    setOpen(false);
-                    item.onSelect();
-                  }}
-                >
-                  {item.label}
-                </button>
+                <Fragment key={item.label}>
+                  {item.separatorBefore ? (
+                    <div
+                      role="separator"
+                      className={twMerge(
+                        "border-stroke border-t",
+                        density === "compact" ? "my-px" : "my-0.5",
+                      )}
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={item.disabled}
+                    className={twMerge(
+                      "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover disabled:text-fg-disabled flex w-full items-center rounded-lg text-left whitespace-nowrap disabled:cursor-not-allowed disabled:hover:bg-transparent",
+                      density === "compact"
+                        ? "h-7 px-3 leading-7"
+                        : "h-[30px] px-2.5 leading-[30px]",
+                      item.danger && "text-error-fg",
+                    )}
+                    onClick={() => {
+                      setOpen(false);
+                      item.onSelect();
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                </Fragment>
               ))}
             </div>,
             document.body,
