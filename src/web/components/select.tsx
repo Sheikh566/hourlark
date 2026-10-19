@@ -91,7 +91,9 @@ export function Select({
           </span>
         ) : null}
         {selected?.color ? <Swatch color={selected.color} /> : null}
-        <span className="min-w-0 flex-1 truncate">
+        {/* Toggl's trigger runs ("Breakdown by:", "Projects") are normal white-space; keep the
+            ellipsis cap on the container without forcing nowrap. */}
+        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">
           {labelPrefix ? <span className="text-fg-subtle mr-1">{labelPrefix}</span> : null}
           <SelectPrimitive.Value placeholder={placeholder} />
         </span>

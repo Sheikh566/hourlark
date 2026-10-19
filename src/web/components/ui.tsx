@@ -57,19 +57,18 @@ export function Button({
   return (
     <button
       className={twMerge(
-        "box-border inline-flex h-9 shrink-0 items-center justify-center gap-[5px] rounded-lg px-3 text-sm leading-5 font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50",
-        icon && "pr-4",
+        "box-border inline-flex h-9 shrink-0 items-center justify-center rounded-lg px-3 text-sm leading-5 font-semibold whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50",
+        // Toggl's icon buttons have no flex gap: the 20px icon (a direct child, as in Toggl) carries
+        // a 5px right margin and the label uses normal line-height. The 12/20/5/label/16 box keeps
+        // the measured 134.8x36 "+ New project" footprint.
+        icon ? "pr-4 leading-[normal] [&>svg]:mr-[5px]" : "gap-[5px]",
         buttonVariants[variant],
         className,
       )}
       {...props}
     >
-      {icon ? (
-        <span className="grid size-5 shrink-0 place-items-center" aria-hidden="true">
-          {icon}
-        </span>
-      ) : null}
-      {children}
+      {icon}
+      {icon ? <span className="whitespace-normal">{children}</span> : children}
     </button>
   );
 }
@@ -122,12 +121,16 @@ export { Switch } from "@/web/components/switch";
 export { ToastProvider, useToast } from "@/web/components/toast";
 
 // Toggl small dialogs inset content 24px (360 wide); the 520 project dialog uses 20px.
-// `compact` is Toggl's New/Edit tag dialog: 360x187, 20px inset, 16px title, 21px to the body.
+// `compact` is Toggl's New/Edit tag dialog (measured 360x187): title top +23 (22px inset + 1px
+// border), input top +64 (title 22.88 + 14.12 body margin + 4 body padding), bottom padding 21.
 const modalSizes = {
   sm: { panel: "w-[min(94vw,360px)] px-6 pt-[15px] pb-6", body: "mt-7" },
   md: { panel: "w-[min(94vw,520px)] px-[19px] pt-[15px] pb-[19px]", body: "mt-7" },
   lg: { panel: "w-[min(94vw,620px)] px-[19px] pt-[15px] pb-[19px]", body: "mt-7" },
-  compact: { panel: "w-[min(94vw,360px)] px-5 pt-[22px] pb-4", body: "mt-[17px]" },
+  compact: {
+    panel: "w-[min(94vw,360px)] px-5 pt-[22px] pb-[21px]",
+    body: "mt-[14.12px] pb-[5px]",
+  },
 } as const;
 
 const modalTitleSizes = {
@@ -325,11 +328,14 @@ export function SearchInput({
   value,
   onChange,
   className,
+  placeholderClassName,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  /** Placeholder colour override, e.g. Toggl's #999 on Tags vs its default #a4a4a4. */
+  placeholderClassName?: string;
 }) {
   return (
     <label className={twMerge("relative block w-full max-w-[200px] min-w-[160px]", className)}>
@@ -342,7 +348,10 @@ export function SearchInput({
       {/* Toggl search: transparent, inset 1px #808080 ring instead of a border. */}
       <input
         type="search"
-        className="hl-control text-fg placeholder:text-fg-muted box-border h-9 w-full rounded-lg bg-transparent pr-8 pl-[34px] text-sm leading-5 font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none"
+        className={twMerge(
+          "hl-control text-fg placeholder:text-fg-muted box-border h-9 w-full rounded-lg bg-transparent pr-8 pl-[34px] text-sm leading-5 font-medium shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] outline-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-cancel-button]:appearance-none",
+          placeholderClassName,
+        )}
         placeholder={`${label}...`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -400,7 +409,7 @@ export function RowMenu({
     // In tables Toggl opens the menu flush with the row's bottom edge.
     const row = trigger.current?.closest("tr")?.getBoundingClientRect();
     const top = row ? row.bottom : rect.bottom + MENU_OFFSET;
-    setPosition({ top, right: window.innerWidth - rect.right });
+    setPosition({ top, right: document.documentElement.clientWidth - rect.right });
   }, []);
   useLayoutEffect(() => {
     if (open) place();
@@ -528,7 +537,7 @@ export function SortHeader({
   return (
     <button
       type="button"
-      className="hover:text-fg inline-flex items-center gap-2.5 uppercase"
+      className="hover:text-fg inline-flex items-center gap-2.5 text-left uppercase"
       aria-label={`Sort by ${label.toLowerCase()}`}
       onClick={onToggle}
     >

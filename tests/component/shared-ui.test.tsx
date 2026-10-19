@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +48,25 @@ describe("Modal", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Close dialog" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("uses Toggl's 360x187 compact geometry", () => {
+    render(
+      <Modal
+        open
+        onOpenChange={() => undefined}
+        title="New Tag"
+        size="compact"
+        footer={<Button className="w-full">Create</Button>}
+      >
+        <Input aria-label="Tag name" />
+      </Modal>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("w-[min(94vw,360px)]", "px-5", "pt-[22px]", "pb-[21px]");
+    // Body margin + padding put the 36px input 64px under the dialog top; the 5px bottom padding
+    // plus the footer margin and 21px dialog padding give the measured 187px height.
+    expect(screen.getByLabelText("Tag name").parentElement).toHaveClass("mt-[14.12px]", "pb-[5px]");
   });
 });
 
@@ -102,6 +121,24 @@ describe("RowMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveClass("text-error-fg");
     await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus();
+  });
+
+  it("anchors the menu to the layout viewport so a scrollbar cannot push it out of line", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(document.documentElement, "clientWidth", {
+      configurable: true,
+      value: 900,
+    });
+    try {
+      render(
+        <RowMenu label="Row actions" items={[{ label: "Edit", onSelect: () => undefined }]} />,
+      );
+      await user.click(screen.getByRole("button", { name: "Row actions" }));
+      // The trigger's jsdom rect is 0-wide/right-0, so the right offset is the client width.
+      expect(screen.getByRole("menu")).toHaveStyle({ right: "900px" });
+    } finally {
+      delete (document.documentElement as unknown as Record<string, unknown>).clientWidth;
+    }
   });
 });
 
@@ -218,6 +255,10 @@ describe("Select", () => {
     const trigger = screen.getByRole("combobox", { name: "Breakdown" });
     expect(trigger).toHaveTextContent("Breakdown by:Projects");
     expect(trigger).toHaveClass("h-[38px]");
+    // Toggl's trigger runs are normal white-space; only the container clips/ellipsises.
+    const run = within(trigger).getByText("Breakdown by:").parentElement;
+    expect(run).toHaveClass("overflow-hidden", "text-ellipsis");
+    expect(run).not.toHaveClass("truncate");
   });
 
   it("uses the neutral selected tone unless accent is requested", async () => {
@@ -263,8 +304,13 @@ describe("Button, SearchInput and SortHeader", () => {
     for (const name of ["Cancel", "New tag", "New project"]) {
       expect(screen.getByRole("button", { name })).toHaveClass("h-9", "box-border");
     }
-    expect(screen.getByRole("button", { name: "New project" })).toHaveClass("pr-4");
-    expect(screen.getByTestId("plus").parentElement).toHaveClass("size-5");
+    const iconButton = screen.getByRole("button", { name: "New project" });
+    // Toggl: no flex gap, 5px right margin on the 20px icon (a direct flex child), normal line-height.
+    expect(iconButton).toHaveClass("pr-4", "leading-[normal]", "[&>svg]:mr-[5px]");
+    expect(iconButton).not.toHaveClass("gap-[5px]");
+    expect(iconButton).toContainElement(screen.getByTestId("plus"));
+    expect(screen.getByTestId("plus").parentElement).toBe(iconButton);
+    expect(within(iconButton).getByText("New project")).toHaveClass("whitespace-normal");
   });
 
   it("clears the search with the inline clear button", async () => {
@@ -274,9 +320,26 @@ describe("Button, SearchInput and SortHeader", () => {
     expect(onChange).toHaveBeenCalledWith("");
   });
 
-  it("renders sort chevrons and fires onToggle", async () => {
+  it("defaults the placeholder to #a4a4a4 but lets each page override it", () => {
+    render(<SearchInput label="Search clients" value="" onChange={() => undefined} />);
+    expect(screen.getByPlaceholderText("Search clients...")).toHaveClass(
+      "placeholder:text-fg-muted",
+    );
+    render(
+      <SearchInput
+        label="Search tags"
+        value=""
+        onChange={() => undefined}
+        placeholderClassName="placeholder:text-fg-subtle"
+      />,
+    );
+    expect(screen.getByPlaceholderText("Search tags...")).toHaveClass("placeholder:text-fg-subtle");
+  });
+
+  it("left-aligns sort labels and fires onToggle", async () => {
     const onToggle = vi.fn();
     render(<SortHeader label="Project" direction="asc" onToggle={onToggle} />);
+    expect(screen.getByRole("button", { name: "Sort by project" })).toHaveClass("text-left");
     await userEvent.click(screen.getByRole("button", { name: "Sort by project" }));
     expect(onToggle).toHaveBeenCalledOnce();
   });
