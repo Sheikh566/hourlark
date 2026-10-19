@@ -28,6 +28,7 @@ vi.mock("@/web/app/context", () => ({
     },
     permissions: {
       financial: true,
+      manage_workspace: true,
     },
   }),
 }));
@@ -90,6 +91,33 @@ describe("inline time-entry editor", () => {
   });
   afterEach(() => {
     cleanup();
+  });
+
+  it("searches by client while showing it only as a group heading", async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <InlineEntryEditor
+          entry={entry}
+          projects={projects}
+          tags={tags}
+          initialField="project"
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await user.type(screen.getByRole("textbox", { name: "Search entry projects" }), "IOMechs");
+    expect(screen.getByRole("heading", { name: "Selected project" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "IOMechs" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Korametrics" })).toHaveTextContent(/^Korametrics$/);
+    expect(screen.getByRole("button", { name: "Internal operations" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Create a new project" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("textbox", { name: "Search entry projects" }),
+    ).not.toBeInTheDocument();
+    expect(apiRequest).not.toHaveBeenCalled();
   });
 
   it("preserves fractional timestamps and inherited rates on metadata saves", async () => {

@@ -1,10 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { projectPickerTextColor, projectTextColor } from "@/web/features/timer/project-tint";
-import { TagPicker } from "@/web/features/timer/timer-pickers";
+import { ProjectPicker, TagPicker } from "@/web/features/timer/timer-pickers";
 import type { Tag } from "@/web/types";
 
 afterEach(cleanup);
@@ -106,4 +106,45 @@ it("does not create a tag through the shortcut when the member cannot manage tag
   await user.keyboard("{Control>}{Enter}{/Control}");
   expect(onCreate).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: /Create/ })).not.toBeInTheDocument();
+});
+
+it("groups projects by client without repeating the client on selectable rows", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(
+    <ProjectPicker
+      projects={[
+        {
+          id: "project-a",
+          name: "Delivery",
+          client_name: "HLTEST client",
+          color: "#0b83d9",
+          billable_default: false,
+        },
+        {
+          id: "project-b",
+          name: "Operations",
+          client_name: "Another client",
+          color: "#0b83d9",
+          billable_default: false,
+        },
+      ]}
+      value=""
+      disabled={false}
+      canCreate={false}
+      onChange={onChange}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Choose project" }));
+  await user.type(
+    screen.getByRole("textbox", { name: "Search projects or clients" }),
+    "HLTEST client",
+  );
+  expect(screen.getByRole("heading", { name: "HLTEST client" })).toBeVisible();
+  const row = screen.getByRole("button", { name: "Delivery" });
+  expect(within(row).queryByText("HLTEST client")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Operations" })).not.toBeInTheDocument();
+  await user.click(row);
+  expect(onChange).toHaveBeenCalledExactlyOnceWith("project-a");
+  expect(screen.getByRole("button", { name: "Choose project" })).toHaveFocus();
 });

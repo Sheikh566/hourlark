@@ -249,7 +249,9 @@ export function TimeCell({
             running ? "text-accent-fg" : "text-fg",
           )}
         >
-          <DurationText durationMs={durationMs} />
+          <span>
+            <DurationText durationMs={durationMs} />
+          </span>
         </span>
       </span>
     </button>
@@ -277,7 +279,7 @@ export function RowActions({
       <div className="flex h-full w-10 items-center justify-center">
         <button
           type="button"
-          className="text-fg grid size-[30px] place-items-center rounded-lg opacity-100 lg:opacity-0 lg:group-focus-within:opacity-50 lg:group-hover:opacity-50 lg:hover:opacity-100! lg:focus-visible:opacity-100!"
+          className="grid size-[30px] place-items-center rounded-lg text-white opacity-100 lg:opacity-0 lg:group-focus-within:opacity-50 lg:group-hover:opacity-50 lg:hover:opacity-100! lg:focus-visible:opacity-100!"
           disabled={continueDisabled}
           onClick={onContinue}
           title="Continue"
@@ -291,7 +293,11 @@ export function RowActions({
         data-entry-menu={entryId}
       >
         {menuItems?.length ? (
-          <RowMenu label={menuLabel} items={menuItems} menuClassName="w-[170px]" />
+          <RowMenu
+            label={menuLabel}
+            items={menuItems}
+            menuClassName="w-[170px] [&>button:focus]:bg-surface-hover"
+          />
         ) : null}
       </div>
     </>

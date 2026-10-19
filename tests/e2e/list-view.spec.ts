@@ -48,11 +48,24 @@ test("list rows, in-place editing, grouped selection and date ranges retain meas
     await expect(checkbox).toHaveCSS("opacity", "1");
     await row.hover();
     await expect(row).toHaveCSS("background-color", "rgb(58, 58, 58)");
+    const durationRight = await row
+      .getByTitle("Edit date, times, and duration")
+      .locator(":scope > span:last-child > span > span")
+      .evaluate((element) => element.getBoundingClientRect().right);
+    const continueBox = await row
+      .getByRole("button", { name: "Continue time entry", exact: true })
+      .boundingBox();
+    const durationGap = (continueBox?.x ?? 0) - durationRight;
+    expect(durationGap).toBeGreaterThanOrEqual(21);
+    expect(durationGap).toBeLessThanOrEqual(23);
     await label.click();
     const form = page.getByRole("form", { name: `Edit ${description}` });
     expect((await form.boundingBox())?.height).toBe(50);
     const input = page.getByLabel("Entry description");
     await expect(input).toBeFocused();
+    expect((await input.boundingBox())?.width).toBe(210);
+    expect((await input.boundingBox())?.height).toBe(17);
+    await expect(form).toHaveCSS("background-color", "rgb(58, 58, 58)");
     await expect(input).toHaveCSS("outline-style", "none");
     await input.fill(`${description} edited`);
     await input.press("Enter");
@@ -78,6 +91,9 @@ test("list rows, in-place editing, grouped selection and date ranges retain meas
     expect((await page.locator(".global-timer").boundingBox())?.width).toBe(1694);
     await row.getByRole("button", { name: "More actions" }).click();
     await expect(page.getByRole("menu")).toBeVisible();
+    const duplicate = page.getByRole("menuitem", { name: "Duplicate", exact: true });
+    await expect(duplicate).toBeFocused();
+    await expect(duplicate).toHaveCSS("background-color", "rgb(58, 58, 58)");
     await main.evaluate((element) => {
       element.scrollTop = 100;
     });
@@ -98,6 +114,10 @@ test("list rows, in-place editing, grouped selection and date ranges retain meas
     await period.click();
     const picker = page.getByRole("dialog", { name: "Choose date range" });
     expect((await picker.boundingBox())?.width).toBe(568);
+    const yearLabel = picker.getByRole("button", { name: /^Year / }).locator("span");
+    // Toggl: 14/500 year button wrapping a 20/600 year label.
+    await expect(yearLabel).toHaveCSS("font-size", "20px");
+    await expect(yearLabel).toHaveCSS("font-weight", "600");
     await picker.getByRole("button", { name: "Last week", exact: true }).click();
     await expect(period).toHaveText(/Last week.*· W\d+/);
     await page.getByRole("button", { name: "Clear and reset to default" }).click();

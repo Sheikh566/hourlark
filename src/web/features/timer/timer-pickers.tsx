@@ -253,7 +253,7 @@ function CreateProjectLabel() {
 function CreateProjectLabelContent() {
   return (
     <>
-      <PlusGlyph className="shrink-0" />
+      <PlusGlyph className="text-accent-fg-hover shrink-0" />
       <span>Create a new project</span>
     </>
   );
@@ -343,12 +343,12 @@ export function ProjectPicker({
       </button>
       {open ? (
         <div
-          className="timer-popover absolute top-[calc(100%+5px)] right-[5px] z-50 w-[min(88vw,360px)] pt-[5px]"
+          className="timer-popover absolute top-[calc(100%+5px)] right-0 z-50 w-[min(88vw,360px)] pt-[5px]"
           onKeyDown={onArrow}
         >
           <div
             ref={searchRow}
-            className="border-surface-raised mt-2 flex h-[47px] items-start border-b px-[15px] pt-[3px]"
+            className="border-surface-raised mt-2 flex h-[47px] items-start border-b pt-[3px] pr-[59px] pl-[15px]"
           >
             <PopoverSearch
               value={search}
@@ -393,9 +393,6 @@ export function ProjectPicker({
                     >
                       <ProjectDot color={project.color} />
                       <ProjectName project={project} />
-                      {hasClient(project.client_name) ? (
-                        <span className="text-fg-subtle truncate">{project.client_name}</span>
-                      ) : null}
                     </PickerRow>
                   ))}
                 </div>

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { addSeconds } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { Check, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { majorToMinor, minorToMajor } from "@/domain/billing/money";
@@ -16,6 +16,11 @@ import {
   TagsCell,
   TimeCell,
 } from "@/web/features/time/list-entry-row";
+import {
+  CreateProjectFooter,
+  PickerHeading,
+  PopoverSearch as ProjectSearch,
+} from "@/web/features/timer/timer-pickers";
 import { projectPickerTextColor } from "@/web/features/timer/project-tint";
 import {
   useDismissPopover,
@@ -287,7 +292,7 @@ export function InlineEntryEditor({
     <div>
       <form
         ref={formRef}
-        className={twMerge(entryRowClassName, "has-[[aria-expanded=true]]:bg-surface")}
+        className={twMerge(entryRowClassName, "bg-surface-hover [&_.text-fg-subtle]:text-fg-muted")}
         aria-label={`Edit ${entry.description || "time entry"}`}
         onSubmit={submit}
         onBlur={(event) => {
@@ -306,7 +311,7 @@ export function InlineEntryEditor({
           <div className={twMerge("flex min-w-0 items-center", nested && "pl-10")}>
             <input
               autoFocus={initialField === "description"}
-              className="entry-inline-input text-fg placeholder:text-fg-subtle caret-accent field-sizing-content h-[30px] max-w-[60%] min-w-[120px] shrink-0 bg-transparent pr-2.5 text-sm font-normal"
+              className="entry-inline-input text-fg placeholder:text-fg-subtle caret-accent h-[17px] w-[210px] max-w-[60%] shrink-0 bg-transparent p-0 text-sm font-normal"
               value={description}
               maxLength={500}
               placeholder="Add description"
@@ -439,14 +444,6 @@ function PopoverSearch({
   );
 }
 
-function PopoverHeading({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-fg px-[15px] pt-5 pb-2.5 text-[11px] leading-[14px] font-semibold tracking-[0.4px] uppercase">
-      {children}
-    </p>
-  );
-}
-
 function ProjectPicker({
   projects,
   value,
@@ -462,6 +459,7 @@ function ProjectPicker({
   onOpenChange: (open: boolean) => void;
   onChange: (value: string) => void;
 }) {
+  const me = useMe();
   const [search, setSearch] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -525,18 +523,21 @@ function ProjectPicker({
         <div
           className={twMerge(
             popoverPlacement,
-            "timer-popover w-[min(92vw,360px)] pt-[5px] lg:left-0",
+            "timer-popover w-[min(92vw,360px)] pt-[5px] lg:top-[calc(100%+9px)] lg:-left-2",
           )}
         >
-          <PopoverSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search projects or clients"
-            label="Search entry projects"
-          />
-          <div className="max-h-[324px] overflow-y-auto pb-[5px]">
+          <div className="border-surface-raised mt-2 flex h-[47px] items-start border-b pt-[3px] pr-[59px] pl-[15px]">
+            <ProjectSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by project, task or client"
+              label="Search entry projects"
+              clearLabel="Clear entry project search"
+            />
+          </div>
+          <div className="mt-3 ml-px max-h-[324px] [scrollbar-gutter:stable] overflow-y-auto">
             <PickerOption
-              label="No project"
+              label="No Project"
               active={!value}
               onClick={() => {
                 onChange("");
@@ -545,10 +546,9 @@ function ProjectPicker({
             />
             {selected && selectedVisible ? (
               <div>
-                <PopoverHeading>Selected project</PopoverHeading>
+                <PickerHeading>Selected project</PickerHeading>
                 <PickerOption
                   label={`${selected.name}${selected.id === archivedProjectId ? " · archived" : ""}`}
-                  detail={selected.client_name || "No client"}
                   active
                   color={selected.color}
                   onClick={() => requestClose(true)}
@@ -558,7 +558,7 @@ function ProjectPicker({
             {grouped.length ? (
               grouped.map(([client, clientProjects]) => (
                 <div key={client}>
-                  <PopoverHeading>{client}</PopoverHeading>
+                  <PickerHeading>{client}</PickerHeading>
                   {clientProjects.map((project) => (
                     <PickerOption
                       key={project.id}
@@ -578,6 +578,7 @@ function ProjectPicker({
               </p>
             )}
           </div>
+          {me.permissions.manage_workspace ? <CreateProjectFooter /> : null}
         </div>
       ) : null}
     </div>
@@ -865,19 +866,17 @@ function DateTimeFields({
 
 function PickerOption({
   label,
-  detail,
   active,
   color,
   onClick,
 }: {
   label: string;
-  detail?: string;
   active?: boolean;
   color?: string;
   onClick: () => void;
 }) {
   return (
-    <div className="px-1.5 py-px">
+    <div className="py-px pr-[3px] pl-1.5">
       <button
         type="button"
         aria-label={label.replace(" · archived", "")}
@@ -902,7 +901,6 @@ function PickerOption({
           style={color ? { color: projectPickerTextColor(color) } : { color: "rgb(183 183 183)" }}
         >
           {label}
-          {detail ? <span className="text-fg-subtle ml-2 text-xs">{detail}</span> : null}
         </span>
         {active ? <Check size={16} className="text-fg-muted shrink-0" aria-hidden="true" /> : null}
       </button>
