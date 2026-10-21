@@ -12,6 +12,7 @@ import {
   Loading,
   PageHeader,
   RowMenu,
+  iconButtonClassName,
   SearchInput,
   Select,
   useToast,
@@ -101,7 +102,7 @@ export function ClientsPage() {
       <div className="page-toolbar py-0">
         {manage ? (
           <Select
-            className="[&_svg]:text-fg h-9 w-auto border-0 bg-transparent shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)]"
+            className="hover:bg-surface hover:text-fg-hover h-9 w-auto border-0 bg-transparent shadow-[inset_0_0_0_1px_var(--color-stroke-tertiary)] [&_svg]:text-current"
             aria-label="Filter clients by status"
             value={status}
             onValueChange={(value) => {
@@ -269,7 +270,7 @@ function ExpandButton({
   return (
     <button
       type="button"
-      className="text-fg grid size-8 place-items-center rounded-lg"
+      className={`${iconButtonClassName} grid size-8 place-items-center`}
       aria-label={label}
       aria-expanded={expanded}
       onClick={onClick}
@@ -370,7 +371,7 @@ function ClientRows({
           )}
         </td>
         <td className="h-12 p-0 pr-3">
-          <RowMenu label={`Actions for ${client.name}`} items={actions} />
+          <RowMenu label={`Actions for ${client.name}`} items={actions} triggerTone="surface" />
         </td>
       </tr>
       {open ? (

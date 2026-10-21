@@ -145,7 +145,7 @@ export function ReportBreakdown({
             tone="accent"
             density="compact"
             labelPrefix="Breakdown by:"
-            className="hover:bg-surface-hover data-[state=open]:bg-surface-hover h-9 w-[202px] hover:border-[#989898] data-[state=open]:border-[#989898]"
+            className="hover:text-fg-hover data-[state=open]:bg-surface-hover h-9 w-[202px] data-[state=open]:border-[#989898]"
             value={groupBy}
             onValueChange={(value) => onGroupChange(value as GroupDimension)}
             options={BREAKDOWN_DIMENSIONS.map((value) => ({
@@ -158,7 +158,7 @@ export function ReportBreakdown({
             tone="accent"
             density="compact"
             labelPrefix="and:"
-            className="hover:bg-surface-hover data-[state=open]:bg-surface-hover h-9 w-[160px] hover:border-[#989898] data-[state=open]:border-[#989898]"
+            className="hover:text-fg-hover data-[state=open]:bg-surface-hover h-9 w-[160px] data-[state=open]:border-[#989898]"
             value={secondary}
             onValueChange={(value) => onSecondaryChange(value as GroupDimension | "")}
             options={[

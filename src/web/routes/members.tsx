@@ -108,7 +108,7 @@ export function MembersPage() {
           Filters:
         </span>
         <Select
-          className="border-stroke-tertiary !h-[34px] !w-[110px] bg-transparent !px-2 leading-[14px] [&>svg:last-child]:hidden"
+          className="border-stroke-tertiary hover:bg-surface-hover !h-[34px] !w-[110px] bg-transparent !px-2 leading-[14px] [&>svg:last-child]:hidden"
           aria-label="Filter members by access"
           icon={<ListFilter size={18} />}
           value={role}
@@ -164,7 +164,7 @@ export function MembersPage() {
         </div>
       ) : (
         <div className="relative overflow-x-auto">
-          <table className="data-table min-w-[850px]">
+          <table className="data-table data-table-static min-w-[850px]">
             <thead>
               <tr>
                 <th scope="col">

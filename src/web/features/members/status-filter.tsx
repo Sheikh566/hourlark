@@ -108,8 +108,10 @@ export function MemberStatusFilter({
                   <label
                     key={option.value}
                     className={twMerge(
-                      "hover:bg-surface-hover has-[:focus-visible]:bg-surface-hover flex h-[30px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5 leading-[30px]",
-                      checked && "bg-surface-hover",
+                      "has-[:focus-visible]:bg-surface-hover flex h-[30px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5 leading-[30px]",
+                      checked
+                        ? "bg-surface-hover hover:bg-surface-hover-strong"
+                        : "hover:bg-hover-soft",
                     )}
                   >
                     <Checkbox

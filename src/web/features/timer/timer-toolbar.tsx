@@ -46,7 +46,7 @@ function TotalChip({
 }
 
 const pieceClass =
-  "box-border flex h-9 w-9 shrink-0 items-center justify-center border border-stroke-tertiary bg-surface px-3 text-sm leading-[normal] text-fg-subtle hover:bg-surface-hover disabled:hover:bg-surface";
+  "box-border flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center border border-stroke-tertiary bg-surface px-3 text-sm leading-[normal] text-fg-subtle hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-surface";
 
 export function TimerToolbar({
   view,

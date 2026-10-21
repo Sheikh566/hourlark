@@ -156,7 +156,7 @@ export function TagsCell({
       <button
         type="button"
         className={twMerge(
-          "text-fg-muted hover:text-fg box-border grid h-[30px] place-items-center rounded-lg px-[6.5px]",
+          "text-fg-muted hover:text-fg-soft box-border grid h-[30px] place-items-center rounded-lg px-[6.5px]",
           active && "text-accent-fg hover:text-accent-fg",
           hasTags || visible ? "" : revealOnRowHover,
         )}
@@ -237,7 +237,7 @@ export function TimeCell({
       <span
         className={twMerge(
           "text-fg-subtle box-border block shrink-0 rounded-lg px-[7.5px] py-[5px] leading-[14px] whitespace-nowrap",
-          active && "bg-surface-hover",
+          active ? "bg-surface-hover" : "hover:bg-hover-faint hover:text-fg",
         )}
       >
         {range}
@@ -245,7 +245,7 @@ export function TimeCell({
       <span className="box-border flex w-[87px] shrink-0 justify-end">
         <span
           className={twMerge(
-            "box-border rounded-lg px-[7.5px] leading-[14px]",
+            "hover:bg-hover-faint box-border rounded-lg px-[7.5px] leading-[14px]",
             running ? "text-accent-fg" : "text-fg",
           )}
         >

@@ -120,6 +120,14 @@
   --color-nav-selected: #482c02;
   --color-nav-selected-hover: #7a4c01;
 
+  /* Toggl hover roles (measured with forced :hover on every control). */
+  --color-surface-hover-strong: #4d4d4d; /* a selected (#3a3a3a) option under the pointer */
+  --color-hover-soft: rgb(250 250 250 / 5%); /* option rows in pickers, menus, filters */
+  --color-hover-faint: rgb(250 250 250 / 3%); /* inline row fields (time range, duration) */
+  --color-fg-hover: #d5d5d5; /* tertiary/icon buttons dim their text and icon */
+  --color-fg-strong-hover: #f5f5f5; /* workspace switcher and menu buttons */
+  --color-control-hover: #909090; /* inset ring of select controls */
+
   --shadow-popover: 0 4px 16px rgb(0 0 0 / 50%);
   --shadow-popover-sm: 0 2px 8px rgb(0 0 0 / 50%);
   --shadow-card: 0 0 0 1px #3a3a3a;
@@ -244,6 +252,11 @@ select:not(:disabled) {
 
   .data-table tbody tr:hover {
     background: #3a3a3a;
+  }
+
+  /* Toggl's members table has no row hover. */
+  .data-table-static tbody tr:hover {
+    background: transparent;
   }
 
   .data-table th:first-child,
@@ -419,6 +432,7 @@ select:not(:disabled) {
     border-radius: 4px;
     background: var(--color-surface) center / 10px 10px no-repeat;
     vertical-align: middle;
+    cursor: pointer;
   }
 
   .hl-checkbox:checked,
@@ -443,6 +457,16 @@ select:not(:disabled) {
     cursor: not-allowed;
     opacity: 0.5;
   }
+
+  .hl-checkbox:enabled:not(:checked):not(:indeterminate),
+  .app-shell input[type="checkbox"]:enabled:not(:checked):not(:indeterminate),
+  .dark-surface input[type="checkbox"]:enabled:not(:checked):not(:indeterminate) {
+    @apply hover:bg-surface-hover;
+  }
+}
+
+[role="menu"][aria-label="Workspace"] [role="menuitem"]:not(:disabled) {
+  @apply hover:text-fg-strong-hover;
 }
 
 .app-shell,
@@ -802,6 +826,11 @@ select:not(:disabled) {
 .dark-surface textarea.hl-control {
   border-color: var(--color-control) !important;
   background: var(--color-surface) !important;
+}
+
+.app-shell textarea.hl-control:enabled,
+.dark-surface textarea.hl-control:enabled {
+  @apply hover:bg-surface-hover!;
 }
 
 .hl-modal textarea.hl-control {

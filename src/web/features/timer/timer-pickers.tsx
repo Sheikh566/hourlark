@@ -144,19 +144,23 @@ export function PickerHeading({ children }: { children: ReactNode }) {
   );
 }
 
-/** 36px row wrapper with the 34px, radius 8 button inside (hover/selected #3a3a3a). */
+/** 36px row wrapper with one 34px keyboard/pointer-active highlight. */
 export function PickerRow({
   children,
   selected = false,
+  active = false,
   disabled,
   label,
   onClick,
+  onActivate,
 }: {
   children: ReactNode;
   selected?: boolean;
+  active?: boolean;
   disabled?: boolean;
   label: string;
   onClick: () => void;
+  onActivate: () => void;
 }) {
   return (
     <div className="py-px pr-[3px] pl-1.5">
@@ -166,9 +170,16 @@ export function PickerRow({
         aria-label={label}
         aria-current={selected ? "true" : undefined}
         disabled={disabled}
-        className={`timer-row text-fg hover:bg-surface-hover flex h-[34px] w-full items-center gap-[11px] rounded-lg px-2.5 text-start text-sm leading-[30px] font-medium ${
-          selected ? "bg-surface-hover" : ""
+        className={`timer-row text-fg flex h-[34px] w-full items-center gap-[11px] rounded-lg px-2.5 text-start text-sm leading-[30px] font-medium ${
+          active ? "bg-surface-hover" : ""
         }`}
+        onFocus={onActivate}
+        onPointerEnter={(event) => {
+          if (!disabled) event.currentTarget.focus();
+        }}
+        onPointerMove={(event) => {
+          if (!disabled) event.currentTarget.focus();
+        }}
         onClick={onClick}
       >
         {children}
@@ -196,7 +207,7 @@ export function PickerFooterButton({
       title={title}
       disabled={disabled}
       className={`timer-row border-surface-raised flex h-[35px] w-full items-center justify-center gap-2 rounded-b-lg border-t px-[5px] py-[7px] text-start text-sm leading-4 font-medium ${
-        muted ? "text-fg-soft" : "text-fg hover:bg-surface-hover"
+        muted ? "text-fg-soft" : "text-fg enabled:hover:bg-hover-soft"
       }`}
       onClick={onClick}
     >
@@ -274,6 +285,7 @@ export function ProjectPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeValue, setActiveValue] = useState(value);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -325,7 +337,10 @@ export function ProjectPicker({
         title={selectedLabel ?? undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          setActiveValue(value);
+          setOpen((current) => !current);
+        }}
       >
         {selected ? (
           <>
@@ -366,6 +381,8 @@ export function ProjectPicker({
               <PickerRow
                 label="No project"
                 selected={!value}
+                active={activeValue === ""}
+                onActivate={() => setActiveValue("")}
                 disabled={disabled}
                 onClick={() => {
                   onChange("");
@@ -385,6 +402,8 @@ export function ProjectPicker({
                       key={project.id}
                       label={project.name}
                       selected={project.id === value}
+                      active={project.id === activeValue}
+                      onActivate={() => setActiveValue(project.id)}
                       disabled={disabled}
                       onClick={() => {
                         if (project.id !== value) onChange(project.id);
@@ -533,7 +552,13 @@ export function TagPicker({
                 return (
                   <label
                     key={tag.id}
-                    className="timer-row text-fg hover:bg-surface-hover flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-start text-sm leading-[30px] font-medium"
+                    className={`timer-row text-fg flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-start text-sm leading-[30px] font-medium ${
+                      disabled
+                        ? "cursor-not-allowed"
+                        : active
+                          ? "bg-surface-hover hover:bg-surface-hover-strong cursor-pointer"
+                          : "hover:bg-hover-soft cursor-pointer"
+                    }`}
                   >
                     <Checkbox
                       data-picker-row

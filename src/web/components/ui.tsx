@@ -25,7 +25,10 @@ import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-di
  * rules, which must be unlayered to beat the global focus ring. Invalid fields get Toggl's red.
  */
 export const controlClassName =
-  "hl-control box-border h-9 min-w-0 w-full max-w-full rounded-lg border border-control bg-surface px-3 text-sm leading-5 font-medium text-fg placeholder:text-fg-subtle outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-error";
+  "hl-control box-border h-9 min-w-0 w-full max-w-full rounded-lg border border-control bg-surface px-3 text-sm leading-5 font-medium text-fg placeholder:text-fg-subtle outline-none enabled:hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-error";
+
+export const iconButtonClassName =
+  "bg-transparent rounded-lg text-fg hover:bg-surface hover:text-fg-hover [&_svg]:text-current";
 
 export type ButtonVariant =
   "primary" | "secondary" | "outline" | "danger" | "ghost" | "text" | "accent";
@@ -239,7 +242,7 @@ export function Modal({
           {/* Toggl's 520 project dialog uses a 50x50 corner close with a 10px glyph; others a 14px glyph. */}
           <Dialog.Close
             className={twMerge(
-              "text-fg hover:text-fg-soft absolute grid place-items-center rounded-lg",
+              "text-fg absolute grid place-items-center rounded-lg",
               size === "md" ? "top-0 right-0 size-[50px]" : "top-[7.5px] right-[6.5px] size-[37px]",
               closeIconClassName,
             )}
@@ -414,6 +417,7 @@ export function RowMenu({
   items,
   menuClassName,
   density = "default",
+  triggerTone = "row",
 }: {
   label: string;
   items: RowMenuItem[];
@@ -424,6 +428,7 @@ export function RowMenu({
    * a 4px inset (the tag row menu).
    */
   density?: "default" | "compact";
+  triggerTone?: "row" | "surface" | "icon";
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
@@ -490,7 +495,14 @@ export function RowMenu({
       <button
         ref={trigger}
         type="button"
-        className="text-fg hover:bg-surface-hover aria-expanded:bg-stroke-tertiary grid size-[30px] place-items-center rounded-lg"
+        className={twMerge(
+          "grid size-[30px] place-items-center rounded-lg",
+          triggerTone === "row"
+            ? "text-fg hover:bg-surface-hover aria-expanded:bg-stroke-tertiary"
+            : triggerTone === "surface"
+              ? iconButtonClassName
+              : "text-fg-muted hover:text-fg-soft bg-transparent",
+        )}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -531,12 +543,18 @@ export function RowMenu({
                     role="menuitem"
                     disabled={item.disabled}
                     className={twMerge(
-                      "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover disabled:text-fg-disabled flex w-full items-center rounded-lg text-left whitespace-nowrap disabled:cursor-not-allowed disabled:hover:bg-transparent",
+                      "text-fg focus:bg-surface-hover disabled:text-fg-disabled flex w-full items-center rounded-lg text-left whitespace-nowrap disabled:cursor-not-allowed",
                       density === "compact"
                         ? "h-7 px-3 leading-7"
                         : "h-[30px] px-2.5 leading-[30px]",
                       item.danger && "text-error-fg",
                     )}
+                    onPointerEnter={(event) => {
+                      if (!item.disabled) event.currentTarget.focus();
+                    }}
+                    onPointerMove={(event) => {
+                      if (!item.disabled) event.currentTarget.focus();
+                    }}
                     onClick={() => {
                       setOpen(false);
                       item.onSelect();

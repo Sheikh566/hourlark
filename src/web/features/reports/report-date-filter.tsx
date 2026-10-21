@@ -240,7 +240,7 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
         <button
           type="button"
           aria-label="Previous report period"
-          className="border-stroke-tertiary text-fg-subtle hover:text-fg-soft bg-surface grid h-9 w-9 shrink-0 place-items-center rounded-l-lg border-y border-l"
+          className="border-stroke-tertiary text-fg-subtle hover:bg-surface-hover bg-surface grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-l-lg border-y border-l"
           onClick={() => {
             const days = inclusiveDayCount(start, end);
             apply({ start: addCalendarDays(start, -days), end: addCalendarDays(end, -days) });
@@ -308,7 +308,7 @@ export function ReportDateFilter({ start, end, today, weekStartsOn, onChange }: 
         <button
           type="button"
           aria-label="Next report period"
-          className="border-stroke-tertiary text-fg-subtle hover:text-fg-soft bg-surface grid h-9 w-9 shrink-0 place-items-center rounded-r-lg border-y border-r"
+          className="border-stroke-tertiary text-fg-subtle hover:bg-surface-hover bg-surface grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-r-lg border-y border-r"
           onClick={() => {
             const days = inclusiveDayCount(start, end);
             apply({ start: addCalendarDays(start, days), end: addCalendarDays(end, days) });

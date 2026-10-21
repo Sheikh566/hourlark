@@ -120,7 +120,7 @@ export function AdministrationPage() {
               aria-current={tab === value ? "page" : undefined}
               className={twMerge(
                 "text-fg-subtle inline-flex h-[30px] items-center justify-center rounded-lg px-3 py-1.5 text-sm leading-5 font-semibold",
-                tab !== value && "hover:text-fg",
+                tab !== value && "hover:bg-surface-hover hover:text-fg-strong",
               )}
               onClick={() => setTab(value)}
             >

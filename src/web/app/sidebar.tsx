@@ -267,9 +267,9 @@ function WorkspaceMenu({ collapsed, onNavigate }: { collapsed: boolean; onNaviga
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         onClick={() => setOpen((value) => !value)}
-        className="flex h-9 w-full items-center gap-2 rounded-lg border border-transparent px-1.5 py-1 text-left"
+        className="text-fg-strong hover:bg-surface hover:text-fg-strong-hover flex h-9 w-full items-center gap-2 rounded-lg border border-transparent px-1.5 py-1 text-left"
       >
-        <span className="text-fg-strong min-w-0 flex-1 truncate text-base leading-[22.88px] font-semibold">
+        <span className="min-w-0 flex-1 truncate text-base leading-[22.88px] font-semibold">
           {name}
         </span>
         <svg

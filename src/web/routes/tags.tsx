@@ -142,7 +142,7 @@ export function TagsPage() {
                   <td>
                     <button
                       type="button"
-                      className="hover:text-accent-fg-hover flex min-w-0 items-center gap-[11px] text-left font-medium"
+                      className="flex min-w-0 items-center gap-[11px] text-left font-medium"
                       onClick={() => setEditing(tag)}
                     >
                       <span

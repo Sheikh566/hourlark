@@ -314,7 +314,7 @@ function TimesheetWeek({
                 <button
                   type="button"
                   aria-label="Sort by project"
-                  className="text-accent-fg hover:bg-surface-hover -ml-1.5 flex items-center gap-1 rounded-lg px-1 py-0.5 text-left font-semibold tracking-[0.44px] uppercase"
+                  className="text-accent-fg hover:bg-surface -ml-1.5 flex items-center gap-1 rounded-lg px-1 py-0.5 text-left font-semibold tracking-[0.44px] uppercase"
                   onClick={() => setSortAscending((value) => !value)}
                 >
                   <span className="text-fg-subtle leading-[16.06px]">Project</span>

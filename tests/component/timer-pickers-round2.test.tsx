@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -8,6 +8,49 @@ import { ProjectPicker, TagPicker } from "@/web/features/timer/timer-pickers";
 import type { Tag } from "@/web/types";
 
 afterEach(cleanup);
+
+it("moves the sole active project row with the pointer and continues keyboard navigation", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(
+    <ProjectPicker
+      projects={["Alpha", "Beta", "Gamma"].map((name) => ({
+        id: name,
+        name,
+        client_name: "",
+        color: "#0b83d9",
+        billable_default: false,
+      }))}
+      value="Alpha"
+      disabled={false}
+      canCreate={false}
+      onChange={onChange}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Project: Alpha" }));
+  const alpha = screen.getByRole("button", { name: "Alpha" });
+  const beta = screen.getByRole("button", { name: "Beta" });
+  const gamma = screen.getByRole("button", { name: "Gamma" });
+  expect(alpha).toHaveClass("bg-surface-hover");
+  fireEvent.pointerEnter(beta);
+  expect(beta).toHaveFocus();
+  expect(beta).toHaveClass("bg-surface-hover");
+  expect(alpha).not.toHaveClass("bg-surface-hover");
+  expect(alpha).toHaveAttribute("aria-current", "true");
+  await user.keyboard("{ArrowDown}");
+  expect(gamma).toHaveFocus();
+  expect(gamma).toHaveClass("bg-surface-hover");
+  expect(beta).not.toHaveClass("bg-surface-hover");
+  fireEvent.pointerMove(beta);
+  expect(beta).toHaveFocus();
+  expect(gamma).not.toHaveClass("bg-surface-hover");
+  await user.keyboard("{ArrowUp}");
+  expect(alpha).toHaveFocus();
+  expect(beta).not.toHaveClass("bg-surface-hover");
+  await user.keyboard("{ArrowDown}{Enter}");
+  expect(onChange).toHaveBeenCalledExactlyOnceWith("Beta");
+  expect(screen.queryByRole("textbox", { name: "Search projects or clients" })).toBeNull();
+});
 
 it("uses the captured chip and picker palette rather than a shared lightness formula", () => {
   const palette = [

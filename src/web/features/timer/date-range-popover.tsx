@@ -220,8 +220,10 @@ export function DateRangePopover({
                         role="option"
                         aria-selected={year === visibleMonth.year}
                         className={twMerge(
-                          "text-fg hover:bg-surface-hover flex h-[30px] w-full items-center rounded-lg px-2.5 text-left",
-                          year === visibleMonth.year && "bg-surface-hover",
+                          "text-fg flex h-[30px] w-full items-center rounded-lg px-2.5 text-left",
+                          year === visibleMonth.year
+                            ? "bg-surface-hover hover:bg-surface-hover-strong"
+                            : "hover:bg-hover-soft",
                         )}
                         onClick={() => {
                           setVisibleMonth((current) => ({ ...current, year }));
@@ -264,7 +266,7 @@ export function DateRangePopover({
                 <button
                   type="button"
                   aria-label={`Select week ${weekRowLabel(week)}`}
-                  className="text-fg-subtle bg-surface-secondary hover:bg-surface-hover border-control ml-3 grid w-[38px] shrink-0 place-items-center border-r text-center text-xs leading-3 font-medium"
+                  className="text-fg-subtle bg-surface-secondary hover:bg-surface border-control ml-3 grid w-[38px] shrink-0 place-items-center border-r text-center text-xs leading-3 font-medium"
                   onClick={() => {
                     const start = week[0];
                     const end = week[6];

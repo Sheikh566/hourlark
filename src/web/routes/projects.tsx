@@ -481,6 +481,7 @@ export function ProjectsPage() {
                         <RowMenu
                           label={`Actions for ${project.name}`}
                           menuClassName="w-[133px]"
+                          triggerTone="icon"
                           items={
                             manage
                               ? [
@@ -663,8 +664,8 @@ function StatusFilter({
               <label
                 key={option.value}
                 className={twMerge(
-                  "hover:bg-surface-hover flex h-[30px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5",
-                  checked && "bg-surface-hover",
+                  "hover:bg-hover-soft flex h-[30px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5",
+                  checked && "bg-surface-hover hover:bg-surface-hover-strong",
                 )}
               >
                 <Checkbox

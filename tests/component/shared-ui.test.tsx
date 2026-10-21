@@ -191,6 +191,37 @@ describe("RowMenu density", () => {
 });
 
 describe("RowMenu keyboard", () => {
+  it("moves its single focus highlight with the pointer and continues arrows from there", async () => {
+    const user = userEvent.setup();
+    render(
+      <RowMenu
+        label="Row actions"
+        items={[
+          { label: "Edit", onSelect: () => undefined },
+          { label: "Unavailable", onSelect: () => undefined, disabled: true },
+          { label: "Archive", onSelect: () => undefined },
+          { label: "Delete", onSelect: () => undefined },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Row actions" }));
+    const edit = screen.getByRole("menuitem", { name: "Edit" });
+    const archive = screen.getByRole("menuitem", { name: "Archive" });
+    const unavailable = screen.getByRole("menuitem", { name: "Unavailable" });
+    expect(edit).toHaveFocus();
+    fireEvent.pointerEnter(archive);
+    expect(archive).toHaveFocus();
+    expect(edit).not.toHaveFocus();
+    fireEvent.pointerMove(unavailable);
+    expect(archive).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveFocus();
+    fireEvent.pointerMove(archive);
+    expect(archive).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(edit).toHaveFocus();
+  });
+
   it("focuses the first enabled item when opened with the keyboard", async () => {
     const user = userEvent.setup();
     render(<RowMenu label="Row actions" items={[{ label: "Edit", onSelect: () => undefined }]} />);

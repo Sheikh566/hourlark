@@ -224,8 +224,8 @@ export function ChecklistPopoverBody({
             <label
               key={option.value}
               className={twMerge(
-                "hover:bg-surface-hover mx-px flex h-[30px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5",
-                checked && "bg-surface-hover",
+                "mx-px flex h-[30px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5",
+                checked ? "bg-surface-hover hover:bg-surface-hover-strong" : "hover:bg-hover-soft",
               )}
             >
               <Checkbox

@@ -971,7 +971,7 @@ export function GlobalTimerBar() {
             aria-label="Time entry duration"
             className="text-fg-muted ml-auto w-[95px] shrink-0 text-center text-lg leading-[normal] font-semibold whitespace-nowrap tabular-nums sm:ml-[2px]"
           >
-            <span>{elapsed}</span>
+            <span className="hover:bg-surface-hover inline-block rounded-lg">{elapsed}</span>
           </div>
         )}
         <div className={manualMode ? "sm:ml-6" : "sm:ml-2.5"}>
@@ -1040,7 +1040,7 @@ export function GlobalTimerBar() {
             >
               <button
                 type="button"
-                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-fg" : "text-fg-muted hover:text-fg"}`}
+                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-fg" : "text-fg-muted"} hover:text-fg-soft`}
                 data-tip="Timer mode"
                 aria-label="Timer mode"
                 aria-pressed={mode === "timer"}
@@ -1050,7 +1050,7 @@ export function GlobalTimerBar() {
               </button>
               <button
                 type="button"
-                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-fg" : "text-fg-muted hover:text-fg"}`}
+                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-fg" : "text-fg-muted"} hover:text-fg-soft`}
                 data-tip="Manual mode"
                 aria-label="Manual mode"
                 aria-pressed={mode === "manual"}

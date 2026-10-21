@@ -381,7 +381,7 @@ export function ReportFilterBar({
             return (
               <div
                 key={key}
-                className={`flex h-9 max-w-full items-center rounded-lg ${isSet ? "bg-accent-muted text-accent-fg hover:bg-accent-muted-hover" : "text-fg hover:text-[#d5d5d5]"}`}
+                className={`flex h-9 max-w-full cursor-pointer items-center rounded-lg ${isSet ? "bg-accent-muted text-accent-fg hover:bg-accent-muted-hover" : "text-fg hover:bg-surface hover:text-fg-hover"}`}
               >
                 <button
                   ref={(element) => {
@@ -423,7 +423,7 @@ export function ReportFilterBar({
             aria-haspopup="dialog"
             aria-expanded={editing === "add"}
             onClick={() => (editing === "add" ? close() : open("add"))}
-            className={`text-fg ml-2 box-border flex h-9 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm leading-5 font-semibold hover:text-[#d5d5d5] ${focusClass}`}
+            className={`text-fg hover:text-fg-hover ml-2 box-border flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm leading-5 font-semibold ${focusClass}`}
           >
             <Plus size={14} strokeWidth={2.5} aria-hidden="true" /> Add filter
           </button>

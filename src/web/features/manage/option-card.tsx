@@ -59,7 +59,7 @@ export function AdvancedToggle({
         type="button"
         aria-expanded={open}
         aria-controls={controls}
-        className="text-accent-fg hover:text-accent-fg-hover hover:bg-surface-hover box-border flex h-9 items-center gap-2 rounded-lg px-3 text-[11px] leading-4 font-semibold tracking-[0.44px] uppercase"
+        className="text-accent-fg hover:bg-surface box-border flex h-9 items-center gap-2 rounded-lg px-3 text-[11px] leading-4 font-semibold tracking-[0.44px] uppercase"
         onClick={onClick}
       >
         {label}

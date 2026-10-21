@@ -480,7 +480,7 @@ export function SliceBySelect({
       aria-label="Slice by"
       tone="accent"
       labelPrefix="Slice by:"
-      className="h-9 w-[175px]"
+      className="hover:text-fg-hover h-9 w-[175px]"
       value={value}
       onValueChange={(next) => onChange(next as GroupDimension)}
       options={SLICE_DIMENSIONS.map((dimension) => ({

@@ -76,7 +76,7 @@ export function ColorDotPicker({
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="grid size-9 shrink-0 place-items-center rounded-full"
+        className="hover:bg-surface-active grid size-9 shrink-0 place-items-center rounded-full"
         onClick={() => setOpen((current) => !current)}
       >
         <span className="size-6 rounded-full" style={{ backgroundColor: value }} />

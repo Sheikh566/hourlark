@@ -496,7 +496,7 @@ export function TimePage() {
             <>
               {view === "calendar" ? (
                 <Select
-                  className="[&>svg:last-child]:text-fg h-9 w-auto gap-2 border-0 bg-transparent px-3 [&>span]:whitespace-normal [&>svg:last-child]:h-[8.8px] [&>svg:last-child]:w-[14px] [&>svg:last-child]:[stroke-width:1.2]"
+                  className="[&>svg:last-child]:text-fg hover:text-fg-hover h-9 w-auto cursor-pointer gap-2 border-0 bg-transparent px-3 [&>span]:whitespace-normal [&>svg:last-child]:h-[8.8px] [&>svg:last-child]:w-[14px] [&>svg:last-child]:[stroke-width:1.2]"
                   tone="accent"
                   density="compact"
                   contentClassName="w-[113.8px] min-w-0"

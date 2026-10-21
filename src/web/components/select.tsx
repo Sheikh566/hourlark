@@ -33,7 +33,7 @@ export type SelectProps = {
   labelPrefix?: ReactNode;
   /**
    * Selected-item colouring: `neutral` (default, #3a3a3a like Toggl menus) or `accent`
-   * (accent-muted fill and accent text, used by Toggl's calendar mode menu).
+   * (accent-muted fill and accent text, used by Toggl's calendar/report menus with text-only triggers).
    */
   tone?: "neutral" | "accent";
   /**
@@ -89,6 +89,9 @@ export function Select({
         className={twMerge(
           // Toggl selects: 38px, 1px #666, radius 8, padding 10/12, 14px/500, #999 chevron.
           "group border-control bg-surface text-fg aria-invalid:border-error data-[placeholder]:text-fg-subtle box-border flex h-[38px] w-full max-w-full min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-sm leading-5 font-medium outline-none disabled:cursor-not-allowed disabled:opacity-50",
+          tone === "accent"
+            ? "enabled:hover:text-fg-hover"
+            : "hover:bg-surface-hover [&.border-control]:enabled:hover:border-control-hover disabled:hover:bg-surface",
           className,
         )}
       >
@@ -133,17 +136,17 @@ export function Select({
                   option.textValue ?? (typeof option.label === "string" ? option.label : undefined)
                 }
                 className={twMerge(
-                  "hourlark-select-item data-[disabled]:text-fg-disabled relative flex cursor-pointer items-center gap-2 rounded-lg outline-none select-none data-[disabled]:cursor-not-allowed",
+                  "hourlark-select-item group/option data-[disabled]:text-fg-disabled relative flex cursor-pointer items-center gap-2 rounded-lg outline-none select-none data-[disabled]:cursor-not-allowed",
                   density === "compact" ? "h-7 px-3" : "h-[30px] pr-8 pl-2.5",
                   tone === "accent"
                     ? "data-[highlighted]:bg-accent-muted-hover data-[state=checked]:bg-accent-muted data-[state=checked]:text-accent-fg"
-                    : "data-[highlighted]:bg-surface-hover data-[state=checked]:bg-surface-hover",
+                    : "data-[highlighted]:bg-hover-soft data-[state=checked]:bg-surface-hover data-[state=checked]:hover:bg-surface-hover-strong",
                 )}
               >
                 {option.color ? <Swatch color={option.color} /> : null}
                 <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
                 {density === "compact" ? null : (
-                  <SelectPrimitive.ItemIndicator className="absolute right-2.5 flex items-center">
+                  <SelectPrimitive.ItemIndicator className="text-accent group-hover/option:text-accent-hover absolute right-2.5 flex items-center">
                     <Check size={14} aria-hidden="true" />
                   </SelectPrimitive.ItemIndicator>
                 )}

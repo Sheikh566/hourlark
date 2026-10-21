@@ -2,7 +2,7 @@ import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
-import { Button } from "@/web/components/ui";
+import { Button, iconButtonClassName } from "@/web/components/ui";
 import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-dismiss-popover";
 
 /** Toggl's single "Export" header action: a text button that opens a small PDF/CSV menu. */
@@ -61,7 +61,7 @@ export function ReportExportMenu({
     ]?.focus();
   };
   const item =
-    "text-fg hover:bg-surface-hover focus-visible:bg-surface-hover flex h-7 w-full items-center gap-2 rounded px-3 text-left text-sm leading-5 font-medium whitespace-nowrap";
+    "text-fg hover:bg-hover-soft focus-visible:bg-hover-soft flex h-7 w-full items-center gap-2 rounded-lg px-3 text-left text-sm leading-5 font-medium whitespace-nowrap";
 
   return (
     <>
@@ -69,7 +69,7 @@ export function ReportExportMenu({
         <Button
           variant="text"
           // Toggl gives each header action a 5px right margin; the label itself does not nowrap.
-          className="mr-[5px] gap-2 px-3 py-2 text-left whitespace-normal"
+          className={`${iconButtonClassName} mr-[5px] gap-2 px-3 py-2 text-left whitespace-normal`}
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={exporting}

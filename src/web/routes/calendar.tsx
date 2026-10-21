@@ -176,7 +176,7 @@ function ZoomButton({
   return (
     <button
       type="button"
-      className="text-fg-secondary hover:bg-surface-hover hover:text-fg flex h-5 w-[22px] items-center justify-center rounded text-start leading-[14px] disabled:opacity-40 disabled:hover:bg-transparent"
+      className="text-fg-secondary hover:bg-surface-hover hover:text-fg-soft disabled:hover:text-fg-secondary flex h-5 w-[22px] cursor-pointer items-center justify-center rounded text-start leading-[14px] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
       aria-label={label}
       title={label}
       disabled={disabled}
@@ -499,8 +499,8 @@ export function CalendarView({
           <span
             className={
               isToday
-                ? "bg-accent-muted text-accent-fg inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-[99px] py-1.5 text-center text-2xl leading-6 font-medium tracking-[0.4px] whitespace-pre-wrap"
-                : "text-fg inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-[99px] py-1.5 text-center text-2xl leading-6 font-medium tracking-[0.4px] whitespace-pre-wrap"
+                ? "bg-accent-muted text-accent-fg group-hover:bg-accent-muted-hover inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-[99px] py-1.5 text-center text-2xl leading-6 font-medium tracking-[0.4px] whitespace-pre-wrap"
+                : "text-fg group-hover:bg-surface-hover inline-flex h-9 w-11 shrink-0 items-center justify-center rounded-[99px] py-1.5 text-center text-2xl leading-6 font-medium tracking-[0.4px] whitespace-pre-wrap"
             }
           >
             {formatInTimeZone(info.date, me.member.timezone, "d")}
@@ -669,7 +669,7 @@ export function CalendarView({
             slotLaneClass="fc-timegrid-slot hl-cal-slot-lane"
             slotHeaderClass="fc-timegrid-slot hl-cal-slot-header"
             slotHeaderInnerClass="hl-cal-slot-inner"
-            dayHeaderClass="hl-cal-day-header"
+            dayHeaderClass="hl-cal-day-header group"
             dayHeaderInnerClass="hl-cal-day-inner"
             dayHeaderAlign="start"
             borderless
