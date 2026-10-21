@@ -197,7 +197,7 @@ export function BillableCell({
       aria-pressed={billable}
       title={billable ? "Billable" : "Non-billable"}
     >
-      <DollarSign width={12} height={18} aria-hidden="true" />
+      <DollarSign width={14} height={18} strokeWidth={3} aria-hidden="true" />
     </button>
   );
 }

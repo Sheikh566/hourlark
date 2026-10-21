@@ -25,7 +25,7 @@ export function TagGlyph(props: LucideProps) {
 }
 
 export function DollarGlyph(props: LucideProps) {
-  return <DollarSign width={12} height={18} aria-hidden="true" {...props} />;
+  return <DollarSign width={14} height={18} strokeWidth={3} aria-hidden="true" {...props} />;
 }
 
 export function PlayGlyph(props: LucideProps) {
