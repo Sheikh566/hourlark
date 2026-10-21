@@ -44,7 +44,9 @@ test("list rows, in-place editing, grouped selection and date ranges retain meas
     await page.mouse.move(1919, 904);
     const checkbox = row.getByRole("checkbox");
     await expect(checkbox).toHaveCSS("opacity", "0");
+    // Keyboard focus reveals row controls (a mouse click elsewhere in the row does not).
     await checkbox.focus();
+    await page.keyboard.press("Shift");
     await expect(checkbox).toHaveCSS("opacity", "1");
     await row.hover();
     await expect(row).toHaveCSS("background-color", "rgb(58, 58, 58)");

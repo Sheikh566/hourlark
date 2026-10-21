@@ -316,6 +316,53 @@ test.describe("P11 and P12 list entry row", () => {
     await hover(play);
     await expectStyle(play, "opacity", "1", "continue button on its own hover");
   });
+
+  test("a clicked continue button stays visible until you click elsewhere", async ({ page }) => {
+    await page.goto("/time");
+    const row = entryRow(page, data.describedEntry);
+    await expect(row).toBeVisible();
+    await row.hover({ position: { x: 400, y: 5 } });
+    await row.getByRole("button", { name: "Continue time entry", exact: true }).click();
+    const stop = page.getByRole("button", { name: "Stop timer", exact: true });
+    await expect(stop).toBeVisible();
+
+    // Toggl: the pointer leaves, the play keeps focus at full opacity, the rest stays hidden.
+    // Continuing regroups the row with the new running session, so the play that now continues
+    // this entry (single row or group row) is the one that must hold focus.
+    await unhover(page);
+    const focused = page.locator("[data-continue-for]:focus");
+    await expect(focused).toHaveCount(1);
+    const focusedRow = page.locator("article").filter({ has: focused });
+    await expect(focusedRow).toContainText(data.describedEntry);
+    await expectStyle(focused, "opacity", "1", "clicked continue button after the pointer leaves");
+    expect(
+      await focused.evaluate((element) => element.matches(":focus-visible")),
+      "a mouse click leaves no keyboard focus ring",
+    ).toBe(false);
+    await expectStyle(
+      focusedRow.locator("[data-entry-menu]"),
+      "opacity",
+      "0",
+      "row menu stays hidden after a mouse click on continue",
+    );
+
+    const viewport = page.viewportSize();
+    await page.mouse.click((viewport?.width ?? 1280) - 2, (viewport?.height ?? 720) - 2);
+    await expect(focused).toHaveCount(0);
+    await page.waitForTimeout(1500); // the list re-renders every second; focus must not come back
+    await expect(focused).toHaveCount(0);
+    await expectStyle(
+      entryRow(page, data.describedEntry)
+        .first()
+        .getByRole("button", { name: /^Continue/ }),
+      "opacity",
+      "0",
+      "continue button once focus moves elsewhere",
+    );
+
+    await stop.click();
+    await expect(page.getByRole("button", { name: "Start timer", exact: true })).toBeVisible();
+  });
 });
 
 test.describe("P13 sidebar", () => {

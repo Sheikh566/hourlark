@@ -256,13 +256,19 @@ export function TimePage() {
   });
   const actionsPending = deleteMutation.isPending || restoreMutation.isPending;
 
+  // Toggl keeps a clicked Continue play visible until focus moves elsewhere. Continuing disables
+  // the button while it saves and regroups the list, both of which drop focus, so it returns to
+  // the play that now continues that entry (unless the user has focused something else).
+  const continueFocus = useRef<{ id: string; until: number } | null>(null);
   const continueMutation = useMutation({
-    mutationFn: (entry: TimeEntry) =>
-      apiRequest(`/time-entries/${entry.id}/continue`, {
+    mutationFn: (entry: TimeEntry) => {
+      continueFocus.current = { id: entry.id, until: Date.now() + 5000 };
+      return apiRequest(`/time-entries/${entry.id}/continue`, {
         method: "POST",
         headers: { "Idempotency-Key": idempotencyKey() },
         body: "{}",
-      }),
+      });
+    },
     onSuccess: async () => {
       broadcastTimerChange();
       await Promise.all([
@@ -270,6 +276,32 @@ export function TimePage() {
         queryClient.invalidateQueries({ queryKey: ["time-entries"] }),
       ]);
     },
+  });
+  useEffect(() => {
+    // Any click after the one on Continue (even on blank space) ends the hand-off.
+    const cancel = () => {
+      continueFocus.current = null;
+    };
+    document.addEventListener("pointerdown", cancel, true);
+    return () => document.removeEventListener("pointerdown", cancel, true);
+  }, []);
+  useEffect(() => {
+    const pending = continueFocus.current;
+    if (!pending) return;
+    const active = document.activeElement;
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>("[data-continue-for]")];
+    const focusMoved =
+      active !== null && active !== document.body && !buttons.some((button) => button === active);
+    if (focusMoved || Date.now() > pending.until) {
+      continueFocus.current = null;
+      return;
+    }
+    const target = buttons.find((button) =>
+      button.dataset.continueFor?.split(" ").includes(pending.id),
+    );
+    if (!target || target.disabled) return;
+    if (active !== target) target.focus({ preventScroll: true });
+    if (!continueMutation.isPending) continueFocus.current = null;
   });
   const duplicateMutation = useMutation({
     mutationFn: (entry: TimeEntry) =>
@@ -805,6 +837,7 @@ export function TimePage() {
                         continueLabel="Continue latest matching session"
                         continuePending={continueMutation.isPending}
                         actionsPending={actionsPending}
+                        continueFor={group.entries.map((entry) => entry.id).join(" ")}
                       />,
                     ];
                     if (expanded) {

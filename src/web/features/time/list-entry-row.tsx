@@ -22,9 +22,12 @@ export const entryRowClassName = `group relative grid min-w-0 grid-cols-[30px_mi
 export const entryRowExtrasClassName =
   "col-start-2 flex min-w-0 flex-wrap items-center gap-x-1 lg:contents";
 
-/** Hover/focus reveal used by every row control (always visible on touch widths). */
+/**
+ * Hover/keyboard-focus reveal used by every row control (always visible on touch widths). A mouse
+ * click on one control (e.g. Continue) does not reveal the others, as in Toggl.
+ */
 export const revealOnRowHover =
-  "lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 lg:has-[[aria-expanded=true]]:opacity-100";
+  "lg:opacity-0 lg:group-hover:opacity-100 lg:group-has-[:focus-visible]:opacity-100 lg:has-[[aria-expanded=true]]:opacity-100";
 
 /** Duration as Toggl shows it: minutes digits are heavier (`0:<b>14</b>:00`). */
 export function DurationText({ durationMs }: { durationMs: number }) {
@@ -62,7 +65,7 @@ export function EntryCheckbox({
       className={
         visible
           ? undefined
-          : "lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100"
+          : "lg:opacity-0 lg:group-hover:opacity-100 lg:group-has-[:focus-visible]:opacity-100"
       }
     />
   );
@@ -266,10 +269,13 @@ export function RowActions({
   menuItems,
   menuLabel,
   entryId,
+  continueFor,
 }: {
   onContinue: () => void;
   continueLabel: string;
   continueDisabled?: boolean;
+  /** Space-separated entry ids this play continues; the list restores focus to it by id. */
+  continueFor?: string;
   menuItems?: RowMenuItem[];
   menuLabel: string;
   entryId?: string;
@@ -279,11 +285,13 @@ export function RowActions({
       <div className="flex h-full w-10 items-center justify-center">
         <button
           type="button"
-          className="grid size-[30px] place-items-center rounded-lg text-white opacity-100 lg:opacity-0 lg:group-focus-within:opacity-50 lg:group-hover:opacity-50 lg:hover:opacity-100! lg:focus-visible:opacity-100!"
+          // Toggl keeps the clicked play at full opacity until focus moves elsewhere.
+          className="grid size-[30px] place-items-center rounded-lg text-white opacity-100 lg:opacity-0 lg:group-hover:opacity-50 lg:group-has-[:focus-visible]:opacity-50 lg:hover:opacity-100! lg:focus:opacity-100!"
           disabled={continueDisabled}
           onClick={onContinue}
-          title="Continue"
+          title="Continue time entry"
           aria-label={continueLabel}
+          data-continue-for={continueFor}
         >
           <Play size={18} aria-hidden="true" />
         </button>
@@ -333,6 +341,8 @@ export interface ListEntryRowProps {
   continueLabel: string;
   continuePending: boolean;
   actionsPending: boolean;
+  /** Entry ids behind this row's play (defaults to the row's own entry). */
+  continueFor?: string;
   menuItems?: RowMenuItem[];
   /** Shows the billable `$` cell; omit when the member may not change billable status. */
   onToggleBillable?: () => void;
@@ -368,6 +378,7 @@ export function ListEntryRow({
   continueLabel,
   continuePending,
   actionsPending,
+  continueFor,
   menuItems,
   onToggleBillable,
   nested = false,
@@ -453,6 +464,7 @@ export function ListEntryRow({
           onContinue={onContinue}
           continueLabel={continueLabel}
           continueDisabled={actionsPending || continuePending}
+          continueFor={continueFor ?? entry.id}
           menuItems={menuItems}
           menuLabel="More actions"
           entryId={entry.id}
