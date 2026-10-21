@@ -285,7 +285,7 @@ export function RowActions({
           title="Continue"
           aria-label={continueLabel}
         >
-          <Play width={12} height={16} aria-hidden="true" />
+          <Play size={18} aria-hidden="true" />
         </button>
       </div>
       <div
