@@ -173,9 +173,15 @@ function Rail({
           to="/time"
           aria-label="Hourlark home"
           onClick={onNavigate}
-          className="flex h-[53px] w-full justify-center pt-1"
+          className="flex h-[53px] w-full items-start justify-center pt-2"
         >
-          <img src="/brand/hourlark-original/icon-48.png" alt="" width={32} height={32} />
+          <img
+            src="/brand/hourlark-original/icon-48.png"
+            alt=""
+            width={24}
+            height={24}
+            className="size-6 shrink-0"
+          />
         </Link>
       </div>
 
