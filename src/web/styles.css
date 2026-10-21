@@ -857,13 +857,14 @@ select:not(:disabled) {
 
 /* ---- Timer bar (Toggl parity) ---- */
 
-/* Toggl tooltip: 14/500 on the popover surface, 15px padding, 8px below the control. */
+/* Toggl tooltip (measured on the timer bar): 14/500/18 on #1b1b1b with a 1px #3a3a3a border,
+   15px padding, radius 8 and a soft 0 2px 6px shadow. It appears ~250ms after the pointer enters
+   and fades in over 0.3s; it disappears at once on leave. Markup: <TimerTip> inside the trigger. */
 .timer-tip {
   position: relative;
 }
 
-.timer-tip::after {
-  content: attr(data-tip);
+.timer-tip-box {
   position: absolute;
   top: calc(100% + 8px);
   left: 50%;
@@ -873,38 +874,65 @@ select:not(:disabled) {
   border: 1px solid var(--color-stroke);
   border-radius: 8px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-popover);
+  box-shadow: rgb(0 0 0 / 39%) 0 2px 6px;
   color: var(--color-fg);
+  font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 500;
   line-height: 18px;
+  letter-spacing: normal;
   text-align: left;
+  text-transform: none;
   white-space: nowrap;
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms ease;
 }
 
-.timer-tip:not([data-tip])::after,
-.timer-tip[aria-expanded="true"]::after,
-.timer-tip:disabled::after {
-  content: none;
-}
-
-.timer-tip:hover::after,
-.timer-tip:focus-visible::after {
-  opacity: 1;
-  transition-delay: 400ms;
-}
-
-.timer-tip-end::after {
-  right: 0;
+.timer-tip-box[data-placement="left"] {
+  top: 50%;
+  right: calc(100% + 8px);
   left: auto;
-  translate: none;
+  translate: 0 -50%;
+}
+
+/* Toggl's key cap: 11px monospace in a 1px #999 frame, 9px after the label. */
+.timer-tip-kbd {
+  display: inline-block;
+  margin-left: 9px;
+  padding: 3px 5px;
+  border: 1px solid var(--color-fg-subtle);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 11px;
+  /* Toggl's cap sits 1px under the text baseline, which makes its tip 53px tall. */
+  vertical-align: -1px;
+}
+
+.timer-tip:hover > .timer-tip-box,
+.timer-tip:focus-visible > .timer-tip-box {
+  visibility: visible;
+  animation: timer-tip-in 0.3s ease 250ms both;
+}
+
+.timer-tip[aria-expanded="true"] > .timer-tip-box,
+.timer-tip:disabled > .timer-tip-box {
+  display: none;
+}
+
+@keyframes timer-tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (hover: none) {
-  .timer-tip::after {
+  .timer-tip-box {
     display: none;
   }
 }

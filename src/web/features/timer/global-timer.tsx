@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useMe } from "@/web/app/context";
 import { useToast } from "@/web/components/toast";
@@ -20,6 +20,7 @@ import {
 } from "@/web/features/timer/description-suggestions";
 import { ManualRangeFields } from "@/web/features/timer/manual-range-fields";
 import { RunningDuration } from "@/web/features/timer/running-time-popover";
+import { TimerTip } from "@/web/features/timer/timer-tip";
 import {
   AddGlyph,
   AutomaticModeGlyph,
@@ -731,7 +732,8 @@ export function GlobalTimerBar() {
   };
 
   // Toggl shortcuts: `n` starts a new timer, `s` stops the running one. Ignored while typing.
-  const shortcuts = useRef({ newTimer: () => {}, stop: () => {} });
+  const shortcuts = useRef({ newTimer: () => {}, stop: () => {}, toggleMode: () => {} });
+  const tipId = useId();
   useEffect(() => {
     shortcuts.current = {
       newTimer: () => {
@@ -744,6 +746,9 @@ export function GlobalTimerBar() {
       },
       stop: () => {
         if (activeTimer) void handleStop();
+      },
+      toggleMode: () => {
+        if (!activeTimer) switchMode(mode === "timer" ? "manual" : "timer");
       },
     };
   });
@@ -758,6 +763,9 @@ export function GlobalTimerBar() {
       } else if (event.key === "s") {
         event.preventDefault();
         shortcuts.current.stop();
+      } else if (event.key === "m") {
+        event.preventDefault();
+        shortcuts.current.toggleMode();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -978,41 +986,46 @@ export function GlobalTimerBar() {
           {activeTimer ? (
             <button
               type="button"
-              className="timer-disc-button timer-tip timer-tip-end"
-              data-tip="Stop time entry"
+              className="timer-disc-button timer-tip"
               onClick={() => void handleStop()}
               disabled={stopMutation.isPending}
               aria-label="Stop timer"
+              aria-describedby={`${tipId}-disc`}
+              aria-keyshortcuts="S"
             >
               <span className="timer-disc timer-disc-stop">
                 <StopGlyph />
               </span>
+              <TimerTip id={`${tipId}-disc`} label="Stop time entry" shortcut="S" />
             </button>
           ) : manualMode ? (
             <button
               type="button"
-              className="timer-disc-button timer-tip timer-tip-end"
-              data-tip="Add time entry"
+              className="timer-disc-button timer-tip"
               onClick={() => manualMutation.mutate()}
               disabled={manualMutation.isPending}
               aria-label="Add time entry"
+              aria-describedby={`${tipId}-disc`}
             >
               <span className="timer-disc timer-disc-accent">
                 <AddGlyph />
               </span>
+              <TimerTip id={`${tipId}-disc`} label="Add time entry" />
             </button>
           ) : (
             <button
               type="button"
-              className="timer-disc-button timer-tip timer-tip-end"
-              data-tip="Start time entry"
+              className="timer-disc-button timer-tip"
               onClick={() => startMutation.mutate()}
               disabled={startMutation.isPending}
               aria-label="Start timer"
+              aria-describedby={`${tipId}-disc`}
+              aria-keyshortcuts="N"
             >
               <span className="timer-disc timer-disc-accent">
                 <PlayGlyph />
               </span>
+              <TimerTip id={`${tipId}-disc`} label="Start time entry" shortcut="N" />
             </button>
           )}
         </div>
@@ -1040,23 +1053,42 @@ export function GlobalTimerBar() {
             >
               <button
                 type="button"
-                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-fg" : "text-fg-muted"} hover:text-fg-soft`}
-                data-tip="Timer mode"
+                className={`timer-tip grid h-6 w-6 place-items-center rounded-full ${mode === "timer" ? "text-fg" : "text-fg-muted"} hover:text-fg-soft`}
                 aria-label="Timer mode"
                 aria-pressed={mode === "timer"}
+                aria-describedby={mode === "timer" ? undefined : `${tipId}-timer-mode`}
+                aria-keyshortcuts={mode === "timer" ? undefined : "M"}
                 onClick={() => switchMode("timer")}
               >
                 <AutomaticModeGlyph />
+                {/* Toggl only explains the mode you can switch to. */}
+                {mode === "timer" ? null : (
+                  <TimerTip
+                    id={`${tipId}-timer-mode`}
+                    label="Timer Mode"
+                    shortcut="M"
+                    placement="left"
+                  />
+                )}
               </button>
               <button
                 type="button"
-                className={`timer-tip timer-tip-end grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-fg" : "text-fg-muted"} hover:text-fg-soft`}
-                data-tip="Manual mode"
+                className={`timer-tip grid h-6 w-6 place-items-center rounded-full ${mode === "manual" ? "text-fg" : "text-fg-muted"} hover:text-fg-soft`}
                 aria-label="Manual mode"
                 aria-pressed={mode === "manual"}
+                aria-describedby={mode === "manual" ? undefined : `${tipId}-manual-mode`}
+                aria-keyshortcuts={mode === "manual" ? undefined : "M"}
                 onClick={() => switchMode("manual")}
               >
                 <ManualModeGlyph />
+                {mode === "manual" ? null : (
+                  <TimerTip
+                    id={`${tipId}-manual-mode`}
+                    label="Manual Mode"
+                    shortcut="M"
+                    placement="left"
+                  />
+                )}
               </button>
             </div>
           )}

@@ -3,6 +3,7 @@ import { Checkbox } from "@/web/components/checkbox";
 import { useInRouterContext, useNavigate } from "react-router";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -29,6 +30,7 @@ import {
   useEscapeToClose,
   useRestoreFocus,
 } from "@/web/features/timer/use-dismiss-popover";
+import { TimerTip } from "@/web/features/timer/timer-tip";
 import type { Project, Tag } from "@/web/types";
 
 export type ProjectChoice = Pick<
@@ -286,6 +288,7 @@ export function ProjectPicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeValue, setActiveValue] = useState(value);
+  const tipId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -323,7 +326,6 @@ export function ProjectPicker({
         ref={trigger}
         type="button"
         className={`${selected ? "timer-project-chip" : "timer-tool grid"} ${selected ? "" : "timer-tip"}`}
-        data-tip={selected ? undefined : "Add a project, task or client"}
         style={
           selected
             ? {
@@ -335,6 +337,7 @@ export function ProjectPicker({
         disabled={disabled}
         aria-label={selected ? `Project: ${selectedLabel}` : "Choose project"}
         title={selectedLabel ?? undefined}
+        aria-describedby={selected ? undefined : `${tipId}-project`}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => {
@@ -353,7 +356,10 @@ export function ProjectPicker({
             </span>
           </>
         ) : (
-          <FolderGlyph />
+          <>
+            <FolderGlyph />
+            <TimerTip id={`${tipId}-project`} label="Add a project, task or client" />
+          </>
         )}
       </button>
       {open ? (
@@ -457,6 +463,7 @@ export function TagPicker({
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const tipId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -509,7 +516,7 @@ export function TagPicker({
         ref={trigger}
         type="button"
         className={`timer-tool timer-tip grid ${value.length ? "timer-tool-active" : ""}`}
-        data-tip="Select tags"
+        aria-describedby={`${tipId}-tags`}
         disabled={disabled}
         aria-label={value.length ? `${value.length} timer tags selected` : "Choose timer tags"}
         aria-expanded={open}
@@ -517,6 +524,7 @@ export function TagPicker({
         onClick={() => setOpen((current) => !current)}
       >
         <TagGlyph className="translate-y-px" />
+        <TimerTip id={`${tipId}-tags`} label="Select tags" />
       </button>
       {open ? (
         <div
@@ -620,17 +628,19 @@ export function BillableButton({
   disabled: boolean;
   onToggle: () => void;
 }) {
+  const tipId = useId();
   return (
     <button
       type="button"
       className={`timer-tool timer-tip hidden sm:ml-[5px] sm:grid ${active ? "timer-tool-active" : ""}`}
-      data-tip={active ? "Billable" : "Non-billable"}
+      aria-describedby={`${tipId}-billable`}
       aria-label={active ? "Mark non-billable" : "Mark billable"}
       aria-pressed={active}
       disabled={disabled}
       onClick={onToggle}
     >
       <DollarGlyph />
+      <TimerTip id={`${tipId}-billable`} label={active ? "Billable" : "Non-billable"} />
     </button>
   );
 }

@@ -281,4 +281,43 @@ describe("global timer description commands", () => {
     view.unmount();
     queryClient.clear();
   });
+  it("toggles the timer mode with M and only describes the mode it can switch to", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup();
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <GlobalTimerBar />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("combobox", { name: "Timer description" });
+    const timerMode = screen.getByRole("button", { name: "Timer mode" });
+    const manualMode = screen.getByRole("button", { name: "Manual mode" });
+    expect(timerMode).toHaveAttribute("aria-pressed", "true");
+    // Toggl only shows a tip (with its M key cap) on the inactive mode.
+    expect(timerMode).not.toHaveAccessibleDescription();
+    expect(manualMode).toHaveAccessibleDescription("Manual ModeM");
+    expect(screen.getByRole("button", { name: "Start timer" })).toHaveAccessibleDescription(
+      "Start time entryN",
+    );
+
+    await user.click(document.body);
+    await user.keyboard("m");
+    expect(manualMode).toHaveAttribute("aria-pressed", "true");
+    expect(manualMode).not.toHaveAccessibleDescription();
+    expect(timerMode).toHaveAccessibleDescription("Timer ModeM");
+    expect(screen.getByRole("button", { name: "Add time entry" })).toHaveAccessibleDescription(
+      "Add time entry",
+    );
+
+    // Typing an "m" in the description must not switch modes.
+    await user.click(screen.getByRole("combobox", { name: "Timer description" }));
+    await user.keyboard("m");
+    expect(manualMode).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(document.body);
+    await user.keyboard("m");
+    expect(timerMode).toHaveAttribute("aria-pressed", "true");
+    view.unmount();
+    queryClient.clear();
+  });
 });

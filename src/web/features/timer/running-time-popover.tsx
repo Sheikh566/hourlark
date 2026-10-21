@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { WeekStartsOn } from "@/domain/dates/calendar";
 import { TimerCalendar } from "@/web/features/timer/timer-calendar";
+import { TimerTip } from "@/web/features/timer/timer-tip";
 import { dateLabel, TimeField } from "@/web/features/timer/timer-time-field";
 import { formatClock12, localFields, localInstant } from "@/web/features/timer/timer-time-fields";
 import {
@@ -39,6 +40,7 @@ export function RunningDuration({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const root = useRef<HTMLDivElement>(null);
+  const tipId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const [restoreFocus, setRestoreFocus] = useState(false);
   const requestClose = (restore: boolean) => {
@@ -82,13 +84,14 @@ export function RunningDuration({
         ref={trigger}
         type="button"
         className="timer-duration timer-tip text-fg hover:bg-surface-hover mx-auto block h-[31px] w-[83px] rounded-lg text-center text-lg font-semibold tabular-nums"
-        data-tip="Adjust duration"
+        aria-describedby={`${tipId}-duration`}
         aria-label={`Running time ${duration}. Adjust start time`}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
       >
         {duration}
+        <TimerTip id={`${tipId}-duration`} label="Adjust duration" />
       </button>
       {open ? (
         <div

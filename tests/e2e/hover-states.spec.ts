@@ -469,3 +469,86 @@ test.describe("Settings tabs", () => {
     await expectStyle(tab, "color", COLOR.white);
   });
 });
+
+test.describe("Timer bar tooltips", () => {
+  // Toggl's tip: #1b1b1b box, 1px #3a3a3a border, 15px padding, 8px from the trigger, shown
+  // ~250ms after the pointer arrives and faded in; only the inactive timer mode has one.
+  async function expectTip(
+    page: Page,
+    trigger: Locator,
+    text: string,
+    placement: "bottom" | "left",
+    shortcut?: string,
+  ) {
+    await unhover(page);
+    await trigger.hover();
+    const tip = page.getByRole("tooltip").filter({ hasText: text });
+    await expect(tip, `${text} tip`).toBeVisible();
+    await expect.poll(() => style(tip, "opacity"), { message: `${text} tip fades in` }).toBe("1");
+    await expect(tip).toHaveCSS("background-color", COLOR.surface);
+    await expect(tip).toHaveCSS("border-top-color", COLOR.surfaceHover);
+    await expect(tip).toHaveCSS("padding-top", "15px");
+    await expect(tip).toHaveCSS("box-shadow", "rgba(0, 0, 0, 0.39) 0px 2px 6px 0px");
+    if (shortcut) await expect(tip.locator("kbd")).toHaveText(shortcut);
+    else await expect(tip.locator("kbd")).toHaveCount(0);
+
+    const box = await tip.boundingBox();
+    const anchor = await trigger.boundingBox();
+    if (!box || !anchor) throw new Error(`${text} tip or its trigger has no box`);
+    if (placement === "bottom") {
+      expect(box.y - (anchor.y + anchor.height), `${text} tip sits 8px below`).toBeCloseTo(8, 0);
+      expect(box.x + box.width / 2 - (anchor.x + anchor.width / 2)).toBeLessThanOrEqual(1);
+    } else {
+      expect(anchor.x - (box.x + box.width), `${text} tip sits 8px left`).toBeCloseTo(8, 0);
+      expect(Math.abs(box.y + box.height / 2 - (anchor.y + anchor.height / 2))).toBeLessThanOrEqual(
+        1,
+      );
+    }
+    await unhover(page);
+    await expect(tip, `${text} tip hides on leave`).toBeHidden();
+  }
+
+  test("project, tags, start and inactive mode tips match Toggl", async ({ page }) => {
+    await page.goto("/time");
+    const start = page.getByRole("button", { name: "Start timer", exact: true });
+    await expect(start).toBeVisible();
+
+    await expectTip(
+      page,
+      page.getByRole("button", { name: "Choose project", exact: true }),
+      "Add a project, task or client",
+      "bottom",
+    );
+    await expectTip(
+      page,
+      page.getByRole("button", { name: "Choose timer tags", exact: true }),
+      "Select tags",
+      "bottom",
+    );
+    await expectTip(page, start, "Start time entry", "bottom", "N");
+    await expectTip(
+      page,
+      page.getByRole("button", { name: "Manual mode", exact: true }),
+      "Manual Mode",
+      "left",
+      "M",
+    );
+
+    // The active mode explains nothing.
+    await unhover(page);
+    await page.getByRole("button", { name: "Timer mode", exact: true }).hover();
+    await page.waitForTimeout(700);
+    await expect(page.getByRole("tooltip").filter({ hasText: "Timer Mode" })).toHaveCount(0);
+  });
+
+  test("the tip waits before appearing", async ({ page }) => {
+    await page.goto("/time");
+    const tags = page.getByRole("button", { name: "Choose timer tags", exact: true });
+    await expect(tags).toBeVisible();
+    await unhover(page);
+    await tags.hover();
+    const tip = page.getByRole("tooltip").filter({ hasText: "Select tags" });
+    expect(Number(await style(tip, "opacity")), "not shown immediately").toBeLessThan(0.2);
+    await expect.poll(() => style(tip, "opacity")).toBe("1");
+  });
+});
