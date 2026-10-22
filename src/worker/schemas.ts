@@ -115,7 +115,6 @@ export const settingsUpdateSchema = z.object({
   timezone: z.string().trim().min(1).optional(),
   currency: currencySchema.optional(),
   week_start: z.enum(["monday", "sunday"]).optional(),
-  allowed_email_domains: z.array(z.string().trim().min(1)).min(1).optional(),
   default_rate_minor: z.number().int().min(0).nullable().optional(),
   members_can_set_billable: z.boolean().optional(),
   lock_entries_after_days: z.number().int().min(0).nullable().optional(),

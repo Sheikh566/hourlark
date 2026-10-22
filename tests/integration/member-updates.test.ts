@@ -213,3 +213,23 @@ describe("atomic member updates", () => {
     expect(await snapshot()).toEqual(initial);
   });
 });
+
+describe("member provisioning", () => {
+  beforeEach(seedApiFixture);
+
+  it("accepts an email outside the company domain", async () => {
+    const response = await apiRequest("/members", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "Contractor@Gmail.com",
+        display_name: "Contractor",
+        timezone: "Asia/Karachi",
+      }),
+    });
+    expect(response.status).toBe(201);
+    const row = await env.DB.prepare("SELECT status FROM members WHERE email_normalized = ?")
+      .bind("contractor@gmail.com")
+      .first();
+    expect(row).toEqual({ status: "pending" });
+  });
+});

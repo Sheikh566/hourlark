@@ -19,7 +19,6 @@ const labels: Record<string, string> = {
   app_name: "Application name",
   company_name: "Company name",
   company_domain: "Company domain",
-  allowed_email_domains: "Allowed email domains",
   lock_entries_after_days: "Lock entries after days",
 };
 

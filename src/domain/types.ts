@@ -42,7 +42,6 @@ export interface WorkspaceRow {
   timezone: string;
   currency: string;
   week_start: "monday" | "sunday";
-  allowed_email_domains_json: string;
   default_rate_minor: number | null;
   members_can_set_billable: number;
   lock_entries_after_days: number | null;

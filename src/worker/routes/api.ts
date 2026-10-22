@@ -935,15 +935,7 @@ api.post("/members", async (c) => {
   requireAction(actor, "member:manage-role");
   const input = await jsonBody(c, memberCreateSchema);
   assertValidTimeZone(input.timezone);
-  const workspace = await getWorkspace(c.env.DB, actor.workspaceId);
   const email = normalizeEmail(input.email);
-  const domain = email.split("@")[1];
-  const allowedDomains = z
-    .array(z.string())
-    .parse(JSON.parse(workspace.allowed_email_domains_json));
-  if (!domain || !allowedDomains.includes(domain)) {
-    throw new ApiError(422, "email_domain_forbidden", "The email domain is not allowed.");
-  }
   const id = crypto.randomUUID();
   const now = Date.now();
   try {
@@ -1153,10 +1145,6 @@ api.get("/settings", async (c) => {
   return c.json({
     settings: {
       ...workspace,
-      allowed_email_domains: z
-        .array(z.string())
-        .parse(JSON.parse(workspace.allowed_email_domains_json)),
-      allowed_email_domains_json: undefined,
       access: {
         configured: c.env.ACCESS_TEAM_DOMAIN !== "None" && !c.env.ACCESS_AUD.includes("["),
         team_domain: c.env.ACCESS_TEAM_DOMAIN === "None" ? null : c.env.ACCESS_TEAM_DOMAIN,
@@ -1182,10 +1170,6 @@ api.patch("/settings", async (c) => {
     timezone: input.timezone ?? existing.timezone,
     currency: input.currency ?? existing.currency,
     week_start: input.week_start ?? existing.week_start,
-    allowed_email_domains_json:
-      input.allowed_email_domains === undefined
-        ? existing.allowed_email_domains_json
-        : JSON.stringify(input.allowed_email_domains.map((value) => value.toLowerCase())),
     default_rate_minor:
       input.default_rate_minor === undefined
         ? existing.default_rate_minor
@@ -1227,7 +1211,7 @@ api.patch("/settings", async (c) => {
     await c.env.DB.batch([
       c.env.DB.prepare(
         `UPDATE workspaces SET app_name = ?, company_name = ?, company_domain = ?, timezone = ?,
-         currency = ?, week_start = ?, allowed_email_domains_json = ?, default_rate_minor = ?,
+         currency = ?, week_start = ?, default_rate_minor = ?,
          members_can_set_billable = ?, lock_entries_after_days = ?, rounding_increment_minutes = ?,
          rounding_method = ?, report_show_descriptions = ?, report_show_tags = ?, report_show_members = ?,
          updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`,
@@ -1238,7 +1222,6 @@ api.patch("/settings", async (c) => {
         next.timezone,
         next.currency,
         next.week_start,
-        next.allowed_email_domains_json,
         next.default_rate_minor,
         next.members_can_set_billable,
         next.lock_entries_after_days,

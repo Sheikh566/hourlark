@@ -32,7 +32,6 @@ interface Settings {
   timezone: string;
   currency: string;
   week_start: "monday" | "sunday";
-  allowed_email_domains: string[];
   default_rate_minor: number | null;
   members_can_set_billable: number;
   lock_entries_after_days: number | null;
@@ -72,7 +71,6 @@ const settingsSchema = z.object({
     .trim()
     .regex(/^[A-Za-z]{3}$/, "Enter a three-letter currency code."),
   week_start: z.enum(["monday", "sunday"]),
-  allowed_email_domains: z.string().trim().min(1, "This field is required."),
   default_rate_major: z
     .string()
     .refine(
@@ -161,7 +159,6 @@ function WorkspaceSettings() {
       timezone: "",
       currency: "USD",
       week_start: "monday",
-      allowed_email_domains: "iomechs.com",
       default_rate_major: "",
       members_can_set_billable: false,
       lock_entries_after_days: "",
@@ -182,7 +179,6 @@ function WorkspaceSettings() {
       timezone: value.timezone,
       currency: value.currency,
       week_start: value.week_start,
-      allowed_email_domains: value.allowed_email_domains.join(", "),
       default_rate_major:
         value.default_rate_minor === null
           ? ""
@@ -211,10 +207,6 @@ function WorkspaceSettings() {
           timezone: value.timezone,
           currency: value.currency.toUpperCase(),
           week_start: value.week_start,
-          allowed_email_domains: value.allowed_email_domains
-            .split(",")
-            .map((domain) => domain.trim().toLowerCase())
-            .filter(Boolean),
           default_rate_minor: value.default_rate_major
             ? majorToMinor(value.default_rate_major, value.currency)
             : null,
@@ -313,18 +305,6 @@ function WorkspaceSettings() {
                       { value: "monday", label: "Monday" },
                       { value: "sunday", label: "Sunday" },
                     ]}
-                  />
-                </Field>
-              </div>
-              <div className="sm:col-span-2 sm:max-w-[560px]">
-                <Field
-                  label="Allowed email domains"
-                  hint="Comma-separated; enforced when provisioning members."
-                >
-                  <Input
-                    className={inputClass}
-                    aria-invalid={Boolean(form.formState.errors.allowed_email_domains)}
-                    {...form.register("allowed_email_domains")}
                   />
                 </Field>
               </div>

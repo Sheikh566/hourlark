@@ -250,7 +250,7 @@ documents this initial upload in
    `BOOTSTRAP_ADMIN_EMAILS`. The verified first login creates an active Admin and
    marks bootstrap complete.
 2. Open **Administration**. Replace the initial company name/domain, workspace
-   timezone, currency, week start, and **Allowed email domains** with your own.
+   timezone, currency, and week start with your own.
    Save the settings before provisioning colleagues. Review rate, rounding,
    report, and lock defaults there as well.
 3. Check your own timezone in the user preferences and set it appropriately.
@@ -349,7 +349,6 @@ production bindings.
 | `configuration_invalid`                             | Check all required variables and the deployed `CSRF_SECRET`; confirm it is at least 24 characters and `BOOTSTRAP_ADMIN_EMAILS` still exists. |
 | First administrator is not provisioned              | Check the verified sign-in email matches the bootstrap address, all migrations ran, and the database has not already completed bootstrap.    |
 | A colleague passes Access but is denied by Hourlark | Provision their exact email under Members and check their account is not inactive.                                                           |
-| `email_domain_forbidden` when adding a member       | Change Administration's stored Allowed email domains; changing only the Worker variable does not update them.                                |
 | Writes fail with a CSRF error                       | Reload after login or secret rotation and use the same protected hostname for the app and API.                                               |
 | SQL reports a missing table                         | Check the deployed `DB` binding's UUID and remote migration state, rather than the local database.                                           |
 | Deploy succeeds but there is no app URL             | Check `HOURLARK_DOMAIN`, or use the `workers.dev` URL Wrangler printed when no domain is set.                                                |

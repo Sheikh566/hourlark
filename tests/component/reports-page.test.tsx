@@ -221,7 +221,6 @@ describe("report date and filter workflow", () => {
         timezone: "Asia/Karachi",
         currency: "USD",
         week_start: "monday",
-        allowed_email_domains_json: "[]",
         default_rate_minor: null,
         members_can_set_billable: 1,
         lock_entries_after_days: null,

@@ -150,7 +150,6 @@ describe("workspace settings", () => {
       timezone: "UTC",
       currency: "USD",
       week_start: "monday",
-      allowed_email_domains: ["acme.test"],
       default_rate_minor: null,
       members_can_set_billable: 0,
       lock_entries_after_days: null,
