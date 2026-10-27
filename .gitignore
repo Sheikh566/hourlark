@@ -12,3 +12,7 @@ test-results/
 worker-configuration.d.ts.tmp
 *.log
 .DS_Store
+
+# Personal Claude Code settings; .claude/skills/ stays tracked.
+.claude/launch.json
+.claude/settings.local.json
