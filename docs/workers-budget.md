@@ -25,6 +25,21 @@ Observability pricing on 2026-12-01; re-check that row after that date.
 Free: static asset requests. Only `/api/*` invokes the Worker
 (`assets.run_worker_first` in `wrangler.jsonc`); pages, JS, CSS, and images cost nothing.
 
+### Access seats
+
+Production uses `AUTH_MODE=google`, so Cloudflare Access consumes no seats today
+(2026-10-27: zero Access applications and zero seats in the account). Seats apply only
+under `AUTH_MODE=access`:
+
+- The Zero Trust Free plan is commonly cited as 50 seats; confirm on the account's
+  Zero Trust billing page before relying on it. Extra seats are billed per user/month.
+- A user takes one seat on their first Access login and keeps it until removed or
+  expired by inactivity (configurable, 1 month to 1 year).
+- When every seat is taken, new users are **blocked from signing in**, not billed.
+
+The 50-user load model fills every free seat, so switching to Access mode is **Red**
+until seat expiration is enabled or paid seats are purchased.
+
 ## Baseline
 
 Load model: **50 users, 22 workdays/month = 1,100 user-days.**
@@ -57,7 +72,8 @@ visible all 8 hours, 960 polls/day) is ≈ 4.1M CPU-ms and 1.2M requests, still 
 ## Budget check
 
 Run this for every change that touches `src/worker/`, adds or changes a TanStack
-Query `refetchInterval`/polling, adds a scheduled or queue handler, or adds a binding.
+Query `refetchInterval`/polling, adds a scheduled or queue handler, adds a binding, or
+changes `AUTH_MODE`.
 
 1. **Classify** the change against each lever:
    - **Request volume**: new polling, shorter intervals, `refetchIntervalInBackground`,
@@ -67,6 +83,8 @@ Query `refetchInterval`/polling, adds a scheduled or queue handler, or adds a bi
    - **D1 rows**: queries without an index on their `WHERE`/`ORDER BY` (full scans
      multiply rows read by table size), unbounded report ranges, writes inside loops.
    - **Log volume**: `console.log` per request (logs sample at `head_sampling_rate: 1`).
+   - **Access seats**: switching to `AUTH_MODE=access` or growing the user count; see
+     [Access seats](#access-seats).
 2. **Quantify** each lever the change moves: requests per user-day × 1,100, multiplied by
    CPU-ms per request. Measure CPU with the query in [Measuring](#measuring) when the
    code is deployable; otherwise state the assumed number.

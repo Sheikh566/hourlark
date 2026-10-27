@@ -59,7 +59,7 @@ deployment; production requires configured D1 and Access settings. Back up D1
 before destructive remote migrations.
 
 Budget: run the check in `docs/workers-budget.md` before changing `src/worker/`,
-client polling (`refetchInterval`), scheduled/queue handlers, D1 queries, or bindings.
+client polling (`refetchInterval`), scheduled/queue handlers, D1 queries, bindings, or `AUTH_MODE`.
 
 ## Cursor Cloud specific instructions
 
