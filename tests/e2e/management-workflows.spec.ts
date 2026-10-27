@@ -193,18 +193,13 @@ test("tags and members have working validation, editing and status controls", as
   await page.getByRole("textbox", { name: "Display name", exact: true }).fill(`${name} edited`);
   await page.getByRole("button", { name: "Save member", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
+  page.once("dialog", (dialog) => dialog.accept());
   await rowAction(
     page.locator("tbody tr").filter({ hasText: `${name} edited` }),
     `${name} edited`,
-    "Edit",
+    "Deactivate",
   );
-  page.once("dialog", (dialog) => dialog.accept());
-  await chooseOption(
-    page.getByRole("combobox", { name: "Account status", exact: true }),
-    "Inactive",
-  );
-  await page.getByRole("button", { name: "Save member", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByText(`${name} edited deactivated`)).toBeVisible();
   await page.getByRole("button", { name: "Filter members by status", exact: true }).click();
   await page.getByRole("checkbox", { name: "Inactive", exact: true }).check();
   await page.keyboard.press("Escape");

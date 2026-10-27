@@ -17,6 +17,7 @@ import {
   Input,
   Modal,
   RowMenu,
+  type RowMenuItem,
   SearchInput,
   Select,
   SortHeader,
@@ -32,6 +33,7 @@ import {
 } from "@/web/features/members/status-filter";
 import { apiRequest } from "@/web/lib/api";
 import { formatDuration } from "@/web/lib/format";
+import { timeZoneOptions } from "@/web/lib/time-zones";
 import type { Member, Project } from "@/web/types";
 
 const memberSchema = z.object({
@@ -45,7 +47,6 @@ const memberSchema = z.object({
       (value) => !value || (Number.isFinite(Number(value)) && Number(value) >= 0),
       "Enter a non-negative number.",
     ),
-  status: z.enum(["active", "inactive"]),
   project_ids: z.array(z.string()),
 });
 type MemberForm = z.infer<typeof memberSchema>;
@@ -54,6 +55,7 @@ export function MembersPage() {
   const me = useMe();
   const toast = useToast();
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Member | "new" | null>(null);
   const members = useQuery({
     queryKey: ["members"],
@@ -75,6 +77,50 @@ export function MembersPage() {
         ? left.display_name.localeCompare(right.display_name)
         : right.display_name.localeCompare(left.display_name),
     );
+
+  const statusMutation = useMutation({
+    mutationFn: ({ member, status }: { member: Member; status: "active" | "inactive" }) =>
+      apiRequest(`/members/${member.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ version: member.version, status }),
+      }),
+    onSuccess: async (_, { member, status }) => {
+      await queryClient.invalidateQueries();
+      toast({
+        title: "Success",
+        message: `${member.display_name} ${status === "inactive" ? "deactivated" : "reactivated"}`,
+      });
+    },
+    onError: (error) => toast({ title: "Error", message: error.message }),
+  });
+  const setStatus = (member: Member, status: "active" | "inactive") => {
+    if (
+      status === "inactive" &&
+      !window.confirm(`Deactivate ${member.email}? Any running timer will be stopped.`)
+    )
+      return;
+    statusMutation.mutate({ member, status });
+  };
+  const rowActions = (member: Member): RowMenuItem[] => {
+    const items: RowMenuItem[] = [{ label: "Edit", onSelect: () => setEditing(member) }];
+    // Admins change account status; nobody deactivates their own account from here.
+    if (!me.permissions.manage_members || member.id === me.member.id) return items;
+    items.push(
+      member.status === "inactive"
+        ? {
+            label: "Reactivate",
+            disabled: statusMutation.isPending,
+            onSelect: () => setStatus(member, "active"),
+          }
+        : {
+            label: "Deactivate",
+            danger: true,
+            disabled: statusMutation.isPending,
+            onSelect: () => setStatus(member, "inactive"),
+          },
+    );
+    return items;
+  };
 
   if (!me.permissions.view_team)
     return <ErrorState message="You do not have permission to view members." />;
@@ -250,7 +296,7 @@ export function MembersPage() {
                       <RowMenu
                         label={`Actions for ${member.display_name}`}
                         menuClassName="w-[216px]"
-                        items={[{ label: "Edit", onSelect: () => setEditing(member) }]}
+                        items={rowActions(member)}
                       />
                     </div>
                   </td>
@@ -268,7 +314,7 @@ export function MembersPage() {
         onBindingReset={() =>
           toast({
             title: "Success",
-            message: "Access binding reset. The member can sign in with the new identity subject.",
+            message: "Account unlinked. The member's next sign-in links their new account.",
           })
         }
         onOpenChange={(open) => !open && setEditing(null)}
@@ -307,7 +353,6 @@ function MemberEditor({
       role: "member",
       timezone: me.workspace.timezone,
       weekly_target_hours: "",
-      status: "active",
       project_ids: [],
     },
   });
@@ -320,7 +365,6 @@ function MemberEditor({
       weekly_target_hours: member?.weekly_target_minutes
         ? String(member.weekly_target_minutes / 60)
         : "",
-      status: member?.status === "inactive" ? "inactive" : "active",
       project_ids: member?.project_ids_json
         ? (JSON.parse(member.project_ids_json) as string[])
         : [],
@@ -329,13 +373,6 @@ function MemberEditor({
   }, [form, me.workspace.timezone, member, open]);
   const mutation = useMutation({
     mutationFn: (values: MemberForm) => {
-      if (
-        member &&
-        values.status === "inactive" &&
-        member.status !== "inactive" &&
-        !window.confirm(`Deactivate ${member.email}? Any running timer will be stopped.`)
-      )
-        throw new Error("Deactivation cancelled.");
       const base = {
         display_name: values.display_name,
         role: values.role,
@@ -350,7 +387,7 @@ function MemberEditor({
           member
             ? {
                 version: member.version,
-                ...(canManageIdentity ? { ...base, status: values.status } : {}),
+                ...(canManageIdentity ? base : {}),
                 project_ids: values.project_ids,
               }
             : { ...base, email: values.email },
@@ -456,10 +493,12 @@ function MemberEditor({
             />
           </Field>
           <Field label="Timezone">
-            <Input
+            <FormSelect
+              control={form.control}
+              name="timezone"
+              className="h-9"
               disabled={!canManageIdentity && Boolean(member)}
-              aria-invalid={Boolean(form.formState.errors.timezone)}
-              {...form.register("timezone")}
+              options={timeZoneOptions(member?.timezone ?? me.workspace.timezone)}
             />
           </Field>
           <Field label="Weekly target hours">
@@ -472,18 +511,6 @@ function MemberEditor({
               {...form.register("weekly_target_hours")}
             />
           </Field>
-          {member && canManageIdentity ? (
-            <Field label="Account status">
-              <FormSelect
-                control={form.control}
-                name="status"
-                options={[
-                  { value: "active", label: "Active" },
-                  { value: "inactive", label: "Inactive" },
-                ]}
-              />
-            </Field>
-          ) : null}
           {member ? (
             <>
               {projects.isPending ? (
@@ -514,9 +541,11 @@ function MemberEditor({
           ) : null}
           {member && canManageIdentity ? (
             <InfoBox icon={KeyRound} className="sm:col-span-2">
-              <h3 className="text-fg">Cloudflare Access binding</h3>
+              <h3 className="text-fg">Linked sign-in account</h3>
               <p className="mt-1">
-                Reset only when the member&apos;s identity subject has legitimately changed.
+                This member is linked to the account they first signed in with. Unlink it only if
+                they now sign in with a different account under the same email, for example after it
+                was recreated. Their next sign-in links the new account.
               </p>
               {!confirmReset ? (
                 <Button
@@ -525,7 +554,7 @@ function MemberEditor({
                   className="mt-3"
                   onClick={() => setConfirmReset(true)}
                 >
-                  <KeyRound size={14} aria-hidden="true" /> Reset binding
+                  <KeyRound size={14} aria-hidden="true" /> Unlink account
                 </Button>
               ) : (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -536,7 +565,7 @@ function MemberEditor({
                     className="h-auto min-h-9 max-w-full py-1 break-all whitespace-normal"
                     onClick={() => resetMutation.mutate()}
                   >
-                    {resetMutation.isPending ? "Resetting…" : `Confirm ${member.email}`}
+                    {resetMutation.isPending ? "Unlinking…" : `Unlink ${member.email}`}
                   </Button>
                   <Button type="button" variant="ghost" onClick={() => setConfirmReset(false)}>
                     Cancel

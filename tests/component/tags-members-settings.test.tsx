@@ -10,8 +10,11 @@ import { MembersPage } from "@/web/routes/members";
 import { TagsPage } from "@/web/routes/tags";
 import { apiRequest } from "@/web/lib/api";
 
+import { chooseOption } from "./select-helpers";
+
 vi.mock("@/web/app/context", () => ({
   useMe: () => ({
+    member: { id: "me" },
     permissions: { manage_members: true, manage_workspace: true, view_team: true },
     workspace: { currency: "USD", timezone: "UTC" },
   }),
@@ -97,6 +100,102 @@ describe("members status filter", () => {
     await user.type(screen.getByRole("searchbox", { name: "Search members" }), "zzz");
     expect(await screen.findByText("Nothing to see here...")).toBeInTheDocument();
   });
+});
+
+describe("members row menu and editor", () => {
+  const patchBody = () => {
+    const patch = vi.mocked(apiRequest).mock.calls.find(([, init]) => init?.method === "PATCH");
+    return JSON.parse(patch?.[1]?.body as string) as Record<string, unknown>;
+  };
+
+  it("deactivates from the row menu after confirming, without opening the editor", async () => {
+    vi.mocked(apiRequest).mockImplementation((path, init) =>
+      init?.method === "PATCH"
+        ? Promise.resolve({})
+        : Promise.resolve({ members: [member("a", "Ada Active", "active")] }),
+    );
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = userEvent.setup();
+    mount(<MembersPage />);
+    await user.click(await screen.findByRole("button", { name: "Actions for Ada Active" }));
+    await user.click(screen.getByRole("menuitem", { name: "Deactivate" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Deactivate a@example.com? Any running timer will be stopped.",
+    );
+    expect(await screen.findByText("Ada Active deactivated")).toBeInTheDocument();
+    expect(vi.mocked(apiRequest)).toHaveBeenCalledWith("/members/a", expect.anything());
+    expect(patchBody()).toEqual({ version: 1, status: "inactive" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
+  it("does not deactivate when the confirmation is declined", async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ members: [member("a", "Ada Active", "active")] });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    mount(<MembersPage />);
+    await user.click(await screen.findByRole("button", { name: "Actions for Ada Active" }));
+    await user.click(screen.getByRole("menuitem", { name: "Deactivate" }));
+    expect(vi.mocked(apiRequest).mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(
+      false,
+    );
+    confirm.mockRestore();
+  });
+
+  it("reactivates inactive members and hides status actions on your own row", async () => {
+    vi.mocked(apiRequest).mockImplementation((path, init) =>
+      init?.method === "PATCH"
+        ? Promise.resolve({})
+        : Promise.resolve({
+            members: [member("me", "Me Myself", "active"), member("i", "Ivy Inactive", "inactive")],
+          }),
+    );
+    const user = userEvent.setup();
+    mount(<MembersPage />);
+    await user.click(await screen.findByRole("button", { name: "Actions for Me Myself" }));
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Deactivate" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: "Filter members by status" }));
+    await user.click(screen.getByRole("checkbox", { name: "Inactive" }));
+    await user.keyboard("{Escape}");
+    await user.click(await screen.findByRole("button", { name: "Actions for Ivy Inactive" }));
+    await user.click(screen.getByRole("menuitem", { name: "Reactivate" }));
+    expect(await screen.findByText("Ivy Inactive reactivated")).toBeInTheDocument();
+    expect(patchBody()).toEqual({ version: 1, status: "active" });
+  });
+
+  it("picks the new member's timezone from a dropdown", async () => {
+    vi.mocked(apiRequest).mockImplementation((path, init) =>
+      init?.method === "POST"
+        ? Promise.resolve({})
+        : Promise.resolve({ members: [member("a", "Ada Active", "active")] }),
+    );
+    const user = userEvent.setup();
+    mount(<MembersPage />);
+    await screen.findByText("Ada Active");
+    await user.click(screen.getAllByRole("button", { name: "Add member" })[0] as HTMLElement);
+    const timezone = screen.getByRole("combobox", { name: "Timezone" });
+    expect(timezone).toHaveTextContent("UTC (UTC+00:00)");
+    await user.type(screen.getByRole("textbox", { name: "Company email" }), "new@example.com");
+    await user.type(screen.getByRole("textbox", { name: "Display name" }), "New Person");
+    await chooseOption(user, timezone, /^Asia\/Karachi \(UTC\+05:00\)$/);
+    expect(timezone).toHaveTextContent("Asia/Karachi (UTC+05:00)");
+    await user.click(screen.getByRole("button", { name: "Save member" }));
+    await waitFor(() =>
+      expect(vi.mocked(apiRequest)).toHaveBeenCalledWith(
+        "/members",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    const post = vi.mocked(apiRequest).mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(post?.[1]?.body as string)).toMatchObject({
+      email: "new@example.com",
+      timezone: "Asia/Karachi",
+    });
+    // Radix mounts all ~420 zones; under a parallel run this flow needs more than the 5s default.
+  }, 15_000);
 });
 
 describe("tags page", () => {

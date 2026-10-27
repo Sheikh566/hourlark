@@ -24,6 +24,7 @@ import { FormErrors } from "@/web/components/form-errors";
 import { FormSelect } from "@/web/components/form-select";
 import { InfoBox } from "@/web/features/management/info-box";
 import { apiRequest } from "@/web/lib/api";
+import { timeZoneOptions } from "@/web/lib/time-zones";
 
 interface Settings {
   app_name: string;
@@ -144,6 +145,7 @@ export function AdministrationPage() {
 }
 
 function WorkspaceSettings() {
+  const me = useMe();
   const queryClient = useQueryClient();
   const toast = useToast();
   const settings = useQuery({
@@ -156,7 +158,8 @@ function WorkspaceSettings() {
       app_name: "",
       company_name: "",
       company_domain: "",
-      timezone: "",
+      // A Radix Select whose first value matches no option clears itself on the next reset.
+      timezone: me.workspace.timezone,
       currency: "USD",
       week_start: "monday",
       default_rate_major: "",
@@ -279,10 +282,10 @@ function WorkspaceSettings() {
               </div>
               <div className={fieldWidth}>
                 <Field label="Workspace timezone">
-                  <Input
-                    className={inputClass}
-                    aria-invalid={Boolean(form.formState.errors.timezone)}
-                    {...form.register("timezone")}
+                  <FormSelect
+                    control={form.control}
+                    name="timezone"
+                    options={timeZoneOptions(settings.data.settings.timezone)}
                   />
                 </Field>
               </div>
