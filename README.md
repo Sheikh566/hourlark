@@ -16,6 +16,32 @@ The product includes:
 - formula-safe UTF-8 CSV and a Workers-native, client-ready PDF time report;
 - Member, Manager and Admin authorization enforced by a centralized server policy.
 
+## Screenshots
+
+The screenshots use made-up sample data.
+
+**Timer list**: a running timer, plus entries grouped by day with project, client, billable and
+tag details.
+
+![Timer list view](docs/screenshots/timer-list.png)
+
+**Calendar**: create, drag and resize entries on a weekly grid.
+
+![Calendar week view](docs/screenshots/timer-calendar.png)
+
+**Timesheet**: weekly totals per project, editable per day.
+
+![Timesheet view](docs/screenshots/timer-timesheet.png)
+
+**Reports**: daily totals, billable amounts, project distribution and breakdowns, exportable to CSV
+and PDF.
+
+![Summary report](docs/screenshots/reports.png)
+
+**Projects**: clients, billable defaults, and time against budget.
+
+![Projects list](docs/screenshots/projects.png)
+
 ## Stack
 
 TypeScript (strict), React, Vite, Cloudflare Vite plugin, Hono, Tailwind CSS, TanStack Query, React
