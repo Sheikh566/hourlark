@@ -85,9 +85,9 @@ The Worker also needs these secrets:
 node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log(randomBytes(32).toString("hex"));'
 ```
 
-Do not leave the original `sheikh.abdullah@iomechs.com` bootstrap address in your
-installation. One deployment supports one company workspace. The migration
-initializes the workspace with IOMechs defaults; these runtime variables do not
+Replace the `example.com` placeholders with your own company and administrator email;
+`pnpm check:production` rejects them. One deployment supports one company workspace. The migration
+initializes the workspace with placeholder defaults; these runtime variables do not
 overwrite stored workspace settings. Step 9 explains how to change them.
 
 ## 3. Deploy with GitHub Actions (recommended)

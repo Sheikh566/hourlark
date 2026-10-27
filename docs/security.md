@@ -52,7 +52,7 @@ with a mandatory audit reason.
 ## Required production controls
 
 - Create a random `CSRF_SECRET` of at least 24 characters with Wrangler secrets.
-- Restrict the Access application to the intended IOMechs identity policy.
+- Restrict the Access application to your organization’s intended identity policy.
 - Set short, appropriate Access session duration and require the company identity provider’s MFA.
 - Review audit events and Worker logs; avoid logging request bodies or Access assertions.
 - Back up D1 before destructive operational changes and keep Cloudflare D1 Time Travel available.

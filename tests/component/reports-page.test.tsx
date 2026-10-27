@@ -105,12 +105,12 @@ describe("report date and filter workflow", () => {
         });
       if (path === "/projects")
         return Promise.resolve({
-          projects: [{ id: "p1", name: "Training", client_id: "c1", client_name: "IOMechs" }],
+          projects: [{ id: "p1", name: "Training", client_id: "c1", client_name: "Acme" }],
         });
       if (path === "/clients")
         return Promise.resolve({
           clients: [
-            { id: "c1", name: "IOMechs" },
+            { id: "c1", name: "Acme" },
             { id: "c2", name: "Another client" },
           ],
         });
@@ -206,7 +206,7 @@ describe("report date and filter workflow", () => {
       const viewer = {
         id: "member",
         workspaceId: "workspace",
-        email: "member@iomechs.com",
+        email: "member@example.com",
         displayName: "Member",
         role: "admin",
         status: "active",
@@ -216,8 +216,8 @@ describe("report date and filter workflow", () => {
       const workspace = {
         id: "workspace",
         app_name: "Hourlark",
-        company_name: "IOMechs",
-        company_domain: "iomechs.com",
+        company_name: "Example Company",
+        company_domain: "example.com",
         timezone: "Asia/Karachi",
         currency: "USD",
         week_start: "monday",
@@ -285,7 +285,7 @@ describe("report date and filter workflow", () => {
     renderPage();
     const user = userEvent.setup();
     await screen.findByText("Total hours");
-    await selectFilter("Client", ["IOMechs"]);
+    await selectFilter("Client", ["Acme"]);
     await user.click(screen.getByRole("button", { name: "Export" }));
     await user.click(screen.getByRole("menuitem", { name: "PDF" }));
     const dialog = screen.getByRole("dialog", { name: "Client-ready Time Report" });
@@ -317,7 +317,7 @@ describe("report date and filter workflow", () => {
       renderPage();
       const user = userEvent.setup();
       await screen.findByText("Total hours");
-      await selectFilter("Client", ["IOMechs", "Another client"]);
+      await selectFilter("Client", ["Acme", "Another client"]);
       if (condition === "contains") {
         await selectFilter("Tag", ["Review", "Delivery"]);
       } else {
@@ -376,7 +376,7 @@ describe("report date and filter workflow", () => {
       await user.click(screen.getByRole("menuitem", { name: "PDF" }));
       const pdf = screen.getByRole("dialog", { name: "Client-ready Time Report" });
       expect(within(pdf).getByRole("button", { name: "Generate PDF" })).toBeDisabled();
-      await chooseOption(user, within(pdf).getByRole("combobox", { name: /^Client/ }), "IOMechs");
+      await chooseOption(user, within(pdf).getByRole("combobox", { name: /^Client/ }), "Acme");
       await user.click(within(pdf).getByRole("checkbox", { name: "Training" }));
       await user.click(within(pdf).getByRole("button", { name: "Generate PDF" }));
       expect(apiDownloadMock).toHaveBeenLastCalledWith(

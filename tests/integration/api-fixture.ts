@@ -16,9 +16,13 @@ export async function seedApiFixture(): Promise<void> {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
   const now = Date.now();
   await env.DB.batch([
+    // A non-UTC workspace keeps week and day boundaries distinct from UTC midnight.
+    env.DB.prepare("UPDATE workspaces SET timezone = 'Asia/Karachi' WHERE id = ?").bind(
+      workspaceId,
+    ),
     ...[
-      { id: adminId, email: "admin@iomechs.com", role: "admin" },
-      { id: memberId, email: "member@iomechs.com", role: "member" },
+      { id: adminId, email: "admin@example.com", role: "admin" },
+      { id: memberId, email: "member@example.com", role: "member" },
     ].map(({ id, email, role }) =>
       env.DB.prepare(
         `INSERT INTO members (id, workspace_id, email, email_normalized, display_name,
@@ -43,7 +47,7 @@ export async function apiRequest(
   path: string,
   init: RequestInit = {},
   db = env.DB,
-  email = "admin@iomechs.com",
+  email = "admin@example.com",
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("X-Dev-User-Email", email);

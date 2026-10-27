@@ -10,13 +10,13 @@ describe("Google identity claims", () => {
       assertGoogleIdentity(
         {
           sub: "google-subject",
-          email: " SheikH.Abdullah@IOMechs.com ",
+          email: " Admin@Example.COM ",
           email_verified: true,
           nonce: "nonce",
         },
         "nonce",
       ),
-    ).toEqual({ subject: "google-subject", email: "sheikh.abdullah@iomechs.com" });
+    ).toEqual({ subject: "google-subject", email: "admin@example.com" });
   });
 
   it("rejects an unverified email and a mismatched nonce", () => {
@@ -24,7 +24,7 @@ describe("Google identity claims", () => {
       assertGoogleIdentity(
         {
           sub: "google-subject",
-          email: "member@iomechs.com",
+          email: "member@example.com",
           email_verified: false,
           nonce: "nonce",
         },
@@ -35,7 +35,7 @@ describe("Google identity claims", () => {
       assertGoogleIdentity(
         {
           sub: "google-subject",
-          email: "member@iomechs.com",
+          email: "member@example.com",
           email_verified: true,
           nonce: "other",
         },
@@ -49,13 +49,13 @@ describe("sign-in session", () => {
   it("round-trips a sealed session and rejects tampering", async () => {
     const token = await seal(
       secret,
-      { memberId: "member", email: "member@iomechs.com", subject: "google-subject" },
+      { memberId: "member", email: "member@example.com", subject: "google-subject" },
       60_000,
     );
     const opened = await open<SessionClaims>(secret, token);
     expect(opened).toMatchObject({
       memberId: "member",
-      email: "member@iomechs.com",
+      email: "member@example.com",
       subject: "google-subject",
     });
     expect(await open<SessionClaims>(secret, `${token}x`)).toBeNull();

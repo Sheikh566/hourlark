@@ -50,7 +50,7 @@ describe("VAPID", () => {
 
     const header = await vapidAuthorization(
       "https://fcm.googleapis.com/fcm/send/abc",
-      { publicKey, privateKey: jwk.d ?? "", subject: "mailto:ops@iomechs.com" },
+      { publicKey, privateKey: jwk.d ?? "", subject: "mailto:ops@example.com" },
       now,
     );
 
@@ -67,7 +67,7 @@ describe("VAPID", () => {
     );
     expect(verified.payload).toMatchObject({
       aud: "https://fcm.googleapis.com",
-      sub: "mailto:ops@iomechs.com",
+      sub: "mailto:ops@example.com",
       exp: now / 1000 + 12 * 60 * 60,
     });
   });

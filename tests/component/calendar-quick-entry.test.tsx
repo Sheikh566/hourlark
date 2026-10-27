@@ -15,7 +15,7 @@ const meState: Pick<MeResponse, "member" | "workspace" | "permissions"> = {
   member: {
     id: "member-1",
     workspaceId: "workspace-1",
-    email: "admin@iomechs.com",
+    email: "admin@example.com",
     displayName: "Admin",
     role: "admin",
     status: "active",
@@ -24,8 +24,8 @@ const meState: Pick<MeResponse, "member" | "workspace" | "permissions"> = {
   workspace: {
     id: "workspace-1",
     app_name: "Hourlark",
-    company_name: "IOMechs",
-    company_domain: "iomechs.com",
+    company_name: "Example Company",
+    company_domain: "example.com",
     timezone: "Asia/Karachi",
     currency: "USD",
     week_start: "monday",

@@ -201,13 +201,13 @@ INSERT INTO workspaces (
   updated_at
 ) VALUES (
   '00000000-0000-4000-8000-000000000001',
-  'IOMechs Time',
-  'IOMechs',
-  'iomechs.com',
-  'Asia/Karachi',
+  'Hourlark',
+  'Example Company',
+  'example.com',
+  'UTC',
   'USD',
   'monday',
-  '["iomechs.com"]',
+  '["example.com"]',
   1785369600000,
   1785369600000
 );

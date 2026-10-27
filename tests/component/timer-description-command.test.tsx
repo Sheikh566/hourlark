@@ -22,7 +22,7 @@ describe("timer description commands", () => {
       start: 7,
       end: 9,
     });
-    expect(findDescriptionCommand("Email dev@iomechs.com")).toBeNull();
+    expect(findDescriptionCommand("Email dev@example.com")).toBeNull();
   });
 
   it("removes a selected command without joining surrounding words", () => {

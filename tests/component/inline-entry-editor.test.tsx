@@ -36,10 +36,10 @@ vi.mock("@/web/app/context", () => ({
 const projects: Project[] = [
   {
     id: "project-1",
-    name: "Korametrics",
+    name: "Website redesign",
     color: "#21de47",
     client_id: "client-1",
-    client_name: "IOMechs",
+    client_name: "Acme",
     billable_default: false,
   },
   {
@@ -47,7 +47,7 @@ const projects: Project[] = [
     name: "Internal operations",
     color: "#82cf30",
     client_id: "client-1",
-    client_name: "IOMechs",
+    client_name: "Acme",
     billable_default: false,
   },
 ];
@@ -68,9 +68,9 @@ const tags: Tag[] = [discussionTag, researchTag];
 
 const entry: TimeEntry = {
   id: "entry-1",
-  member: { id: "member-1", name: "Sheikh Abdullah" },
-  project: { id: "project-1", name: "Korametrics", color: "#21de47" },
-  client: { id: "client-1", name: "IOMechs" },
+  member: { id: "member-1", name: "Example Admin" },
+  project: { id: "project-1", name: "Website redesign", color: "#21de47" },
+  client: { id: "client-1", name: "Acme" },
   description: "Development",
   tags: [discussionTag],
   started_at: "2026-07-30T15:00:00.000Z",
@@ -107,10 +107,12 @@ describe("inline time-entry editor", () => {
         />
       </QueryClientProvider>,
     );
-    await user.type(screen.getByRole("textbox", { name: "Search entry projects" }), "IOMechs");
+    await user.type(screen.getByRole("textbox", { name: "Search entry projects" }), "Acme");
     expect(screen.getByRole("heading", { name: "Selected project" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "IOMechs" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Korametrics" })).toHaveTextContent(/^Korametrics$/);
+    expect(screen.getByRole("heading", { name: "Acme" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Website redesign" })).toHaveTextContent(
+      /^Website redesign$/,
+    );
     expect(screen.getByRole("button", { name: "Internal operations" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Create a new project" })).toBeVisible();
     await user.keyboard("{Escape}");
@@ -204,11 +206,11 @@ describe("inline time-entry editor", () => {
     );
 
     expect(screen.getByRole("textbox", { name: "Entry description" })).toHaveValue("Development");
-    const projectTrigger = screen.getByRole("button", { name: /Project: Korametrics/ });
+    const projectTrigger = screen.getByRole("button", { name: /Project: Website redesign/ });
     expect(projectTrigger).toBeVisible();
-    expect(projectTrigger).toHaveTextContent("Korametrics");
-    expect(projectTrigger).toHaveTextContent("IOMechs");
-    expect(projectTrigger).toHaveTextContent("Korametrics • IOMechs");
+    expect(projectTrigger).toHaveTextContent("Website redesign");
+    expect(projectTrigger).toHaveTextContent("Acme");
+    expect(projectTrigger).toHaveTextContent("Website redesign • Acme");
     expect(projectTrigger.querySelector("span")).toHaveStyle({ color: "rgb(33, 222, 71)" });
     expect(screen.getByRole("button", { name: "Tags: Discussion" })).toBeVisible();
 
@@ -249,9 +251,9 @@ describe("inline time-entry editor", () => {
         />
       </QueryClientProvider>,
     );
-    const option = screen.getByRole("button", { name: "Korametrics" });
+    const option = screen.getByRole("button", { name: "Website redesign" });
     expect(option.querySelector('[style^="color:"]')).toHaveStyle({ color: "rgb(196, 139, 246)" });
-    const trigger = screen.getByRole("button", { name: /Project: Korametrics/ });
+    const trigger = screen.getByRole("button", { name: /Project: Website redesign/ });
     expect(trigger.querySelector("span")).toHaveStyle({ color: "rgb(158, 91, 217)" });
     client.clear();
   });
@@ -278,8 +280,8 @@ describe("inline time-entry editor", () => {
 
     const search = await screen.findByRole("textbox", { name: "Search entry projects" });
     expect(search).toBeVisible();
-    expect(screen.getByRole("button", { name: /Project: Korametrics/ })).toHaveTextContent(
-      "IOMechs",
+    expect(screen.getByRole("button", { name: /Project: Website redesign/ })).toHaveTextContent(
+      "Acme",
     );
 
     await user.keyboard("{Escape}");
@@ -287,7 +289,7 @@ describe("inline time-entry editor", () => {
       screen.queryByRole("textbox", { name: "Search entry projects" }),
     ).not.toBeInTheDocument();
     expect(onCancel).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: /Project: Korametrics/ })).toHaveFocus();
+    expect(screen.getByRole("button", { name: /Project: Website redesign/ })).toHaveFocus();
 
     await user.keyboard("{Escape}");
     expect(onCancel).toHaveBeenCalledTimes(1);

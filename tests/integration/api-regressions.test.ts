@@ -134,7 +134,7 @@ describe("continue with archived tags", () => {
         body: "{}",
       },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({

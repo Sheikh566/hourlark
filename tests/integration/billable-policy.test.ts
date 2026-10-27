@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { apiRequest, memberId, projectId, seedApiFixture, workspaceId } from "./api-fixture";
 
-const member = "member@iomechs.com";
+const member = "member@example.com";
 
 function mutate(
   path: string,

@@ -26,6 +26,20 @@ if (!google && !access) {
   process.exit(1);
 }
 
+// Company identity and the first administrator must come from the deployer, not the placeholders.
+const vars = JSON.parse(config).vars ?? {};
+const placeholder = (value) =>
+  !value?.trim() || value === "Example Company" || /(^|[@.])example\.com\b/i.test(value);
+const placeholderVars = ["COMPANY_NAME", "COMPANY_DOMAIN", "BOOTSTRAP_ADMIN_EMAILS"].filter(
+  (name) => placeholder(vars[name]),
+);
+if (placeholderVars.length > 0) {
+  console.error(
+    `Production configuration is incomplete. Set your own ${placeholderVars.join(", ")} instead of the example placeholders.`,
+  );
+  process.exit(1);
+}
+
 if (
   access &&
   (config.includes('"ACCESS_TEAM_DOMAIN": "None"') ||

@@ -48,9 +48,9 @@ rename. The migration preserves time entries, company settings, and customized w
 Open `http://127.0.0.1:5173`. Development authentication is enabled only when both
 `AUTH_MODE=dev` and `ENVIRONMENT=development`. The seed provides:
 
-- `sheikh.abdullah@iomechs.com` — Admin
-- `manager@iomechs.com` — Manager
-- `member@iomechs.com` — Member
+- `admin@example.com` — Admin
+- `manager@example.com` — Manager
+- `member@example.com` — Member
 
 Use the user menu to switch between seeded roles. The `X-Dev-User-Email` header is ignored unless
 development authentication is explicitly active. If the selected development member is

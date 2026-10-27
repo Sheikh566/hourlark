@@ -14,7 +14,7 @@ test("development authentication can recover from an unusable selected identity"
 }) => {
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("development-recovery-seeded")) {
-      localStorage.setItem("hourlark.dev-user", "not-seeded@iomechs.com");
+      localStorage.setItem("hourlark.dev-user", "not-seeded@example.com");
       sessionStorage.setItem("development-recovery-seeded", "true");
     }
   });

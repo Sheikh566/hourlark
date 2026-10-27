@@ -10,8 +10,8 @@
 - The application contains one visible workspace. The fixed workspace ID remains in the relational
   model to preserve a clean future boundary, but no workspace switcher or public tenant lifecycle is
   exposed.
-- Company emails are normalized by trimming and lowercasing. The initial allowed domain is
-  `iomechs.com`.
+- Company emails are normalized by trimming and lowercasing. Any email domain may be
+  provisioned.
 - No email invitation is sent. An administrator provisions an email and Cloudflare Access performs
   authentication.
 
@@ -36,7 +36,7 @@
 - The compatibility date is `2026-10-01`, matching the workerd runtime shipped with the
   pinned Wrangler and Cloudflare Vitest plugin in the 2026-10-04 dependency refresh.
 - Production secrets are configured through Wrangler, not source-controlled variables.
-- English application copy and Latin PDF text cover the initial IOMechs operation. PDF text is
+- English application copy and Latin PDF text cover the initial deployment. PDF text is
   normalized to the built-in font’s supported range; adding a bundled Unicode font is an isolated
   export-layer enhancement if non-Latin client data becomes a requirement.
 

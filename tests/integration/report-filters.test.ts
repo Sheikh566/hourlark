@@ -26,7 +26,7 @@ const query = {
   timezone: "UTC",
 };
 
-async function reportIds(filters: Record<string, string>, email = "admin@iomechs.com") {
+async function reportIds(filters: Record<string, string>, email = "admin@example.com") {
   const response = await apiRequest(
     `/reports/detailed?${new URLSearchParams({ ...query, ...filters })}`,
     {},
@@ -45,7 +45,7 @@ describe("report filter semantics", () => {
       env.DB.prepare(
         `INSERT INTO members (id, workspace_id, email, email_normalized, display_name,
           role, status, timezone, created_at, updated_at)
-         VALUES (?, ?, 'inactive@iomechs.com', 'inactive@iomechs.com', 'Inactive',
+         VALUES (?, ?, 'inactive@example.com', 'inactive@example.com', 'Inactive',
            'member', 'inactive', 'UTC', ?, ?)`,
       ).bind(inactiveId, workspaceId, startedAt, startedAt),
       env.DB.prepare(
@@ -200,7 +200,7 @@ describe("report filter semantics", () => {
   });
 
   it("preserves member isolation for selections and entity status conditions", async () => {
-    const email = "member@iomechs.com";
+    const email = "member@example.com";
     expect(await reportIds({ member_ids: memberId }, email)).toEqual(["beta", "whitespace"]);
     expect(await reportIds({ project_condition: "is_archived" }, email)).toEqual(["beta"]);
     expect(await reportIds({ member_condition: "is_archived" }, email)).toEqual([]);

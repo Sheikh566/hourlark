@@ -70,5 +70,5 @@ Willow green provides structure, light green provides primary timer emphasis, an
 provides selected and informational states.
 
 **Reason:** These interaction patterns reduce the distance between starting, categorizing, and
-correcting time while preserving an original IOMechs identity. The implementation does not reuse
+correcting time while preserving an original Hourlark identity. The implementation does not reuse
 another product's branding, assets, proprietary wording, or pixel-level interface.

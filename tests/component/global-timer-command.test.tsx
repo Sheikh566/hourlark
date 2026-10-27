@@ -40,7 +40,7 @@ describe("global timer description commands", () => {
               name: "Internal Operations",
               color: "#21de47",
               client_id: "00000000-0000-4000-8000-000000000201",
-              client_name: "IOMechs",
+              client_name: "Acme",
               billable_default: false,
             },
             {
@@ -133,7 +133,7 @@ describe("global timer description commands", () => {
     const selectedProject = screen.getByRole("button", { name: /Project: Internal Operations/ });
     expect(selectedProject).toBeVisible();
     expect(selectedProject).toHaveTextContent("Internal Operations");
-    expect(selectedProject).toHaveTextContent("IOMechs");
+    expect(selectedProject).toHaveTextContent("Acme");
 
     await user.type(description, "#r");
     const tagSuggestions = await screen.findByRole("listbox", { name: "Tag suggestions" });
@@ -164,7 +164,7 @@ describe("global timer description commands", () => {
 
     const trigger = screen.getByRole("button", { name: /Project: Internal Operations/ });
     expect(trigger).toHaveTextContent("Internal Operations");
-    expect(trigger).toHaveTextContent("IOMechs");
+    expect(trigger).toHaveTextContent("Acme");
 
     await user.click(trigger);
     expect(screen.getByRole("button", { name: "Internal Operations" })).toHaveAttribute(
@@ -173,7 +173,7 @@ describe("global timer description commands", () => {
     );
     const search = screen.getByRole("textbox", { name: "Search projects or clients" });
     expect(search).toHaveFocus();
-    await user.type(search, "IOMechs");
+    await user.type(search, "Acme");
     expect(screen.getByRole("button", { name: "Internal Operations" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "External Delivery" })).not.toBeInTheDocument();
 

@@ -55,9 +55,9 @@ const tagId = "00000000-0000-4000-8000-000000000401";
 function runningEntry(overrides: Partial<TimeEntry> = {}): TimeEntry {
   return {
     id: "00000000-0000-4000-8000-000000000701",
-    member: { id: "00000000-0000-4000-8000-000000000101", name: "Sheikh Abdullah" },
+    member: { id: "00000000-0000-4000-8000-000000000101", name: "Example Admin" },
     project: { id: projectId, name: "Internal Operations", color: "#21de47" },
-    client: { id: "00000000-0000-4000-8000-000000000201", name: "IOMechs" },
+    client: { id: "00000000-0000-4000-8000-000000000201", name: "Acme" },
     description: "Review specs",
     tags: [{ id: tagId, name: "R&D", color: "#82cf30", status: "active" }],
     started_at: "2026-07-30T12:00:00.000Z",
@@ -128,7 +128,7 @@ describe("global timer running edits", () => {
               name: "Internal Operations",
               color: "#21de47",
               client_id: "00000000-0000-4000-8000-000000000201",
-              client_name: "IOMechs",
+              client_name: "Acme",
               billable_default: false,
             },
             {
@@ -268,7 +268,7 @@ describe("global timer running edits", () => {
 
     const selectedProject = screen.getByRole("button", { name: /Project: Internal Operations/ });
     expect(selectedProject).toHaveTextContent("Internal Operations");
-    expect(selectedProject).toHaveTextContent("IOMechs");
+    expect(selectedProject).toHaveTextContent("Acme");
     await user.click(selectedProject);
     await user.click(await screen.findByRole("button", { name: "External Delivery" }));
 
@@ -327,7 +327,7 @@ describe("global timer running edits", () => {
               name: "Internal Operations",
               color: "#21de47",
               client_id: "00000000-0000-4000-8000-000000000201",
-              client_name: "IOMechs",
+              client_name: "Acme",
               billable_default: false,
             },
           ],
@@ -378,7 +378,7 @@ describe("global timer running edits", () => {
               name: "Internal Operations",
               color: "#21de47",
               client_id: "00000000-0000-4000-8000-000000000201",
-              client_name: "IOMechs",
+              client_name: "Acme",
               billable_default: false,
             },
           ],

@@ -97,7 +97,7 @@ describe("atomic member updates", () => {
     await env.DB.prepare(
       `INSERT INTO members (id, workspace_id, email, email_normalized, display_name, role,
         status, timezone, last_seen_at, created_at, updated_at)
-       VALUES (?, ?, 'temporary@iomechs.com', 'temporary@iomechs.com', 'Temporary',
+       VALUES (?, ?, 'temporary@example.com', 'temporary@example.com', 'Temporary',
          'member', 'active', 'UTC', ?, ?, ?)`,
     )
       .bind(id, workspaceId, Date.now(), Date.now(), Date.now())
@@ -160,7 +160,7 @@ describe("atomic member updates", () => {
       `/members/${adminId}`,
       { method: "PATCH", body: JSON.stringify({ version: 1, project_ids: [projectId] }) },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(response.status).toBe(200);
     const assigned = await snapshot(adminId);
@@ -171,7 +171,7 @@ describe("atomic member updates", () => {
       `/members/${adminId}`,
       { method: "PATCH", body: JSON.stringify({ version: 2, display_name: "Forbidden" }) },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(forbidden.status).toBe(403);
     expect(await snapshot(adminId)).toEqual(assigned);

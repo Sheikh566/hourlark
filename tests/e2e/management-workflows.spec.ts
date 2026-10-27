@@ -58,7 +58,7 @@ test("client and project creation, editing, search and archive recovery", async 
   await page.getByRole("button", { name: "Advanced options", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Billing email", exact: true })
-    .fill("billing@iomechs.com");
+    .fill("billing@example.com");
   await page.getByRole("spinbutton", { name: "Default hourly rate", exact: true }).fill("12");
   await page.getByRole("button", { name: "Create client", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
@@ -182,7 +182,7 @@ test("tags and members have working validation, editing and status controls", as
   await expect(page.getByRole("alert")).toContainText("Enter a valid email");
   await page
     .getByRole("textbox", { name: "Company email", exact: true })
-    .fill(`audit-${suffix}@iomechs.com`);
+    .fill(`audit-${suffix}@example.com`);
   await page.getByRole("textbox", { name: "Display name", exact: true }).fill(name);
   await page.getByRole("spinbutton", { name: "Weekly target hours", exact: true }).fill("35");
   await page.getByRole("button", { name: "Save member", exact: true }).click();

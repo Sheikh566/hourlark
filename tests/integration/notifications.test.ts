@@ -222,7 +222,7 @@ describe("delivery and retention", () => {
   const vapid = {
     VAPID_PUBLIC_KEY: "",
     VAPID_PRIVATE_KEY: "",
-    VAPID_SUBJECT: "mailto:ops@iomechs.com",
+    VAPID_SUBJECT: "mailto:ops@example.com",
   };
 
   beforeEach(async () => {
@@ -298,7 +298,7 @@ describe("delivery and retention", () => {
           `INSERT INTO members (id, workspace_id, email, email_normalized, display_name, role,
             status, timezone, created_at, updated_at)
            VALUES (?, ?, ?, ?, 'Bulk', 'member', 'active', 'UTC', 0, 0)`,
-        ).bind(id, workspaceId, `bulk${index}@iomechs.com`, `bulk${index}@iomechs.com`),
+        ).bind(id, workspaceId, `bulk${index}@example.com`, `bulk${index}@example.com`),
         env.DB.prepare(
           `INSERT INTO push_subscriptions (id, workspace_id, member_id, endpoint, p256dh, auth,
             created_at) VALUES (?, ?, ?, ?, 'k', 'a', 0)`,
@@ -354,7 +354,7 @@ describe("notification API", () => {
       "/notifications/preferences",
       {},
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(await initial.json()).toEqual({
       preferences: {
@@ -381,7 +381,7 @@ describe("notification API", () => {
       "/notifications/preferences",
       { method: "PUT", body: JSON.stringify({ ...body, version: 0 }) },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(saved.status).toBe(200);
     expect((await saved.json<{ preferences: unknown }>()).preferences).toEqual({
@@ -393,7 +393,7 @@ describe("notification API", () => {
       "/notifications/preferences",
       { method: "PUT", body: JSON.stringify({ ...body, version: 0 }) },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(stale.status).toBe(409);
 
@@ -401,7 +401,7 @@ describe("notification API", () => {
       "/notifications/preferences",
       { method: "PUT", body: JSON.stringify({ ...body, long_timer_minutes: 30, version: 1 }) },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(invalid.status).toBe(422);
   });
@@ -412,23 +412,23 @@ describe("notification API", () => {
       "/notifications/test",
       { method: "POST" },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(test.status).toBe(201);
     const again = await apiRequest(
       "/notifications/test",
       { method: "POST" },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(again.status).toBe(429);
 
-    const timer = await apiRequest("/timer", {}, env.DB, "member@iomechs.com");
+    const timer = await apiRequest("/timer", {}, env.DB, "member@example.com");
     expect(await timer.json()).toMatchObject({ unread_notifications: 1 });
     const adminTimer = await apiRequest("/timer");
     expect(await adminTimer.json()).toMatchObject({ unread_notifications: 0 });
 
-    const list = await apiRequest("/notifications", {}, env.DB, "member@iomechs.com");
+    const list = await apiRequest("/notifications", {}, env.DB, "member@example.com");
     const { notifications } = await list.json<{ notifications: { id: string; read_at: null }[] }>();
     expect(notifications).toEqual([
       expect.objectContaining({ kind: "test", title: "Test notification", read_at: null }),
@@ -438,14 +438,14 @@ describe("notification API", () => {
     // Another member cannot mark it read.
     await apiRequest(`/notifications/${id}/read`, { method: "POST" });
     expect(
-      await (await apiRequest("/notifications", {}, env.DB, "member@iomechs.com")).json(),
+      await (await apiRequest("/notifications", {}, env.DB, "member@example.com")).json(),
     ).toMatchObject({ unread_count: 1 });
 
     const read = await apiRequest(
       `/notifications/${id}/read`,
       { method: "POST" },
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(await read.json()).toEqual({ unread_count: 0 });
   });
@@ -479,7 +479,7 @@ describe("push subscription API", () => {
     VAPID_PUBLIC_KEY:
       "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8",
     VAPID_PRIVATE_KEY: "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw",
-    VAPID_SUBJECT: "mailto:ops@iomechs.com",
+    VAPID_SUBJECT: "mailto:ops@example.com",
   };
   const subscription = {
     endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
@@ -508,7 +508,7 @@ describe("push subscription API", () => {
       const rebound = await request(
         "/notifications/subscriptions",
         { method: "POST", body: JSON.stringify(subscription) },
-        "member@iomechs.com",
+        "member@example.com",
       );
       expect(rebound.status).toBe(200);
       const owner = await env.DB.prepare("SELECT member_id FROM push_subscriptions").first();
@@ -536,7 +536,7 @@ describe("push subscription API", () => {
           await request(
             "/notifications/subscriptions/status",
             { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint }) },
-            "member@iomechs.com",
+            "member@example.com",
           )
         ).json(),
       ).toEqual({ subscribed: true });
@@ -544,7 +544,7 @@ describe("push subscription API", () => {
       const removed = await request(
         "/notifications/subscriptions",
         { method: "DELETE", body: JSON.stringify({ endpoint: subscription.endpoint }) },
-        "member@iomechs.com",
+        "member@example.com",
       );
       expect(removed.status).toBe(204);
 

@@ -39,7 +39,7 @@ Captured 2026-10-04 from user-opened Chrome tabs. These are observed differences
 
 Cursor implemented the timer/list portion; Codex reviewed and corrected its date-input and responsive behavior, and implemented the report portion. The earlier running metadata save/stop guards remain intact.
 
-- Selected project now shows a colored project dot/name and muted client, matching the supplied `Training • IOMechs` reference. Labels remain available for archived selections; long names have accessible full labels. The selected chip wraps onto its own row on narrow mobile screens.
+- Selected project now shows a colored project dot/name and muted client, matching the supplied `Training • Acme` reference. Labels remain available for archived selections; long names have accessible full labels. The selected chip wraps onto its own row on narrow mobile screens.
 - Project search matches clients as well as projects, shows the selected project, clears on reopening, and exposes a clear empty result. Escape closes a picker and returns focus.
 - Clicking an entry's project, tags, or time opens that field's editor directly. Escape closes the nested picker first; Cancel still discards edits.
 - List date selection has presets, an inclusive calendar range, previous/next periods, Today/Week shortcuts, and an empty-period reset. All dates now queries historical entries from the epoch instead of silently restricting results to 60 days. A 5,000-entry result displays an incompleteness warning and links to reports.

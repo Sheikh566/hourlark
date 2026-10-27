@@ -3,9 +3,9 @@ import type { ApiErrorPayload } from "@/web/types";
 let csrfToken: string | null = null;
 
 export const DEVELOPMENT_IDENTITIES = [
-  { email: "sheikh.abdullah@iomechs.com", label: "Administrator" },
-  { email: "manager@iomechs.com", label: "Manager" },
-  { email: "member@iomechs.com", label: "Member" },
+  { email: "admin@example.com", label: "Administrator" },
+  { email: "manager@example.com", label: "Manager" },
+  { email: "member@example.com", label: "Member" },
 ] as const;
 
 export class ApiClientError extends Error {

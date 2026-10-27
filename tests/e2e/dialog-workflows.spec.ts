@@ -104,7 +104,7 @@ test("calendar edit fits desktop, tablet and mobile and preserves timestamps", a
 
 test("calendar range creation validates times and supports nested Escape", async ({ page }) => {
   await page.goto("/time?view=calendar");
-  await chooseOption(page.getByRole("combobox", { name: "Timer member" }), "IOMechs Manager");
+  await chooseOption(page.getByRole("combobox", { name: "Timer member" }), "Example Manager");
   const me = (await (await page.request.get("/api/v1/me")).json()) as {
     member: { timezone: string };
   };

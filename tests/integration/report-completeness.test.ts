@@ -92,7 +92,7 @@ describe("report completeness", () => {
       `/reports/summary?${new URLSearchParams(query)}`,
       {},
       env.DB,
-      "member@iomechs.com",
+      "member@example.com",
     );
     expect(own.status).toBe(200);
     await expect(own.json()).resolves.toMatchObject({ totals: { tracked_duration_ms: 0 } });

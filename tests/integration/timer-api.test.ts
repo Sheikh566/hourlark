@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const origin = "https://time.test";
-const adminEmail = "sheikh.abdullah@iomechs.com";
+const adminEmail = "admin@example.com";
 
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
@@ -30,7 +30,7 @@ describe("timer API", () => {
         "00000000-0000-4000-8000-000000000001",
         adminEmail,
         adminEmail,
-        "Sheikh Abdullah",
+        "Example Admin",
         "Asia/Karachi",
         1_785_369_600_000,
         1_785_369_600_000,
