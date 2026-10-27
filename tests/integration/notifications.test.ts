@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deleteSubscriptionsById, listSubscriptions } from "@/db/repositories/notifications";
 import { runNotificationSweep } from "@/worker/services/notifications";
 
 import { adminId, apiRequest, memberId, seedApiFixture, workspaceId } from "./api-fixture";
@@ -203,6 +204,18 @@ describe("tracking reminder", () => {
     await runNotificationSweep(env, Date.UTC(2026, 9, 26, 17, 0));
     expect(await notificationsFor(memberId)).toHaveLength(1);
   });
+
+  it("fires at the local reminder time on the day the clocks change", async () => {
+    await env.DB.prepare("UPDATE members SET timezone = 'Europe/London' WHERE id = ?")
+      .bind(memberId)
+      .run();
+    // Sunday 29 March 2026: BST starts, so 17:00 local is 16:00 UTC. Sundays must be enabled.
+    await setPreferences(memberId, { reminder_weekdays: 127, long_timer_enabled: 0 });
+    await runNotificationSweep(env, Date.UTC(2026, 2, 29, 15, 55));
+    expect(await notificationsFor(memberId)).toEqual([]);
+    await runNotificationSweep(env, Date.UTC(2026, 2, 29, 16, 0));
+    expect(await notificationsFor(memberId)).toHaveLength(1);
+  });
 });
 
 describe("delivery and retention", () => {
@@ -275,6 +288,35 @@ describe("delivery and retention", () => {
     fetchMock.mockClear();
     await runNotificationSweep({ ...env, ...vapid }, mondayFive + 5 * 60_000);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("looks up and deletes subscriptions past D1's 100-parameter limit", async () => {
+    const ids = Array.from({ length: 150 }, () => crypto.randomUUID());
+    await env.DB.batch(
+      ids.flatMap((id, index) => [
+        env.DB.prepare(
+          `INSERT INTO members (id, workspace_id, email, email_normalized, display_name, role,
+            status, timezone, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'Bulk', 'member', 'active', 'UTC', 0, 0)`,
+        ).bind(id, workspaceId, `bulk${index}@iomechs.com`, `bulk${index}@iomechs.com`),
+        env.DB.prepare(
+          `INSERT INTO push_subscriptions (id, workspace_id, member_id, endpoint, p256dh, auth,
+            created_at) VALUES (?, ?, ?, ?, 'k', 'a', 0)`,
+        ).bind(id, workspaceId, id, `https://fcm.googleapis.com/fcm/send/bulk-${index}`),
+      ]),
+    );
+
+    expect(await listSubscriptions(env.DB, ids)).toHaveLength(150);
+    await deleteSubscriptionsById(env.DB, ids);
+    expect(await listSubscriptions(env.DB, ids)).toEqual([]);
+  });
+
+  it("does not follow push service redirects", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 201 }));
+    await runNotificationSweep({ ...env, ...vapid }, mondayFive);
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe("manual");
   });
 
   it("keeps the inbox working without VAPID keys", async () => {
@@ -480,6 +522,24 @@ describe("push subscription API", () => {
       expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions").first()).toEqual({
         n: 1,
       });
+
+      expect(
+        await (
+          await request("/notifications/subscriptions/status", {
+            method: "POST",
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          })
+        ).json(),
+      ).toEqual({ subscribed: false });
+      expect(
+        await (
+          await request(
+            "/notifications/subscriptions/status",
+            { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint }) },
+            "member@iomechs.com",
+          )
+        ).json(),
+      ).toEqual({ subscribed: true });
 
       const removed = await request(
         "/notifications/subscriptions",

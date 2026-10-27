@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { Button, Field, Input, Modal, Switch, useToast } from "@/web/components/ui";
 import { ApiClientError, apiRequest } from "@/web/lib/api";
-import { currentSubscription, disablePush, enablePush, isPushSupported } from "@/web/lib/push";
+import { disablePush, enablePush, isPushSupported, isSubscribedForMember } from "@/web/lib/push";
 import type { NotificationPreferences, NotificationPreferencesResponse } from "@/web/types";
 
 export const NOTIFICATION_PREFERENCES_KEY = ["notification-preferences"] as const;
@@ -112,9 +112,13 @@ function BrowserNotifications({ publicKey }: { publicKey: string }) {
 
   useEffect(() => {
     let active = true;
-    void currentSubscription().then((subscription) => {
-      if (active) setSubscribed(subscription !== null);
-    });
+    isSubscribedForMember()
+      .then((value) => {
+        if (active) setSubscribed(value);
+      })
+      .catch(() => {
+        if (active) setSubscribed(false);
+      });
     return () => {
       active = false;
     };
@@ -181,9 +185,12 @@ function PreferencesForm({
   push: NotificationPreferencesResponse["push"];
   saving: boolean;
   formError: string | null;
-  onSubmit: (values: Omit<NotificationPreferences, "version">) => void;
+  /** Sends the version the form was loaded from, so a save never overwrites newer settings. */
+  onSubmit: (values: NotificationPreferences) => void;
 }) {
   const [draft, setDraft] = useState(() => toDraft(stored));
+  // Captured at mount: a later background refetch must not make a stale draft look current.
+  const [loadedVersion] = useState(stored.version);
   const [errors, setErrors] = useState<DraftErrors>({});
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
 
@@ -197,7 +204,7 @@ function PreferencesForm({
         if (saving) return;
         const result = fromDraft(draft);
         setErrors(result.errors);
-        if (result.values) onSubmit(result.values);
+        if (result.values) onSubmit({ ...result.values, version: loadedVersion });
       }}
     >
       <fieldset disabled={saving} className="contents">
@@ -311,12 +318,13 @@ export function NotificationSettingsDialog({
     enabled: open,
   });
   const stored = query.data?.preferences;
+  const [formKey, setFormKey] = useState(0);
 
   const save = useMutation({
-    mutationFn: (values: Omit<NotificationPreferences, "version">) =>
+    mutationFn: (values: NotificationPreferences) =>
       apiRequest<NotificationPreferencesResponse>("/notifications/preferences", {
         method: "PUT",
-        body: JSON.stringify({ ...values, version: stored?.version ?? 0 }),
+        body: JSON.stringify(values),
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(NOTIFICATION_PREFERENCES_KEY, data);
@@ -324,7 +332,11 @@ export function NotificationSettingsDialog({
       onOpenChange(false);
     },
     onError: (failure) => {
-      if (failure instanceof ApiClientError && failure.status === 409) void query.refetch();
+      // Only a conflict restarts the form from the newer stored values; background refetches
+      // (e.g. on window focus) leave an unsaved draft alone.
+      if (failure instanceof ApiClientError && failure.status === 409) {
+        void query.refetch().then(() => setFormKey((key) => key + 1));
+      }
     },
   });
 
@@ -368,9 +380,8 @@ export function NotificationSettingsDialog({
       ) : !stored || !query.data ? (
         <p className="text-fg-subtle text-sm font-medium">Loading…</p>
       ) : (
-        // Remounting on a new version (after a conflict refetch) restarts from the stored values.
         <PreferencesForm
-          key={stored.version}
+          key={formKey}
           stored={stored}
           push={query.data.push}
           saving={save.isPending}

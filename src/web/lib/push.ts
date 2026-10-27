@@ -25,6 +25,20 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   return (await registration?.pushManager.getSubscription()) ?? null;
 }
 
+/**
+ * Whether this device delivers to the signed-in member. A browser shared between members keeps
+ * one subscription, which may still be bound to whoever enabled it.
+ */
+export async function isSubscribedForMember(): Promise<boolean> {
+  const subscription = await currentSubscription();
+  if (!subscription) return false;
+  const status = await apiRequest<{ subscribed: boolean }>("/notifications/subscriptions/status", {
+    method: "POST",
+    body: JSON.stringify({ endpoint: subscription.endpoint }),
+  });
+  return status.subscribed;
+}
+
 /** Asks for permission, subscribes this device, and stores the subscription for the member. */
 export async function enablePush(publicKey: string): Promise<NotificationPermission> {
   const permission = await Notification.requestPermission();
@@ -45,6 +59,7 @@ export async function enablePush(publicKey: string): Promise<NotificationPermiss
   return permission;
 }
 
+/** Stops this device's notifications; also run before sign-out so a shared browser goes quiet. */
 export async function disablePush(): Promise<void> {
   const subscription = await currentSubscription();
   if (!subscription) return;

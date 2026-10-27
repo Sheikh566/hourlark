@@ -16,6 +16,14 @@ describe("localDay", () => {
     expect(day.end - day.start).toBe(24 * 60 * 60 * 1000);
   });
 
+  it.each([
+    // BST starts 29 March 2026 and ends 25 October 2026; 17:00 local is 16:00 / 17:00 UTC.
+    ["spring forward", Date.UTC(2026, 2, 29, 16, 0)],
+    ["fall back", Date.UTC(2026, 9, 25, 17, 0)],
+  ])("reads wall-clock minutes on the %s day", (_, instant) => {
+    expect(localDay(instant, "Europe/London").minutes).toBe(17 * 60);
+  });
+
   it("gives a 25-hour day when clocks go back", () => {
     const day = localDay(Date.UTC(2026, 9, 25, 12), "Europe/London");
     expect(day.end - day.start).toBe(25 * 60 * 60 * 1000);

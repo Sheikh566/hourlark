@@ -363,6 +363,14 @@ api.post("/notifications/subscriptions", async (c) => {
   return c.json({ subscribed: true }, existing ? 200 : 201);
 });
 
+// POST so the endpoint, a delivery capability, never appears in a URL or access log.
+api.post("/notifications/subscriptions/status", async (c) => {
+  const member = c.get("member");
+  const input = await jsonBody(c, pushUnsubscribeSchema);
+  const existing = await findSubscriptionByEndpoint(c.env.DB, input.endpoint);
+  return c.json({ subscribed: existing?.member_id === member.id });
+});
+
 api.delete("/notifications/subscriptions", async (c) => {
   const member = c.get("member");
   const input = await jsonBody(c, pushUnsubscribeSchema);

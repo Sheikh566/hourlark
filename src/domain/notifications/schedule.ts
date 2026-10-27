@@ -33,7 +33,7 @@ export interface LocalDay {
   date: string;
   /** 0 for Monday through 6 for Sunday. */
   weekday: number;
-  /** Minutes elapsed since local midnight. */
+  /** Local wall-clock time as minutes after midnight (17:00 is 1020, also on DST change days). */
   minutes: number;
   /** Epoch milliseconds of local midnight and of the next local midnight (DST-aware). */
   start: number;
@@ -52,7 +52,9 @@ export function localDay(now: number, timeZone: string): LocalDay {
   return {
     date,
     weekday: Number(formatInTimeZone(now, timeZone, "i")) - 1,
-    minutes: Math.floor((now - start) / 60_000),
+    minutes:
+      Number(formatInTimeZone(now, timeZone, "H")) * 60 +
+      Number(formatInTimeZone(now, timeZone, "m")),
     start,
     end,
   };

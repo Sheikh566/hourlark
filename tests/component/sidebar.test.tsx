@@ -18,6 +18,7 @@ import {
   SIDEBAR_COLLAPSED_KEY,
   useSidebarCollapsed,
 } from "@/web/app/sidebar-state";
+import { signOut } from "@/web/lib/api";
 import type { TimeEntry } from "@/web/types";
 
 const meMock = vi.hoisted(() => ({
@@ -28,6 +29,15 @@ const meMock = vi.hoisted(() => ({
     view_audit: true,
   },
   authMode: "google",
+}));
+
+const pushMock = vi.hoisted(() => ({ calls: [] as string[] }));
+
+vi.mock("@/web/lib/push", () => ({
+  disablePush: vi.fn(() => {
+    pushMock.calls.push("disablePush");
+    return Promise.resolve();
+  }),
 }));
 
 vi.mock("@/web/lib/api", () => ({
@@ -176,6 +186,19 @@ describe("sidebar", () => {
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("turns off this device's push notifications before signing out", async () => {
+    const user = userEvent.setup();
+    pushMock.calls = [];
+    vi.mocked(signOut).mockImplementation(() => {
+      pushMock.calls.push("signOut");
+      return Promise.resolve();
+    });
+    renderSidebar();
+    await user.click(screen.getByRole("button", { name: "Profile" }));
+    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    await vi.waitFor(() => expect(pushMock.calls).toEqual(["disablePush", "signOut"]));
   });
 
   it("offers a collapse toggle only when a handler is provided and hides the panel when collapsed", async () => {

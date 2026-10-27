@@ -201,29 +201,48 @@ export async function pruneNotifications(db: D1Database, before: number): Promis
   return result.meta.changes;
 }
 
+/** D1 binds at most 100 parameters per query, so `IN (...)` lists are split into chunks. */
+const MAX_BOUND_PARAMETERS = 100;
+
+function chunks<T>(values: T[]): T[][] {
+  const output: T[][] = [];
+  for (let index = 0; index < values.length; index += MAX_BOUND_PARAMETERS) {
+    output.push(values.slice(index, index + MAX_BOUND_PARAMETERS));
+  }
+  return output;
+}
+
+function placeholders(values: unknown[]): string {
+  return values.map(() => "?").join(", ");
+}
+
 export async function listSubscriptions(
   db: D1Database,
   memberIds: string[],
 ): Promise<PushSubscriptionRow[]> {
   if (memberIds.length === 0) return [];
-  const placeholders = memberIds.map(() => "?").join(", ");
-  const result = await db
-    .prepare(
-      `SELECT id, member_id, endpoint, p256dh, auth FROM push_subscriptions
-       WHERE member_id IN (${placeholders})`,
-    )
-    .bind(...memberIds)
-    .all<PushSubscriptionRow>();
-  return result.results;
+  const results = await db.batch<PushSubscriptionRow>(
+    chunks(memberIds).map((chunk) =>
+      db
+        .prepare(
+          `SELECT id, member_id, endpoint, p256dh, auth FROM push_subscriptions
+           WHERE member_id IN (${placeholders(chunk)})`,
+        )
+        .bind(...chunk),
+    ),
+  );
+  return results.flatMap((result) => result.results);
 }
 
 export async function deleteSubscriptionsById(db: D1Database, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const placeholders = ids.map(() => "?").join(", ");
-  await db
-    .prepare(`DELETE FROM push_subscriptions WHERE id IN (${placeholders})`)
-    .bind(...ids)
-    .run();
+  await db.batch(
+    chunks(ids).map((chunk) =>
+      db
+        .prepare(`DELETE FROM push_subscriptions WHERE id IN (${placeholders(chunk)})`)
+        .bind(...chunk),
+    ),
+  );
 }
 
 export async function findSubscriptionByEndpoint(

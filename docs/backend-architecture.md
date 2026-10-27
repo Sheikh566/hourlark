@@ -117,8 +117,18 @@ Subscriptions are accepted only for the browser push services' hosts, and push s
 or 410 answers delete the subscription. `public/sw.js` shows the notification and focuses or
 opens `/time` on click. Push text is generic, with no descriptions, projects, or clients.
 Subscribing and unsubscribing a device are audited, recording only the push service's origin;
-preference changes are not. Observability logs and traces are separate
-from the durable business audit log in D1.
+preference changes are not. Signing out turns off the device's push subscription first, and the settings dialog
+shows push as on only when the server binds this device to the signed-in member.
+
+Known limitations, accepted for now:
+
+- Delivery is at most once: a push that fails (or a run that stops after inserting) is not
+  retried, though the notification stays in the inbox.
+- The daily total ignores stopped entries that started more than 24 hours before local midnight.
+- A timer still running after 30 days can warn again once its first warning is pruned.
+- The bell lists the newest 50 notifications; older unread ones keep the badge lit until the
+  30-day prune. Observability logs and traces are separate
+  from the durable business audit log in D1.
 
 ## Source map
 

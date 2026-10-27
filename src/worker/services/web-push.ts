@@ -203,6 +203,8 @@ export async function sendPush(
       Urgency: "normal",
     },
     body,
+    // Push services answer directly; following a redirect would forward the VAPID header.
+    redirect: "manual",
   });
   // The body is unused; cancel it so the connection is released.
   await response.body?.cancel();

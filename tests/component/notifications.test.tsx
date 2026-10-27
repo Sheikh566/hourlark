@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NotificationBell } from "@/web/features/notifications/notification-bell";
 import { NotificationSettingsDialog } from "@/web/features/notifications/notification-settings-dialog";
-import { apiRequest } from "@/web/lib/api";
+import { ApiClientError, apiRequest } from "@/web/lib/api";
 
 vi.mock("@/web/lib/api", () => {
   class ApiClientError extends Error {
@@ -34,7 +34,7 @@ const preferences = {
 
 function renderWithQuery(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return { client, ...render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>) };
 }
 
 beforeEach(() => {
@@ -131,6 +131,70 @@ describe("NotificationSettingsDialog", () => {
       reminder_weekdays: 31 | (1 << 5),
       version: 0,
     });
+  });
+
+  it("keeps an unsaved draft through a background refetch and saves the loaded version", async () => {
+    const user = userEvent.setup();
+    const { client } = renderWithQuery(<NotificationSettingsDialog open onOpenChange={vi.fn()} />);
+    const hours = await screen.findByLabelText("Warn after (hours)");
+    await user.clear(hours);
+    await user.type(hours, "6");
+
+    // Another window saved: the next fetch returns version 3 with different values.
+    const base = request.getMockImplementation();
+    request.mockImplementation((path: string, init?: RequestInit) =>
+      path === "/notifications/preferences" && !init?.method
+        ? Promise.resolve({
+            preferences: { ...preferences, long_timer_minutes: 120, version: 3 },
+            push: { available: false, public_key: null },
+          })
+        : (base?.(path, init) ?? Promise.reject(new Error(path))),
+    );
+    await client.refetchQueries({ queryKey: ["notification-preferences"] });
+
+    expect(screen.getByLabelText("Warn after (hours)")).toHaveValue(6);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const put = await vi.waitFor(() => {
+      const call = request.mock.calls.find(([, init]) => init?.method === "PUT");
+      if (!call) throw new Error("no PUT yet");
+      return call;
+    });
+    expect(JSON.parse(put[1]?.body as string)).toMatchObject({ version: 0 });
+  });
+
+  it("reloads the stored values and explains a conflict", async () => {
+    const user = userEvent.setup();
+    const base = request.getMockImplementation();
+    let version = 0;
+    request.mockImplementation((path: string, init?: RequestInit) => {
+      if (path !== "/notifications/preferences") {
+        return base?.(path, init) ?? Promise.reject(new Error(path));
+      }
+      if (init?.method === "PUT") {
+        version = 3;
+        return Promise.reject(
+          new ApiClientError(
+            409,
+            "conflict",
+            "Your notification settings changed in another window.",
+          ),
+        );
+      }
+      return Promise.resolve({
+        preferences: { ...preferences, long_timer_minutes: version ? 120 : 480, version },
+        push: { available: false, public_key: null },
+      });
+    });
+    renderWithQuery(<NotificationSettingsDialog open onOpenChange={vi.fn()} />);
+    const hours = await screen.findByLabelText("Warn after (hours)");
+    await user.clear(hours);
+    await user.type(hours, "6");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("Your notification settings changed in another window."),
+    ).toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.getByLabelText("Warn after (hours)")).toHaveValue(2));
   });
 
   it("validates hours before saving", async () => {

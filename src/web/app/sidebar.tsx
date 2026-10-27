@@ -22,6 +22,7 @@ import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-di
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest, DEVELOPMENT_IDENTITIES, setDevelopmentIdentity, signOut } from "@/web/lib/api";
 import { formatClockDuration } from "@/web/lib/format";
+import { disablePush } from "@/web/lib/push";
 import type { TimeEntry } from "@/web/types";
 
 interface NavigationItem {
@@ -423,7 +424,10 @@ function ProfileMenu({ onNavigate }: { onNavigate: () => void }) {
                 onClick={() => {
                   close();
                   onNavigate();
-                  void signOut();
+                  // A shared browser must not keep receiving this member's notifications.
+                  void disablePush()
+                    .catch(() => undefined)
+                    .then(signOut);
                 }}
               >
                 <LogOut size={14} aria-hidden="true" className="mr-2" />
