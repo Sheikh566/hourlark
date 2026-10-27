@@ -27,7 +27,7 @@ Free: static asset requests. Only `/api/*` invokes the Worker
 
 ## Baseline
 
-Load model: **20 users, 22 workdays/month = 440 user-days.**
+Load model: **50 users, 22 workdays/month = 1,100 user-days.**
 
 Measured on `hourlark-preview` (the deployed Worker), October 2026:
 
@@ -44,15 +44,15 @@ Per user-day request mix:
 
 Monthly estimate:
 
-| Item            | Formula                         | CPU-ms        |
-| --------------- | ------------------------------- | ------------- |
-| API requests    | 440 × 270 = 118,800 × 3 ms      | 356,400       |
-| Cold starts     | 2% × 118,800 × 15 ms            | 35,640        |
-| PDF/CSV exports | 100 × 200 ms (unmeasured guess) | 20,000        |
-| **Total**       |                                 | **≈ 412,000** |
+| Item            | Formula                                     | CPU-ms          |
+| --------------- | ------------------------------------------- | --------------- |
+| API requests    | 1,100 × 270 = 297,000 × 3 ms                | 891,000         |
+| Cold starts     | 2% × 297,000 × 15 ms                        | 89,100          |
+| PDF/CSV exports | 250 × 200 ms (5 per user; unmeasured guess) | 50,000          |
+| **Total**       |                                             | **≈ 1,030,000** |
 
-That is **1.4% of included CPU** and **1.2% of included requests**. Worst case (tab
-visible all 8 hours, 960 polls/day) is ≈ 1.7M CPU-ms, still under 6%.
+That is **3.4% of included CPU** and **3.0% of included requests**. Worst case (tab
+visible all 8 hours, 960 polls/day) is ≈ 4.1M CPU-ms and 1.2M requests, still under 14%.
 
 ## Budget check
 
@@ -67,7 +67,7 @@ Query `refetchInterval`/polling, adds a scheduled or queue handler, or adds a bi
    - **D1 rows**: queries without an index on their `WHERE`/`ORDER BY` (full scans
      multiply rows read by table size), unbounded report ranges, writes inside loops.
    - **Log volume**: `console.log` per request (logs sample at `head_sampling_rate: 1`).
-2. **Quantify** each lever the change moves: requests per user-day × 440, multiplied by
+2. **Quantify** each lever the change moves: requests per user-day × 1,100, multiplied by
    CPU-ms per request. Measure CPU with the query in [Measuring](#measuring) when the
    code is deployable; otherwise state the assumed number.
 3. **Compare** the new monthly total against the allowances. Every change ends in one
