@@ -27,6 +27,10 @@ export default defineConfig({
           BOOTSTRAP_ADMIN_EMAILS: "",
           DEV_DEFAULT_USER_EMAIL: "sheikh.abdullah@iomechs.com",
           CSRF_SECRET: "test-only-csrf-secret-at-least-24-characters",
+          // Push stays off unless a test opts in, whatever a local .dev.vars contains.
+          VAPID_PUBLIC_KEY: "",
+          VAPID_PRIVATE_KEY: "",
+          VAPID_SUBJECT: "",
           TEST_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, "migrations")),
         },
       },

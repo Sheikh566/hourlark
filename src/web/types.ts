@@ -132,3 +132,30 @@ export interface ApiErrorPayload {
     authoritative?: unknown;
   };
 }
+
+export type NotificationKind = "long_running_timer" | "tracking_reminder" | "test";
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface NotificationPreferences {
+  long_timer_enabled: boolean;
+  long_timer_minutes: number;
+  reminder_enabled: boolean;
+  reminder_time_minutes: number;
+  reminder_threshold_minutes: number;
+  /** Bit 0 is Monday through bit 6 for Sunday. */
+  reminder_weekdays: number;
+  version: number;
+}
+
+export interface NotificationPreferencesResponse {
+  preferences: NotificationPreferences;
+  push: { available: boolean; public_key: string | null };
+}

@@ -90,9 +90,45 @@ rounding, grouping, and integer money rules in the Worker. Reports reject datase
 5,000 matching entries. PDF exports additionally reject more than 2,000 detail lines.
 
 CSV and PDF are generated in the request and returned directly. PDFs use `pdf-lib` and embedded
-standard fonts. The runtime has no configured queue, scheduled handler, Durable Object, KV,
-R2, separate report server, or external PDF service. Observability logs and traces are separate
-from the durable business audit log in D1.
+standard fonts. The runtime has no configured queue, Durable Object, KV, R2, separate report
+server, or external PDF service.
+
+## Notifications
+
+A cron trigger (`*/5 * * * *`) runs the Worker's `scheduled()` handler, which calls
+`runNotificationSweep` in `src/worker/services/notifications.ts`. Each run checks every active
+member for two rules, using their stored preferences or the defaults in
+`src/domain/notifications/schedule.ts`:
+
+- **Long-running timer**: the running entry passed the member's threshold (8 h by default).
+  Deduplicated by entry ID, so each forgotten timer is reported once.
+- **Tracking reminder**: from the reminder time (17:00 by default) until local midnight in the
+  member's timezone, on enabled weekdays, if they tracked less than their goal that day, running
+  time included. Deduplicated by local date, so a missed run catches up the same day only.
+
+Rows go to `notifications` with a unique `(member_id, kind, dedupe_key)`; only rows a run
+actually inserts are pushed, so retries and overlapping runs never notify twice. The same run
+deletes notifications older than 30 days. The sidebar bell reads the unread count from the
+`/timer` response it already polls.
+
+Web Push (`src/worker/services/web-push.ts`) implements RFC 8291 encryption with WebCrypto and
+RFC 8292 VAPID with `jose`. It is enabled only when all three `VAPID_*` secrets are set.
+Subscriptions are accepted only for the browser push services' hosts, and push services' 404
+or 410 answers delete the subscription. `public/sw.js` shows the notification and focuses or
+opens `/time` on click. Push text is generic, with no descriptions, projects, or clients.
+Subscribing and unsubscribing a device are audited, recording only the push service's origin;
+preference changes are not. Signing out turns off the device's push subscription first, and the settings dialog
+shows push as on only when the server binds this device to the signed-in member.
+
+Known limitations, accepted for now:
+
+- Delivery is at most once: a push that fails (or a run that stops after inserting) is not
+  retried, though the notification stays in the inbox.
+- The daily total ignores stopped entries that started more than 24 hours before local midnight.
+- A timer still running after 30 days can warn again once its first warning is pruned.
+- The bell lists the newest 50 notifications; older unread ones keep the badge lit until the
+  30-day prune. Observability logs and traces are separate
+  from the durable business audit log in D1.
 
 ## Source map
 

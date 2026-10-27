@@ -56,6 +56,8 @@ interface CommandSuggestion {
 
 interface TimerQuery {
   entry: TimeEntry | null;
+  /** Read by the sidebar's notification bell; kept when the timer cache is patched. */
+  unread_notifications?: number;
   server_now: string;
 }
 
@@ -73,6 +75,7 @@ const MAX_RECENT_SUGGESTIONS = 8;
 
 function applyEntryToCaches(queryClient: QueryClient, entry: TimeEntry) {
   queryClient.setQueryData<TimerQuery>(["timer"], (current) => ({
+    ...current,
     entry: entry.running ? entry : null,
     server_now: current?.server_now ?? entry.updated_at,
   }));

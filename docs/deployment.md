@@ -75,10 +75,11 @@ deployment. See [Custom Domains](https://developers.cloudflare.com/workers/confi
 
 The Worker also needs these secrets:
 
-| Secret                                     | Required       | Notes                                                                                               |
-| ------------------------------------------ | -------------- | --------------------------------------------------------------------------------------------------- |
-| `CSRF_SECRET`                              | Yes            | A random value of at least 24 characters. Generate one as shown below.                              |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in | From a Google OAuth client whose redirect URI is `https://<your host>/api/v1/auth/google/callback`. |
+| Secret                                                   | Required       | Notes                                                                                                                                                                                                                                      |
+| -------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CSRF_SECRET`                                            | Yes            | A random value of at least 24 characters. Generate one as shown below.                                                                                                                                                                     |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`               | Google sign-in | From a Google OAuth client whose redirect URI is `https://<your host>/api/v1/auth/google/callback`.                                                                                                                                        |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Browser push   | Generate with `pnpm push:keys mailto:<ops address>`. Without them the in-app inbox still works and browser notifications stay off; `pnpm check:production` warns. Keep the pair stable: rotating it invalidates every device subscription. |
 
 ```bash
 node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log(randomBytes(32).toString("hex"));'
@@ -222,6 +223,8 @@ file accessible only to your user.
 HOURLARK_SECRETS_FILE="$(mktemp)"
 node --input-type=module -e 'import { randomBytes } from "node:crypto"; console.log("CSRF_SECRET=" + randomBytes(32).toString("hex"));' > "$HOURLARK_SECRETS_FILE"
 # With Google sign-in, also append GOOGLE_CLIENT_ID=... and GOOGLE_CLIENT_SECRET=... lines.
+# For browser push notifications, also append the VAPID_* lines:
+pnpm --silent push:keys mailto:ops@example.com >> "$HOURLARK_SECRETS_FILE"
 
 HOURLARK_WRANGLER_CONFIG=wrangler.deploy.json pnpm build
 pnpm exec wrangler deploy --secrets-file "$HOURLARK_SECRETS_FILE"

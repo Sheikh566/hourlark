@@ -13,3 +13,8 @@ DEV_DEFAULT_USER_EMAIL=sheikh.abdullah@iomechs.com
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 CSRF_SECRET=replace-with-a-long-random-development-only-value
+# Optional browser push notifications; generate with `pnpm push:keys`. Without them the in-app
+# notification inbox still works.
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=

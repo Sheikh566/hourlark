@@ -6,6 +6,7 @@ import { authenticationMiddleware } from "@/worker/middleware/authentication";
 import { csrfMiddleware } from "@/worker/middleware/csrf";
 import { requestIdMiddleware } from "@/worker/middleware/request-id";
 import { api } from "@/worker/routes/api";
+import { runNotificationSweep } from "@/worker/services/notifications";
 
 const app = new Hono<AppContext>();
 
@@ -29,4 +30,10 @@ app.notFound((c) =>
 
 app.onError((error, c) => errorResponse(c, error));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(controller, env) {
+    const result = await runNotificationSweep(env, controller.scheduledTime);
+    if (result.created || result.expiredSubscriptions) console.log("notification_sweep", result);
+  },
+} satisfies ExportedHandler<Env>;

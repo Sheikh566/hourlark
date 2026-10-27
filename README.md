@@ -99,6 +99,7 @@ the entire production hostname, not only `/api`.
 - [Deploy to your Cloudflare account](docs/deployment.md)
 - [Versioning and releases](docs/releasing.md)
 - [Operations and recovery](docs/operations.md)
+- [Workers budget check](docs/workers-budget.md)
 - [API conventions and export contracts](docs/api-and-exports.md)
 - [Testing](docs/testing.md)
 - [Dependency and Cloudflare review](docs/cloudflare-review.md)

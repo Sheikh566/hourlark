@@ -14,6 +14,7 @@ export default tseslint.config(
       "worker-configuration.d.ts",
       "eslint.config.js",
       "scripts/*.mjs",
+      "public/sw.js",
     ],
   },
   eslint.configs.recommended,
