@@ -179,3 +179,65 @@ test("the content owns its scrollbar while the shell keeps the viewport width", 
   await expect(page.getByRole("heading", { name: "Tags", exact: true })).toBeVisible();
   await expect.poll(() => main.evaluate((element) => element.scrollTop)).toBe(0);
 });
+
+test("phone-width rows keep play and menu beside the description and align durations", async ({
+  page,
+}) => {
+  await page.goto("/time");
+  const me = (await (await page.request.get("/api/v1/me")).json()) as { csrf_token: string };
+  const headers = { Origin: new URL(page.url()).origin, "X-CSRF-Token": me.csrf_token };
+  const description = `HLTEST phone row ${crypto.randomUUID().slice(0, 8)}`;
+  const response = await page.request.post("/api/v1/time-entries", {
+    headers,
+    data: {
+      description,
+      started_at: new Date(Date.now() - 600_000).toISOString(),
+      stopped_at: new Date(Date.now() - 589_000).toISOString(),
+      tag_ids: [],
+      billable: false,
+    },
+  });
+  expect(response.ok()).toBe(true);
+  const { entry } = (await response.json()) as { entry: { id: string } };
+  try {
+    for (const width of [360, 412]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.reload();
+      const row = page.locator(`[id="time-entry-${entry.id}"]`);
+      const label = row.getByRole("button", { name: description, exact: true });
+      const play = row.getByRole("button", { name: "Continue time entry", exact: true });
+      const menu = row.getByRole("button", { name: "More actions", exact: true });
+      const duration = row.getByTitle("Edit date, times, and duration");
+      await expect(label).toBeVisible();
+      const [labelBox, playBox, menuBox, rowBox, durationBox] = await Promise.all(
+        [label, play, menu, row, duration].map((locator) => locator.boundingBox()),
+      );
+      if (!labelBox || !playBox || !menuBox || !rowBox || !durationBox) {
+        throw new Error("phone row parts must be laid out");
+      }
+      const middle = (box: { y: number; height: number }) => box.y + box.height / 2;
+      // Play and menu share the description's line at the right edge; nothing wraps to a 3rd line.
+      expect(Math.abs(middle(playBox) - middle(labelBox))).toBeLessThanOrEqual(2);
+      expect(Math.abs(middle(menuBox) - middle(labelBox))).toBeLessThanOrEqual(2);
+      expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width);
+      expect(rowBox.height).toBeLessThan(90);
+      // The time cell ends at the row's right padding, under the menu.
+      expect(
+        Math.abs(durationBox.x + durationBox.width - (menuBox.x + menuBox.width)),
+      ).toBeLessThanOrEqual(1);
+      // The day total lines up with the entry durations.
+      const day = page
+        .locator("section > div")
+        .filter({ has: page.getByRole("heading") })
+        .first();
+      const totalBox = await day.locator("span").last().boundingBox();
+      expect(totalBox).not.toBeNull();
+      expect(
+        Math.abs((totalBox?.x ?? 0) + (totalBox?.width ?? 0) - (durationBox.x + durationBox.width)),
+      ).toBeLessThanOrEqual(8);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    }
+  } finally {
+    await page.request.delete(`/api/v1/time-entries/${entry.id}`, { headers });
+  }
+});

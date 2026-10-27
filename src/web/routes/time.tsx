@@ -668,7 +668,7 @@ export function TimePage() {
                       </button>
                     </div>
                   ) : null}
-                  <div className="bg-surface sticky top-0 z-10 flex h-[50px] items-center pr-[84px] pl-5">
+                  <div className="bg-surface sticky top-0 z-10 flex h-[50px] items-center pr-2 pl-5 lg:pr-[84px]">
                     <div className="flex w-[30px] shrink-0 items-center">
                       <EntryCheckbox
                         alwaysVisible

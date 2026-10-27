@@ -743,7 +743,7 @@ function TimePicker({
   };
 
   return (
-    <div ref={root} className="relative h-full min-w-0">
+    <div ref={root} className="relative h-full min-w-0 max-lg:ml-auto">
       <TimeCell
         range={`${displayTime(startedAt)} - ${running ? "running" : displayTime(stoppedAt)}`}
         durationMs={durationSeconds * 1000}

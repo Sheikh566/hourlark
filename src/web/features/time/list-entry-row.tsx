@@ -230,7 +230,7 @@ export function TimeCell({
   return (
     <button
       type="button"
-      className="box-border flex h-full min-w-0 items-center justify-end px-0 text-left text-sm font-medium tabular-nums lg:px-2.5"
+      className="box-border flex h-full min-w-0 items-center justify-end px-0 text-left text-sm font-medium tabular-nums max-lg:ml-auto lg:px-2.5"
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -239,13 +239,14 @@ export function TimeCell({
     >
       <span
         className={twMerge(
-          "text-fg-subtle box-border block shrink-0 rounded-lg px-[7.5px] py-[5px] leading-[14px] whitespace-nowrap",
+          // Below lg the range gives way (truncates) before the row would wrap to a third line.
+          "text-fg-subtle box-border block min-w-0 shrink-0 truncate rounded-lg px-[7.5px] py-[5px] leading-[14px] whitespace-nowrap max-lg:shrink",
           active ? "bg-surface-hover" : "hover:bg-hover-faint hover:text-fg",
         )}
       >
         {range}
       </span>
-      <span className="box-border flex w-[87px] shrink-0 justify-end">
+      <span className="box-border flex shrink-0 justify-end lg:w-[87px]">
         <span
           className={twMerge(
             "hover:bg-hover-faint box-border rounded-lg px-[7.5px] leading-[14px]",
@@ -261,7 +262,11 @@ export function TimeCell({
   );
 }
 
-/** Play slot (40x30) + overflow menu slot (30x30) at the row's right edge. */
+/**
+ * Play slot (40x30) + overflow menu slot (30x30) at the row's right edge. Below `lg` they sit on the
+ * row's first line (grid columns 3 and 4 of the phone layout) so the second line keeps room for the
+ * time range and duration.
+ */
 export function RowActions({
   onContinue,
   continueLabel,
@@ -282,7 +287,7 @@ export function RowActions({
 }) {
   return (
     <>
-      <div className="flex h-full w-10 items-center justify-center">
+      <div className="col-start-3 row-start-1 flex h-full w-10 items-center justify-center lg:col-start-auto lg:row-start-auto">
         <button
           type="button"
           // Toggl keeps the clicked play at full opacity until focus moves elsewhere.
@@ -297,7 +302,10 @@ export function RowActions({
         </button>
       </div>
       <div
-        className={twMerge("flex h-full items-center", revealOnRowHover)}
+        className={twMerge(
+          "col-start-4 row-start-1 flex h-full items-center lg:col-start-auto lg:row-start-auto",
+          revealOnRowHover,
+        )}
         data-entry-menu={entryId}
       >
         {menuItems?.length ? (
@@ -392,7 +400,14 @@ export function ListEntryRow({
     count != null ? `Show tags for ${count} matching sessions` : `Edit tags for ${matchLabel}`;
 
   return (
-    <article id={rowId} className={twMerge(entryRowClassName, running && "bg-accent-muted/35")}>
+    <article
+      id={rowId}
+      className={twMerge(
+        entryRowClassName,
+        "grid-cols-[30px_minmax(0,1fr)_40px_30px]",
+        running && "bg-accent-muted/35",
+      )}
+    >
       <div className="flex h-full items-center">
         <EntryCheckbox
           checked={selected}
@@ -436,7 +451,7 @@ export function ListEntryRow({
         </button>
         <ProjectCell entry={entry} onClick={onProjectClick} title={projectTitle} />
       </div>
-      <div className={entryRowExtrasClassName}>
+      <div className={twMerge(entryRowExtrasClassName, "col-span-3 flex-nowrap")}>
         <TagsCell
           hasTags={entry.tags.length > 0}
           label={tagNames ? `${tagsLabel} (${tagNames})` : tagsLabel}
@@ -460,16 +475,16 @@ export function ListEntryRow({
           title={timeTitle}
           ariaLabel={timeAriaLabel}
         />
-        <RowActions
-          onContinue={onContinue}
-          continueLabel={continueLabel}
-          continueDisabled={actionsPending || continuePending}
-          continueFor={continueFor ?? entry.id}
-          menuItems={menuItems}
-          menuLabel="More actions"
-          entryId={entry.id}
-        />
       </div>
+      <RowActions
+        onContinue={onContinue}
+        continueLabel={continueLabel}
+        continueDisabled={actionsPending || continuePending}
+        continueFor={continueFor ?? entry.id}
+        menuItems={menuItems}
+        menuLabel="More actions"
+        entryId={entry.id}
+      />
     </article>
   );
 }
