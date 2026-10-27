@@ -1,65 +1,96 @@
-# Hourlark
+<div align="center">
 
-Hourlark is a single-company time tracker deployed as one Cloudflare Worker. The Worker serves
-the React application and the same-origin `/api/v1` API, with Cloudflare D1 as the authoritative
-database and Cloudflare Access as the production identity boundary.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/brand/hourlark-original/logo-dark.png" />
+  <img src="public/brand/hourlark-original/logo-light.png" alt="Hourlark" width="160" />
+</picture>
 
-The product includes:
+### Self-hosted time tracking for your company, on a single Cloudflare Worker
 
-- authoritative, idempotent start/stop timers with one running timer per member;
-- day/week list editing, calendar creation/drag/resize, overlap warnings, duplicate, continue,
-  soft-delete and undo;
-- clients, projects, project assignments, tags, members, roles, lock policies and immutable audit
-  history;
-- summary and detailed reports with timezone-aware clipping, grouping, rounding, financial
-  redaction and project budget progress;
-- formula-safe UTF-8 CSV and a Workers-native, client-ready PDF time report;
-- Member, Manager and Admin authorization enforced by a centralized server policy.
+[![Deploy](https://github.com/Sheikh566/hourlark/actions/workflows/deploy.yml/badge.svg)](https://github.com/Sheikh566/hourlark/actions/workflows/deploy.yml)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-f38020?logo=cloudflare&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
+
+[Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) ·
+[Deploy](#deploy-to-cloudflare) · [Documentation](#documentation)
+
+<img src="docs/screenshots/timer-list.png" alt="Hourlark timer list view" width="900" />
+
+</div>
+
+## Overview
+
+Hourlark is a self-hosted alternative to Toggl Track for a single company. One Cloudflare Worker
+serves the React application and the same-origin `/api/v1` API, with Cloudflare D1 as the
+authoritative database. Sign-in uses Google or Cloudflare Access, and every permission is enforced
+on the server.
+
+There are no per-seat fees and no servers to manage: fork the repository, set a few GitHub
+variables, and every push to `main` deploys to your own Cloudflare account.
+
+## Features
+
+**Time tracking**
+
+- Authoritative, idempotent start/stop timers with one running timer per member.
+- Day and week list editing, plus calendar creation, drag and resize.
+- Overlap warnings, duplicate, continue, soft-delete and undo.
+- Long-running timer and tracking reminders, in-app and as browser push notifications.
+
+**Reports and exports**
+
+- Summary and detailed reports with timezone-aware clipping, grouping and rounding.
+- Billable amounts, financial redaction by role, and project budget progress.
+- Formula-safe UTF-8 CSV and a Workers-native, client-ready PDF time report.
+
+**Workspace management**
+
+- Clients, projects, project assignments, tags and members.
+- Member, Manager and Admin roles enforced by a centralized server policy.
+- Lock policies and an immutable audit history.
 
 ## Screenshots
 
-The screenshots use made-up sample data.
+Screenshots use made-up sample data.
 
-**Timer list**: a running timer, plus entries grouped by day with project, client, billable and
-tag details.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/timer-calendar.png" alt="Calendar week view" /><br />
+      <b>Calendar</b>: create, drag and resize entries on a weekly grid.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/timer-timesheet.png" alt="Timesheet view" /><br />
+      <b>Timesheet</b>: weekly totals per project, editable per day.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/reports.png" alt="Summary report" /><br />
+      <b>Reports</b>: daily totals, billable amounts and project distribution, exportable to CSV and
+      PDF.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/projects.png" alt="Projects list" /><br />
+      <b>Projects</b>: clients, billable defaults and time against budget.
+    </td>
+  </tr>
+</table>
 
-![Timer list view](docs/screenshots/timer-list.png)
+## Tech stack
 
-**Calendar**: create, drag and resize entries on a weekly grid.
+| Layer    | Technologies                                                                       |
+| -------- | ---------------------------------------------------------------------------------- |
+| Frontend | React, Vite, Tailwind CSS, TanStack Query, React Hook Form, FullCalendar, Recharts |
+| Backend  | Hono on Cloudflare Workers, Zod, jose, pdf-lib, date-fns/date-fns-tz               |
+| Data     | Cloudflare D1 with prepared statements and numbered SQL migrations                 |
+| Testing  | Vitest in workerd, React Testing Library, Playwright with axe accessibility checks |
+| Language | TypeScript in strict mode throughout                                               |
 
-![Calendar week view](docs/screenshots/timer-calendar.png)
+## Quick start
 
-**Timesheet**: weekly totals per project, editable per day.
-
-![Timesheet view](docs/screenshots/timer-timesheet.png)
-
-**Reports**: daily totals, billable amounts, project distribution and breakdowns, exportable to CSV
-and PDF.
-
-![Summary report](docs/screenshots/reports.png)
-
-**Projects**: clients, billable defaults, and time against budget.
-
-![Projects list](docs/screenshots/projects.png)
-
-## Stack
-
-TypeScript (strict), React, Vite, Cloudflare Vite plugin, Hono, Tailwind CSS, TanStack Query, React
-Hook Form, Zod, FullCalendar, Recharts, pdf-lib, jose, date-fns/date-fns-tz, D1 prepared statements,
-Vitest in workerd, React Testing Library and Playwright.
-
-## Local development
-
-Requirements: Node.js 22.22.2+, 24.15.0+, or 26+ and pnpm 12.9.1 (matching the
-`packageManager` field). pnpm 12 is a native executable. If an existing pnpm 10
-install cannot activate that pin, bootstrap the exact version from the npm
-registry into a temporary prefix and use that binary:
-
-```bash
-npm install pnpm@12.9.1 --prefix /tmp/pnpm-12.9.1
-export PATH="/tmp/pnpm-12.9.1/node_modules/.bin:$PATH"
-pnpm --version
-```
+Requirements: Node.js 22.22.2+, 24.15.0+ or 26+, and pnpm 12.9.1 (the `packageManager` pin).
 
 ```bash
 pnpm install --frozen-lockfile
@@ -68,25 +99,43 @@ pnpm db:setup
 pnpm dev
 ```
 
-For an existing local installation, run `pnpm db:migrate:local` to apply the Hourlark workspace
-rename. The migration preserves time entries, company settings, and customized workspace names.
+Open `http://127.0.0.1:5173`. The development seed provides three accounts; switch between them
+from the user menu:
 
-Open `http://127.0.0.1:5173`. Development authentication is enabled only when both
-`AUTH_MODE=dev` and `ENVIRONMENT=development`. The seed provides:
+| Account               | Role    |
+| --------------------- | ------- |
+| `admin@example.com`   | Admin   |
+| `manager@example.com` | Manager |
+| `member@example.com`  | Member  |
 
-- `admin@example.com` — Admin
-- `manager@example.com` — Manager
-- `member@example.com` — Member
+<details>
+<summary>Installing pnpm 12 alongside an older pnpm</summary>
 
-Use the user menu to switch between seeded roles. The `X-Dev-User-Email` header is ignored unless
-development authentication is explicitly active. If the selected development member is
-deactivated or otherwise cannot authenticate, the error screen provides a development-only account
-recovery panel. Choose **Use default development account** to clear the browser override and return
-to `DEV_DEFAULT_USER_EMAIL`, or select another seeded identity. This recovery UI is excluded from
-production builds; production identity recovery remains the responsibility of Cloudflare Access
-and an active application administrator.
+pnpm 12 is a native executable. If an existing pnpm 10 install cannot activate the pin, bootstrap
+the exact version into a temporary prefix and use that binary:
 
-## Validation
+```bash
+npm install pnpm@12.9.1 --prefix /tmp/pnpm-12.9.1
+export PATH="/tmp/pnpm-12.9.1/node_modules/.bin:$PATH"
+pnpm --version
+```
+
+</details>
+
+<details>
+<summary>How development sign-in works</summary>
+
+Development authentication is enabled only when both `AUTH_MODE=dev` and
+`ENVIRONMENT=development`; otherwise the `X-Dev-User-Email` header is ignored. If the selected
+development member is deactivated or otherwise cannot authenticate, the error screen offers a
+development-only recovery panel: choose **Use default development account** to return to
+`DEV_DEFAULT_USER_EMAIL`, or select another seeded identity. Production builds exclude this panel;
+production identity recovery remains the responsibility of the identity provider and an active
+administrator.
+
+</details>
+
+## Testing
 
 ```bash
 pnpm validate
@@ -94,40 +143,36 @@ pnpm test:e2e
 ```
 
 `pnpm validate` checks formatting, ESLint, strict TypeScript, Worker/runtime tests, React component
-tests, and the production build. Worker tests apply the canonical D1 migration in isolated workerd
-storage.
+tests and the production build. Worker tests apply the canonical D1 migrations in isolated workerd
+storage. `pnpm test:e2e` runs Playwright against a disposable seeded D1 database.
 
-## Production deployment
+## Deploy to Cloudflare
 
-Fork the repository, add a `CLOUDFLARE_API_TOKEN` secret and a `CLOUDFLARE_ACCOUNT_ID` variable
-plus your company settings in GitHub, and pushes to `main` deploy to your own Cloudflare account.
-No files need editing: `pnpm deploy:configure` generates the deployment configuration from those
-settings. Follow the [step-by-step Cloudflare deployment guide](docs/deployment.md) for the full list
-of settings, first secrets, administrator setup, and verification. For a manual deployment with
-the same variables exported and an existing secret, run:
+Fork the repository, add a `CLOUDFLARE_API_TOKEN` secret, a `CLOUDFLARE_ACCOUNT_ID` variable and
+your company settings in GitHub, and pushes to `main` deploy to your own Cloudflare account. No
+files need editing: `pnpm deploy:configure` generates the deployment configuration from those
+settings, and `pnpm check:production` refuses the example placeholders. Follow the
+[step-by-step deployment guide](docs/deployment.md) for every setting, the first secrets,
+administrator setup and verification.
+
+For a manual deployment with the same variables exported and an existing secret:
 
 ```bash
 pnpm run deploy
 ```
 
 Deploy from a release tag so the live Worker version is traceable; see
-[versioning and releases](docs/releasing.md).
-
-Never commit `.dev.vars`. The deployment guide covers the initial `CSRF_SECRET` upload; rotate it
-on an existing Worker with `pnpm exec wrangler secret put CSRF_SECRET`. Cloudflare Access must cover
-the entire production hostname, not only `/api`.
+[versioning and releases](docs/releasing.md). Never commit `.dev.vars`. Rotate the CSRF secret on
+an existing Worker with `pnpm exec wrangler secret put CSRF_SECRET`. With `AUTH_MODE=access`,
+Cloudflare Access must cover the entire production hostname, not only `/api`.
 
 ## Documentation
 
-- [Assumptions](docs/assumptions.md)
-- [Architecture decisions](docs/architecture-decisions.md)
-- [Security model](docs/security.md)
-- [Deploy to your Cloudflare account](docs/deployment.md)
-- [Versioning and releases](docs/releasing.md)
-- [Operations and recovery](docs/operations.md)
-- [Workers budget check](docs/workers-budget.md)
-- [API conventions and export contracts](docs/api-and-exports.md)
-- [Testing](docs/testing.md)
-- [Dependency and Cloudflare review](docs/cloudflare-review.md)
-- [Toggl Track replacement scope](docs/toggl-parity.md)
-- [UI reference](docs/design/hourlark-ui-reference.png)
+| Topic        | Documents                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deployment   | [Deploy to your Cloudflare account](docs/deployment.md) · [Versioning and releases](docs/releasing.md) · [Operations and recovery](docs/operations.md)          |
+| Architecture | [Architecture decisions](docs/architecture-decisions.md) · [Assumptions](docs/assumptions.md) · [API conventions and export contracts](docs/api-and-exports.md) |
+| Security     | [Security model](docs/security.md) · [Dependency and Cloudflare review](docs/cloudflare-review.md)                                                              |
+| Cost         | [Workers budget check](docs/workers-budget.md)                                                                                                                  |
+| Quality      | [Testing](docs/testing.md)                                                                                                                                      |
+| Product      | [Toggl Track replacement scope](docs/toggl-parity.md) · [UI reference](docs/design/hourlark-ui-reference.png)                                                   |
