@@ -10,6 +10,7 @@ import {
   getDevelopmentIdentity,
   setCsrfToken,
   setDevelopmentIdentity,
+  signOut,
 } from "@/web/lib/api";
 import type { MeResponse } from "@/web/types";
 
@@ -63,7 +64,12 @@ export function MeProvider({ children }: { children: ReactNode }) {
     return <LoginScreen />;
   }
   if (me.error || !me.data) {
-    const message = me.error instanceof Error ? me.error.message : "Unable to load your workspace.";
+    const deactivated = me.error instanceof ApiClientError && me.error.code === "member_inactive";
+    const message = deactivated
+      ? "Your account has been deactivated. Ask a workspace administrator to reactivate it, or sign in with a different account."
+      : me.error instanceof Error
+        ? me.error.message
+        : "Unable to load your workspace.";
     const developmentIdentity = getDevelopmentIdentity();
     return (
       <div className="app-shell bg-surface flex min-h-screen items-center justify-center p-6">
@@ -75,11 +81,27 @@ export function MeProvider({ children }: { children: ReactNode }) {
             height={138}
             className="mx-auto mb-5 h-auto w-36"
           />
-          <h1 className="font-display text-fg text-xl font-bold">Unable to open Hourlark</h1>
+          <h1 className="font-display text-fg text-xl font-bold">
+            {deactivated ? "Account deactivated" : "Unable to open Hourlark"}
+          </h1>
           <p className="text-fg-muted mt-2 text-sm">{message}</p>
-          <div className="mt-5 flex justify-center">
+          <div className="mt-5 flex justify-center gap-2">
+            {deactivated ? (
+              <button
+                type="button"
+                className="bg-accent text-fg-inverted hover:bg-accent-hover h-9 rounded-lg px-4 text-sm font-semibold"
+                onClick={() => void signOut()}
+              >
+                Sign out
+              </button>
+            ) : null}
             <button
-              className="bg-accent text-fg-inverted hover:bg-accent-hover h-9 rounded-lg px-4 text-sm font-semibold"
+              type="button"
+              className={
+                deactivated
+                  ? "border-stroke text-fg hover:bg-surface-hover h-9 rounded-lg border px-4 text-sm font-semibold"
+                  : "bg-accent text-fg-inverted hover:bg-accent-hover h-9 rounded-lg px-4 text-sm font-semibold"
+              }
               onClick={() => void me.refetch()}
             >
               Try again

@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import app from "@/worker/index";
+
 import {
   adminId,
   apiRequest,
@@ -26,8 +28,13 @@ function beforeBatch(run: () => Promise<void>): D1Database {
   });
 }
 
-async function patch(id: string, body: Record<string, unknown>, db = env.DB): Promise<Response> {
-  return apiRequest(`/members/${id}`, { method: "PATCH", body: JSON.stringify(body) }, db);
+async function patch(
+  id: string,
+  body: Record<string, unknown>,
+  db = env.DB,
+  email?: string,
+): Promise<Response> {
+  return apiRequest(`/members/${id}`, { method: "PATCH", body: JSON.stringify(body) }, db, email);
 }
 
 async function snapshot(id = memberId) {
@@ -122,10 +129,12 @@ describe("atomic member updates", () => {
         expect(winner.status).toBe(200);
         winnerState = await snapshot(adminId);
       });
+      // The second admin acts on the first, since nobody may deactivate themselves.
       const response = await patch(
         adminId,
         { version: 1, ...change, project_ids: [projectId] },
         db,
+        "member@example.com",
       );
       expect(response.status).toBe(422);
       await expect(response.json()).resolves.toMatchObject({
@@ -152,6 +161,39 @@ describe("atomic member updates", () => {
     expect(state.audit).toHaveLength(1);
     expect(state.audit[0]).toMatchObject({ action: "member.deactivated" });
     expect(state.checks).toEqual([]);
+  });
+
+  it("refuses self-deactivation even when another admin would remain", async () => {
+    await env.DB.prepare("UPDATE members SET role = 'admin' WHERE id = ?").bind(memberId).run();
+    const response = await patch(adminId, { version: 1, status: "inactive" });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      error: { code: "member_self_deactivate_forbidden" },
+    });
+    const admin = await env.DB.prepare("SELECT status FROM members WHERE id = ?")
+      .bind(adminId)
+      .first();
+    expect(admin).toMatchObject({ status: "active" });
+  });
+
+  it("lets a deactivated member sign out without a CSRF token", async () => {
+    expect((await patch(memberId, { version: 1, status: "inactive" })).status).toBe(200);
+    const request = (origin: string) =>
+      app.fetch(
+        new Request("https://time.test/api/v1/auth/logout", {
+          method: "POST",
+          headers: {
+            "X-Dev-User-Email": "member@example.com",
+            Origin: origin,
+            "Sec-Fetch-Site": "same-origin",
+          },
+        }),
+        env,
+      );
+    const response = await request("https://time.test");
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Set-Cookie")).toContain("Max-Age=0");
+    expect((await request("https://evil.test")).status).toBe(403);
   });
 
   it("allows manager assignment-only updates without granting profile or role access", async () => {

@@ -12,7 +12,8 @@ const loginErrors: Record<string, string> = {
   google_signin_disabled: "Google sign-in is not enabled.",
   oauth_cancelled: "Google sign-in was cancelled.",
   google_signin_failed: "Google sign-in did not complete. Try again.",
-  member_inactive: "This member account is not active.",
+  member_inactive:
+    "Your account has been deactivated. Ask a workspace administrator to reactivate it.",
   member_binding_failed: "The member account could not be loaded. Try again.",
 };
 

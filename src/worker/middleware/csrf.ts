@@ -2,6 +2,7 @@ import { createMiddleware } from "hono/factory";
 
 import type { AppContext } from "@/domain/types";
 import { ApiError } from "@/worker/errors";
+import { LOGOUT_PATH } from "@/worker/middleware/authentication";
 import { parseRuntimeConfig } from "@/worker/env";
 
 const encoder = new TextEncoder();
@@ -69,6 +70,11 @@ export const csrfMiddleware = createMiddleware<AppContext>(async (c, next) => {
   const fetchSite = c.req.header("Sec-Fetch-Site");
   if (fetchSite && !["same-origin", "none"].includes(fetchSite)) {
     throw new ApiError(403, "csrf_site_invalid", "Cross-site requests are not allowed.");
+  }
+  // Logout has no authenticated member to bind a token to; the origin checks above suffice.
+  if (c.req.path === LOGOUT_PATH) {
+    await next();
+    return;
   }
   const token = c.req.header("X-CSRF-Token");
   if (!token || !(await verifyCsrfToken(c.env, c.get("member").id, token))) {

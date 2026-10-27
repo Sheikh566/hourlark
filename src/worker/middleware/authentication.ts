@@ -219,7 +219,13 @@ async function resolveAccessMember(
   return bound;
 }
 
-const publicAuthPaths = new Set(["/api/v1/auth/google", "/api/v1/auth/google/callback"]);
+// Logout only clears the session cookie, so inactive or unknown members can always leave.
+export const LOGOUT_PATH = "/api/v1/auth/logout";
+const publicAuthPaths = new Set([
+  "/api/v1/auth/google",
+  "/api/v1/auth/google/callback",
+  LOGOUT_PATH,
+]);
 
 export async function authenticateExternalIdentity(
   db: D1Database,

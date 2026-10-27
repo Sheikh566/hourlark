@@ -1203,6 +1203,13 @@ api.patch("/members/:id", async (c) => {
       "Managers can only update project assignments.",
     );
   }
+  if (input.status === "inactive" && id === actor.id) {
+    throw new ApiError(
+      403,
+      "member_self_deactivate_forbidden",
+      "You can't deactivate your own account. Ask another administrator.",
+    );
+  }
   if (input.timezone) assertValidTimeZone(input.timezone);
   const now = Date.now();
   const status = input.status ?? existing.status;
