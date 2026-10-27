@@ -179,3 +179,25 @@ export const pdfExportSchema = reportQuerySchema.extend({
   show_rates: z.boolean().default(true),
   pdf_grouping: z.enum(["project", "date"]).default("project"),
 });
+
+export const notificationPreferencesSchema = z.object({
+  version: z.number().int().min(0),
+  long_timer_enabled: z.boolean(),
+  long_timer_minutes: z.number().int().min(60).max(1440),
+  reminder_enabled: z.boolean(),
+  reminder_time_minutes: z.number().int().min(0).max(1439),
+  reminder_threshold_minutes: z.number().int().min(15).max(1440),
+  reminder_weekdays: z.number().int().min(0).max(127),
+});
+
+const base64urlKeySchema = z.string().regex(/^[A-Za-z0-9_-]+$/);
+
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url().max(2048),
+  keys: z.object({
+    p256dh: base64urlKeySchema.length(87),
+    auth: base64urlKeySchema.length(22),
+  }),
+});
+
+export const pushUnsubscribeSchema = z.object({ endpoint: z.string().url().max(2048) });

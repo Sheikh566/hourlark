@@ -27,6 +27,7 @@
     "test:watch": "vitest --config vitest.config.ts",
     "test:e2e": "playwright test",
     "check:production": "node scripts/check-production-config.mjs",
+    "push:keys": "node scripts/generate-vapid-keys.mjs",
     "validate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {

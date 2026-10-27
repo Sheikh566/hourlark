@@ -56,6 +56,16 @@ Per user-day request mix:
 | ----------------------------------------- | -------- | ---------------------------------------------------------- |
 | `["timer"]` poll, 30 s `refetchInterval`  | 120      | 1 visible hour/day; TanStack pauses polling in hidden tabs |
 | Navigation, timer actions, edits, refocus | 150      | Estimate                                                   |
+| Notification bell: open list, mark read   | 5        | Estimate; the unread count rides on the `["timer"]` poll   |
+
+Scheduled work, independent of users:
+
+- Notification sweep cron (`*/5 * * * *`): 8,640 invocations/month. Assumed 20 ms CPU per run,
+  cold start included (unmeasured). Each run reads about 50 members, the running timers, and
+  for members whose reminder is due, their recent entries: at most ~600 rows/run.
+- Web Push sends: at most 2 notifications per user-day, ~2 devices each = 4,400 sends/month at
+  an assumed 5 ms (ECDH, HKDF, AES-GCM, ES256). One run sends at most ~100 subrequests.
+- Notifications are kept 30 days: ~2,200 rows/month written and pruned, ~1 MB stored.
 
 Monthly estimate:
 
@@ -64,10 +74,15 @@ Monthly estimate:
 | API requests    | 1,100 × 270 = 297,000 × 3 ms                | 891,000         |
 | Cold starts     | 2% × 297,000 × 15 ms                        | 89,100          |
 | PDF/CSV exports | 250 × 200 ms (5 per user; unmeasured guess) | 50,000          |
-| **Total**       |                                             | **≈ 1,030,000** |
+| Bell requests   | 1,100 × 5 = 5,500 × 3 ms                    | 16,500          |
+| Sweep cron      | 8,640 × 20 ms                               | 172,800         |
+| Web Push sends  | 4,400 × 5 ms                                | 22,000          |
+| **Total**       |                                             | **≈ 1,241,000** |
 
-That is **3.4% of included CPU** and **3.0% of included requests**. Worst case (tab
-visible all 8 hours, 960 polls/day) is ≈ 4.1M CPU-ms and 1.2M requests, still under 14%.
+That is **4.1% of included CPU** and **3.1% of included requests** (≈ 311,000). Worst case
+(tab visible all 8 hours, 960 polls/day) is ≈ 4.3M CPU-ms and 1.2M requests, still under 15%.
+D1 stays far below its allowances: the sweep reads ≈ 5M rows/month and the unread count adds a
+few rows per `["timer"]` poll on a partial index (≈ 6M rows/month worst case).
 
 ## Budget check
 

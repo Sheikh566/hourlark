@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
+  Bell,
   BriefcaseBusiness,
   Building2,
   Clock3,
@@ -15,6 +16,8 @@ import { Link, NavLink } from "react-router";
 
 import { AuthMode } from "@/domain/auth";
 import { useMe } from "@/web/app/context";
+import { NotificationBell } from "@/web/features/notifications/notification-bell";
+import { NotificationSettingsDialog } from "@/web/features/notifications/notification-settings-dialog";
 import { useDismissPopover, useEscapeToClose } from "@/web/features/timer/use-dismiss-popover";
 import { useNow } from "@/web/hooks/use-now";
 import { apiRequest, DEVELOPMENT_IDENTITIES, setDevelopmentIdentity, signOut } from "@/web/lib/api";
@@ -218,7 +221,8 @@ function Rail({
         <div />
       )}
 
-      <div className="flex h-[118px] w-full justify-center">
+      <div className="flex h-[118px] w-full flex-col items-center justify-end gap-2">
+        <NotificationBell />
         <ProfileMenu onNavigate={onNavigate} />
       </div>
     </div>
@@ -331,6 +335,7 @@ const profileItemClassName =
 function ProfileMenu({ onNavigate }: { onNavigate: () => void }) {
   const me = useMe();
   const [open, setOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
   useDismissPopover(root, close, undefined, open);
@@ -372,6 +377,19 @@ function ProfileMenu({ onNavigate }: { onNavigate: () => void }) {
           <p className="text-fg-subtle px-2.5 text-xs leading-[17px] font-medium">
             Time zone: {me.member.timezone}
           </p>
+          <div className="bg-stroke my-2.5 h-px" />
+          <button
+            type="button"
+            role="menuitem"
+            className={profileItemClassName}
+            onClick={() => {
+              close();
+              setNotificationsOpen(true);
+            }}
+          >
+            <Bell size={14} aria-hidden="true" className="mr-2" />
+            Notifications
+          </button>
           {import.meta.env.DEV ? (
             <div className="border-stroke mt-2.5 border-t pt-2.5">
               <p className="text-fg-muted px-2.5 pb-1 text-[11px] leading-4 font-semibold tracking-[0.04em] uppercase">
@@ -415,6 +433,7 @@ function ProfileMenu({ onNavigate }: { onNavigate: () => void }) {
           ) : null}
         </div>
       ) : null}
+      <NotificationSettingsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} />
     </div>
   );
 }

@@ -12,6 +12,16 @@ import {
   parseTags,
   serializeEntry,
 } from "@/db/repositories/time-entries";
+import {
+  countUnread,
+  findSubscriptionByEndpoint,
+  insertNotifications,
+  listNotifications,
+  loadPreferences,
+  markRead,
+  savePreferences,
+  type NotificationRow,
+} from "@/db/repositories/notifications";
 import { assertValidTimeZone, formatInclusivePeriod } from "@/domain/dates/time";
 import { normalizeEmail, normalizeName } from "@/domain/normalization";
 import { can, canViewMemberTime, hasFinancialAccess } from "@/domain/permissions/policy";
@@ -32,7 +42,7 @@ import { createAuditStatement, type AuditMeta } from "@/worker/audit";
 import { ApiError } from "@/worker/errors";
 import { detailedCsv, summaryCsv } from "@/worker/exports/csv";
 import { createTimeReportPdf } from "@/worker/exports/pdf";
-import { parseRuntimeConfig } from "@/worker/env";
+import { parseRuntimeConfig, vapidKeys } from "@/worker/env";
 import { createCsrfToken } from "@/worker/middleware/csrf";
 import { googleAuth } from "@/worker/routes/google-auth";
 import {
@@ -43,8 +53,11 @@ import {
   idSchema,
   memberCreateSchema,
   memberUpdateSchema,
+  notificationPreferencesSchema,
   pdfExportSchema,
   projectInputSchema,
+  pushSubscriptionSchema,
+  pushUnsubscribeSchema,
   reportQuerySchema,
   settingsUpdateSchema,
   tagInputSchema,
@@ -57,6 +70,8 @@ import {
   stopTimer,
   updateEntry,
 } from "@/worker/services/entries";
+import { deliverPushes } from "@/worker/services/notifications";
+import { isPushServiceEndpoint } from "@/worker/services/web-push";
 import { isOptimisticVersionMismatch, optimisticVersionGuard } from "@/worker/version-guard";
 
 const api = new Hono<AppContext>();
@@ -213,11 +228,189 @@ api.get("/me/recent", async (c) => {
 
 api.get("/timer", async (c) => {
   const member = c.get("member");
-  const entry = await loadActiveTimer(c.env.DB, member.id);
+  // The sidebar polls this every 30 s, so the bell's unread count rides along at no extra request.
+  const [entry, unread] = await Promise.all([
+    loadActiveTimer(c.env.DB, member.id),
+    countUnread(c.env.DB, member.id),
+  ]);
   return c.json({
     entry: entry ? serializeEntry(entry, member) : null,
+    unread_notifications: unread,
     server_now: new Date().toISOString(),
   });
+});
+
+function serializeNotification(row: NotificationRow) {
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    created_at: new Date(row.created_at).toISOString(),
+    read_at: row.read_at === null ? null : new Date(row.read_at).toISOString(),
+  };
+}
+
+api.get("/notifications", async (c) => {
+  const member = c.get("member");
+  const [rows, unread] = await Promise.all([
+    listNotifications(c.env.DB, member.id),
+    countUnread(c.env.DB, member.id),
+  ]);
+  return c.json({ notifications: rows.map(serializeNotification), unread_count: unread });
+});
+
+api.post("/notifications/read-all", async (c) => {
+  const member = c.get("member");
+  await markRead(c.env.DB, member.id, null);
+  return c.json({ unread_count: 0 });
+});
+
+api.post("/notifications/:id/read", async (c) => {
+  const member = c.get("member");
+  const id = idSchema.safeParse(c.req.param("id"));
+  if (!id.success) throw new ApiError(404, "notification_not_found", "Notification not found.");
+  await markRead(c.env.DB, member.id, id.data);
+  return c.json({ unread_count: await countUnread(c.env.DB, member.id) });
+});
+
+function preferencesResponse(
+  c: Context<AppContext>,
+  stored: Awaited<ReturnType<typeof loadPreferences>>,
+) {
+  const keys = vapidKeys(c.env);
+  return {
+    preferences: { ...stored.preferences, version: stored.version },
+    push: { available: keys !== null, public_key: keys?.publicKey ?? null },
+  };
+}
+
+api.get("/notifications/preferences", async (c) => {
+  const member = c.get("member");
+  return c.json(preferencesResponse(c, await loadPreferences(c.env.DB, member.id)));
+});
+
+api.put("/notifications/preferences", async (c) => {
+  const member = c.get("member");
+  const { version, ...preferences } = await jsonBody(c, notificationPreferencesSchema);
+  const saved = await savePreferences(
+    c.env.DB,
+    member.workspaceId,
+    member.id,
+    preferences,
+    version,
+  );
+  if (!saved) {
+    throw new ApiError(
+      409,
+      "notification_preferences_conflict",
+      "Your notification settings changed in another window.",
+    );
+  }
+  return c.json(preferencesResponse(c, await loadPreferences(c.env.DB, member.id)));
+});
+
+/** Audit rows keep only the push service origin; the full endpoint is a delivery capability. */
+function subscriptionAudit(endpoint: string) {
+  return { push_service: new URL(endpoint).origin };
+}
+
+api.post("/notifications/subscriptions", async (c) => {
+  const member = c.get("member");
+  if (!vapidKeys(c.env)) {
+    throw new ApiError(503, "push_unavailable", "Browser notifications are not configured.");
+  }
+  const input = await jsonBody(c, pushSubscriptionSchema);
+  if (!isPushServiceEndpoint(input.endpoint)) {
+    throw new ApiError(
+      422,
+      "push_endpoint_invalid",
+      "This browser's push service is not supported.",
+    );
+  }
+  const existing = await findSubscriptionByEndpoint(c.env.DB, input.endpoint);
+  const id = existing?.id ?? crypto.randomUUID();
+  const now = Date.now();
+  // One browser profile has one endpoint; re-subscribing rebinds it to the signed-in member.
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO push_subscriptions (id, workspace_id, member_id, endpoint, p256dh, auth,
+        created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (endpoint) DO UPDATE SET workspace_id = excluded.workspace_id,
+        member_id = excluded.member_id, p256dh = excluded.p256dh, auth = excluded.auth`,
+    ).bind(
+      id,
+      member.workspaceId,
+      member.id,
+      input.endpoint,
+      input.keys.p256dh,
+      input.keys.auth,
+      now,
+    ),
+    createAuditStatement(
+      c.env.DB,
+      member,
+      "notification.push_subscribed",
+      "push_subscription",
+      id,
+      existing ? { member_id: existing.member_id, ...subscriptionAudit(existing.endpoint) } : null,
+      { member_id: member.id, ...subscriptionAudit(input.endpoint) },
+      null,
+      mutationMeta(c),
+      now,
+    ),
+  ]);
+  return c.json({ subscribed: true }, existing ? 200 : 201);
+});
+
+api.delete("/notifications/subscriptions", async (c) => {
+  const member = c.get("member");
+  const input = await jsonBody(c, pushUnsubscribeSchema);
+  const existing = await findSubscriptionByEndpoint(c.env.DB, input.endpoint);
+  if (!existing || existing.member_id !== member.id) return c.body(null, 204);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ? AND member_id = ?").bind(
+      existing.id,
+      member.id,
+    ),
+    createAuditStatement(
+      c.env.DB,
+      member,
+      "notification.push_unsubscribed",
+      "push_subscription",
+      existing.id,
+      { member_id: member.id, ...subscriptionAudit(existing.endpoint) },
+      null,
+      null,
+      mutationMeta(c),
+    ),
+  ]);
+  return c.body(null, 204);
+});
+
+api.post("/notifications/test", async (c) => {
+  const member = c.get("member");
+  const now = Date.now();
+  // Keyed by the minute, so repeated clicks send at most one test per minute.
+  const created = await insertNotifications(
+    c.env.DB,
+    [
+      {
+        workspaceId: member.workspaceId,
+        memberId: member.id,
+        kind: "test",
+        dedupeKey: String(Math.floor(now / 60_000)),
+        title: "Test notification",
+        body: "Notifications from Hourlark will appear like this.",
+      },
+    ],
+    now,
+  );
+  if (created.length === 0) {
+    throw new ApiError(429, "notification_test_throttled", "Wait a minute before sending another.");
+  }
+  const delivery = await deliverPushes(c.env, created);
+  return c.json({ pushed: delivery.pushed }, 201);
 });
 
 api.post("/timer/start", async (c) => {

@@ -36,3 +36,26 @@ if (
   );
   process.exit(1);
 }
+
+// Browser push is optional, so missing VAPID secrets only warn. Secrets are not in the deploy
+// config; ask Wrangler when the Worker already exists.
+const vapidSecrets = ["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"];
+try {
+  const { execFileSync } = await import("node:child_process");
+  const listed = JSON.parse(
+    execFileSync("wrangler", ["secret", "list", "--config", path, "--format", "json"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }),
+  ).map((secret) => secret.name);
+  const missing = vapidSecrets.filter((name) => !listed.includes(name));
+  if (missing.length > 0) {
+    console.warn(
+      `Warning: ${missing.join(", ")} not set. Browser push notifications stay off; the in-app inbox still works. See docs/deployment.md.`,
+    );
+  }
+} catch {
+  console.warn(
+    "Warning: could not list Worker secrets to check VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT. Without them browser push notifications stay off.",
+  );
+}

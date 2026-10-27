@@ -6,6 +6,9 @@
 - Worker error rate and D1 latency remain within the company’s alert thresholds.
 - No unexpected Admin role, Access binding reset or lock-override audit event exists.
 - The running-timer list in Members is plausible before account deactivation or role maintenance.
+- The notification sweep cron runs every 5 minutes. Workers Logs shows a `notification_sweep`
+  line only when a run created notifications or deleted expired push subscriptions. To trigger
+  it locally while `pnpm dev` runs, request `/cdn-cgi/handler/scheduled` on the dev server.
 
 ## Member incidents
 

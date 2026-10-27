@@ -2,11 +2,15 @@ import { z } from "zod";
 
 import { AuthMode } from "@/domain/auth";
 import { ApiError } from "@/worker/errors";
+import type { VapidKeys } from "@/worker/services/web-push";
 
 declare global {
   interface Env {
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
+    VAPID_PUBLIC_KEY?: string;
+    VAPID_PRIVATE_KEY?: string;
+    VAPID_SUBJECT?: string;
   }
 }
 
@@ -27,6 +31,19 @@ const environmentSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   CSRF_SECRET: z.string().min(24),
 });
+
+/**
+ * Web Push is optional: without all three VAPID secrets the in-app inbox still works and the
+ * browser-notification controls are hidden.
+ */
+export function vapidKeys(env: Env): VapidKeys | null {
+  const publicKey = env.VAPID_PUBLIC_KEY?.trim();
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim();
+  const subject = env.VAPID_SUBJECT?.trim();
+  if (!publicKey || !privateKey || !subject) return null;
+  if (!/^(mailto:|https:)/.test(subject)) return null;
+  return { publicKey, privateKey, subject };
+}
 
 export type RuntimeConfig = z.infer<typeof environmentSchema>;
 
