@@ -11,6 +11,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-f38020?logo=cloudflare&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) ·
 [Deploy](#deploy-to-cloudflare) · [Documentation](#documentation)
@@ -176,3 +177,7 @@ Cloudflare Access must cover the entire production hostname, not only `/api`.
 | Cost         | [Workers budget check](docs/workers-budget.md)                                                                                                                  |
 | Quality      | [Testing](docs/testing.md)                                                                                                                                      |
 | Product      | [Toggl Track replacement scope](docs/toggl-parity.md) · [UI reference](docs/design/hourlark-ui-reference.png)                                                   |
+
+## License
+
+Hourlark is released under the [MIT License](LICENSE).
