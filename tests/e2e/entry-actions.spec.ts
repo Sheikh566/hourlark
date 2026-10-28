@@ -27,6 +27,8 @@ test("entry actions, bulk delete and Undo, Continue, and mobile pickers", async 
   const duplicateDescription = page.getByRole("textbox", { name: "Entry description" });
   await duplicateDescription.fill(duplicateName);
   await duplicateDescription.press("Enter");
+  // The editor consumes outside clicks until the save and refetch finish, then closes.
+  await expect(duplicateDescription).toBeHidden();
   const copy = page
     .locator("article")
     .filter({ has: page.getByRole("checkbox", { name: `Select ${duplicateName}`, exact: true }) });

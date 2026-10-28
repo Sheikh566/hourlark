@@ -211,6 +211,10 @@ test("calendar drag and resize persist member-local times and roll back failures
     .boundingBox();
   if (!thirteen || !fourteen) throw new Error("Calendar hours are missing");
   const hourHeight = fourteen.y - thirteen.y;
+  // The calendar can first draw the entry at its pre-PATCH time; drag only once it sits at 13:00.
+  await expect
+    .poll(async () => Math.abs(((await event.boundingBox())?.y ?? -Infinity) - thirteen.y))
+    .toBeLessThan(hourHeight / 4);
   const patch = () =>
     page.waitForResponse(
       (response) =>
