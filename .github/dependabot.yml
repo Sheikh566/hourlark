@@ -1,0 +1,42 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Skip releases younger than this; most broken publishes are pulled within days.
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: "chore"
+    groups:
+      # Majors are left out of the groups so each one arrives as its own PR.
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      production-dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+    ignore:
+      # typescript-eslint supports TypeScript <6.1.0 and peer dependencies are strict.
+      # Raise this when typescript-eslint supports newer releases.
+      - dependency-name: typescript
+        versions: [">=6.1.0"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies]
+    commit-message:
+      prefix: "chore"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
