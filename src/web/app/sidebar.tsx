@@ -348,7 +348,6 @@ function ProfileMenu({ onNavigate }: { onNavigate: () => void }) {
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Profile"
         onClick={() => setOpen((value) => !value)}
         className="text-fg-muted flex w-[33px] flex-col items-center gap-1 py-1.5 leading-[14px]"
       >

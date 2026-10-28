@@ -128,7 +128,7 @@ describe("timer list date range", () => {
         });
       expect(todayQuery?.searchParams.get("limit")).toBe("5000");
     });
-    expect(screen.getByRole("button", { name: /Today/ })).toBeVisible();
+    expect(screen.getByTitle("Choose date range")).toHaveTextContent("Today");
     expect(await screen.findByRole("button", { name: "Show all dates" })).toBeVisible();
 
     view.unmount();

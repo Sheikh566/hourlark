@@ -14,12 +14,10 @@ const VIEWS: Array<{ id: TimerView; label: string }> = [
 function TotalChip({
   label,
   value,
-  ariaLabel,
   onClick,
 }: {
   label: string;
   value: string;
-  ariaLabel: string;
   onClick?: () => void;
 }) {
   const content = (
@@ -38,7 +36,6 @@ function TotalChip({
       type="button"
       className={twMerge(className, "hover:bg-surface-hover")}
       onClick={onClick}
-      aria-label={ariaLabel}
     >
       {content}
     </button>
@@ -164,19 +161,9 @@ export function TimerToolbar({
 
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             {showTodayTotal && todayTotal !== undefined ? (
-              <TotalChip
-                label="Today"
-                value={todayTotal}
-                ariaLabel="Show today's entries"
-                onClick={onTodayClick}
-              />
+              <TotalChip label="Today" value={todayTotal} onClick={onTodayClick} />
             ) : null}
-            <TotalChip
-              label="Week total"
-              value={weekTotal}
-              ariaLabel="Show this week's entries"
-              onClick={onWeekClick}
-            />
+            <TotalChip label="Week total" value={weekTotal} onClick={onWeekClick} />
           </div>
         </div>
 
