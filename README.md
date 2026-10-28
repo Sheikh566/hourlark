@@ -11,10 +11,11 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-f38020?logo=cloudflare&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
+![Hosting: $5/month](https://img.shields.io/badge/Hosting-%245%2Fmonth-2ea44f)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) ·
-[Deploy](#deploy-to-cloudflare) · [Documentation](#documentation)
+[Why $5](#runs-on-5-a-month) · [Features](#features) · [Screenshots](#screenshots) ·
+[Quick start](#quick-start) · [Deploy](#deploy-to-cloudflare) · [Documentation](#documentation)
 
 <img src="docs/screenshots/timer-list.png" alt="Hourlark timer list view" width="900" />
 
@@ -29,6 +30,28 @@ on the server.
 
 There are no per-seat fees and no servers to manage: fork the repository, set a few GitHub
 variables, and every push to `main` deploys to your own Cloudflare account.
+
+## Runs on $5 a month
+
+Hourlark needs no virtual machine, no managed Postgres, no Redis and no container host. The entire
+app, including its database and scheduled reminders, runs inside the
+[Cloudflare Workers Paid plan](https://developers.cloudflare.com/workers/platform/pricing/), which
+costs $5 a month for the whole account.
+
+| Team of 50                          | Monthly cost |
+| ----------------------------------- | ------------ |
+| Hourlark on Cloudflare Workers      | **$5**       |
+| Toggl Track Starter, billed yearly  | $450         |
+| Toggl Track Starter, billed monthly | $600         |
+
+A 50-person team working 22 days a month uses about 4% of the plan's included CPU time and 3% of
+its included requests, with D1 reads and writes far below their allowances. Even with every tab
+open all day, usage stays under 15%. The [Workers budget check](docs/workers-budget.md) shows the
+measurements, and every change that could raise the bill is checked against it before it ships.
+
+Google sign-in adds no cost, and a `workers.dev` address is free; a custom domain is the only
+optional extra. Toggl prices are from [toggl.com](https://toggl.com/track/pricing/) as of October
+2026, at $9 and $12 per user per month.
 
 ## Features
 
